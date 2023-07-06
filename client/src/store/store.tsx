@@ -1,14 +1,19 @@
 import { configureStore } from '@reduxjs/toolkit'
 import thunk from 'redux-thunk'
 
-import Reducer from './reducers/reducer'
+import GeoJsonDataReducer from '@/store/reducers/geoJsonDataReducer'
 
 export const initialState = {
+  geoJsonData: {
+    type: 'FeatureCollection',
+    features: [],
+  },
+  isLoading: false,
 }
 
 const initStore = () =>
   configureStore({
-    reducer: Reducer,
+    reducer: GeoJsonDataReducer,
     preloadedState: initialState,
     middleware: [thunk],
   })

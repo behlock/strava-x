@@ -10,13 +10,14 @@ const store = initStore()
 function MyApp({ Component, pageProps }) {
   return (
     <Provider store={store}>
-      <Script
+      {/* todo */}
+      {/* <Script
         src="https://stats-peach-alpha.vercel.app/api/stats.js"
         onLoad={() => {
           // @ts-ignore
           collect('page_view')
         }}
-      />
+      /> */}
       <Component {...pageProps} />
     </Provider>
   )

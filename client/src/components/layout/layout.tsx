@@ -17,7 +17,7 @@ function Layout({
   return (
     <>
       <CustomHead {...seo} />
-      <div className="flex bg-neutral-900 p-5">
+      <div className="flex h-full w-full bg-neutral-900 p-5">
         <Header />
         <main>{children}</main>
       </div>

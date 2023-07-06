@@ -1,7 +1,9 @@
 const Header = () => {
   return (
     <header>
-      <div className="mb-4"></div>
+      <div className="mb-4">
+        strava—x
+      </div>
     </header>
   )
 }
