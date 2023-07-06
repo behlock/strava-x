@@ -28,7 +28,7 @@ const MapboxHeatmap = (geoJsonData: any) => {
       <Map
         {...viewport}
         mapStyle="mapbox://styles/behlock/cljr22vwz011s01pjgtfedqtc"
-        mapboxAccessToken={config.MAPBOX_ACCESS_TOKEN}
+        mapboxAccessToken={String(config.MAPBOX_ACCESS_TOKEN)}
         initialViewState={{
           longitude: -100,
           latitude: 40,

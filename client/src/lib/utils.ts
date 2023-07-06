@@ -11,5 +11,4 @@ export const getQueryParamFromURL = (queryString: string, key: string) => {
 
 export const config: { [key: string]: string | string[] | undefined } = {
   MAPBOX_ACCESS_TOKEN: process.env.MAPBOX_ACCESS_TOKEN || '',
-};
-
+}
