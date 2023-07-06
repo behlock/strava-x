@@ -1,7 +1,7 @@
 [tool.poetry]
 name = "strava—x"
 version = "0.1.0"
-description = "todo"
+description = "strava—x"
 authors = ["behlock"]
 
 [tool.poetry.dependencies]

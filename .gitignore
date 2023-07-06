@@ -1,19 +1,1 @@
-*.py[cod]
-
-*.pycache
-__pycache__/
-
-.local/
-
-# Virtualenvs
-.venv/
-
-/.mypy_cache/
-
-# VS Code
-.vscode/
-
-.DS_Store
-
-# Strava
 strava_exports
