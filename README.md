@@ -1,3 +1,5 @@
-# strava—x
+![Website](/assets/strava-x-screen.png?raw=true "Website")
 
-Aggregation of all my GPX files from Strava and rendering on a Mapbox map.
+### strava—x
+
+Aggregation of all my GPX files from Strava to be rendered on a map. Pretty interesting to see which paths I've most frequently taken!
