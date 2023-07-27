@@ -1,4 +1,3 @@
-import { useState, useCallback, useRef } from 'react'
 import ReactMapGL, { Layer, Source } from 'react-map-gl'
 
 import { config } from '@/utils/config'
