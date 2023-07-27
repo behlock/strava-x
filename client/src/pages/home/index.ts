@@ -1,4 +1,3 @@
-import Home, { getStaticProps } from './home'
+import Home from './home'
 
 export default Home
-export { getStaticProps }

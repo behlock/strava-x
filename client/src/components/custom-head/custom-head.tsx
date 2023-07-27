@@ -4,7 +4,7 @@ import NextHead from 'next/head'
 function CustomHead({
   title = 'strava—x',
   image = { url: 'https://strava—x/behlockxyz.svg' },
-  description = 'personal space',
+  description = '',
   keywords = [] as string[],
 }) {
   return (
