@@ -1,9 +1,12 @@
+import ThemeToggle from "@/components/theme-toggle"
+
 const Header = () => {
   return (
-    <header>
-      <div className="mb-4 text-white">
-        strava—x
+    <header className="flex flex-row items-center">
+      <div className="flex-grow text-center">
+      <h1 className="font-bold">strava—x</h1>
       </div>
+      <ThemeToggle />
     </header>
   )
 }

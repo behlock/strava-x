@@ -1,15 +1,12 @@
 import dynamic from 'next/dynamic'
 
 import CustomHead from '@/components/custom-head'
-
-const Header = dynamic(() => import('@/components/header'), {
-  ssr: false,
-})
+import ThemeProvider from '@/components/theme-provider'
 
 function Layout({
   seo = {
     title: 'strava—x',
-    description: '',
+    description: 'Strava heatmap',
     keywords: ['Walid Behlock'],
   },
   children = null,
@@ -17,10 +14,9 @@ function Layout({
   return (
     <>
       <CustomHead {...seo} />
-      <div className="flex space-y-10 h-full w-full bg-neutral-900 p-5">
-        <Header />
-        <main>{children}</main>
-      </div>
+      <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+        <main className="p-8 flex flex-col space-y-4">{children}</main>
+      </ThemeProvider>
     </>
   )
 }

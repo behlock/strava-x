@@ -1,39 +1,28 @@
-import React, { useState, useCallback, useRef } from 'react'
-import Map, { Layer, Source } from 'react-map-gl'
+import { useState, useCallback, useRef } from 'react'
+import ReactMapGL, {Layer, Source } from 'react-map-gl'
 
 import { config } from '@/lib/config'
 import combinedGeoData from '@/data/combined'
 
-const MapboxHeatmap = (geoJsonData: any) => {
-  const mapRef = useRef()
-  const mapRefCallback = useCallback(
-    (ref: any) => {
-      if (ref !== null) {
-        mapRef.current = ref
-      }
-    },
-    [mapRef]
-  )
-
-  const [viewport, setViewport] = useState({
-    width: '100%',
-    height: '100vh',
-    latitude: 51.5074,
-    longitude: -0.1278,
-    zoom: 10,
-  })
-
+const MapboxHeatmap = () => {
   return (
-    <div style={{ position: 'relative', width: '200%', height: '200%' }}>
-      <Map
-        {...viewport}
+    <div>
+      <style jsx global>{`
+        .mapboxgl-ctrl-attrib-inner {
+          display: none;
+        }
+      `}</style>
+      <ReactMapGL
+        initialViewState={
+          {
+            latitude: 51.5074,
+            longitude: -0.1278,
+            zoom: 10,
+        }
+      }
+        style={{ width: '800', height: '600' }}
         mapStyle="mapbox://styles/behlock/cljr22vwz011s01pjgtfedqtc"
         mapboxAccessToken={String(config.MAPBOX_ACCESS_TOKEN)}
-        initialViewState={{
-          longitude: -100,
-          latitude: 40,
-          zoom: 0.1,
-        }}
       >
         <Source id="data" type="geojson" data={combinedGeoData}>
           <Layer
@@ -51,7 +40,7 @@ const MapboxHeatmap = (geoJsonData: any) => {
             }}
           />
         </Source>
-      </Map>
+      </ReactMapGL>
     </div>
   )
 }
