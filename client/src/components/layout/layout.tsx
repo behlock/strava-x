@@ -9,7 +9,7 @@ const Header = dynamic(() => import('@/components/header'), {
 function Layout({
   seo = {
     title: 'strava—x',
-    description: 'A place for my thoughts and experiments',
+    description: '',
     keywords: ['Walid Behlock'],
   },
   children = null,
@@ -17,7 +17,7 @@ function Layout({
   return (
     <>
       <CustomHead {...seo} />
-      <div className="flex h-full w-full bg-neutral-900 p-5">
+      <div className="flex space-y-10 h-full w-full bg-neutral-900 p-5">
         <Header />
         <main>{children}</main>
       </div>
