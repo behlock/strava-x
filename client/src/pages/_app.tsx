@@ -1,6 +1,7 @@
 import Script from 'next/script'
 
 import '@/styles/global.scss'
+import 'mapbox-gl/dist/mapbox-gl.css';
 
 // @ts-ignore
 function MyApp({ Component, pageProps }) {
