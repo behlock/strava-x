@@ -13,7 +13,7 @@ const MapboxHeatmap = () => {
         }
       `}</style>
       <ReactMapGL
-        style={{ width: '100vw', height: '80vh' }}
+        style={{ width: '100%', height: '90vh' }}
         initialViewState={{
           latitude: 51.5074,
           longitude: -0.1278,
@@ -28,7 +28,7 @@ const MapboxHeatmap = () => {
             id="runs2"
             type="line"
             paint={{
-              'line-color': 'blue',
+              'line-color': 'black',
               'line-width': 1,
               'line-opacity': 1,
             }}
