@@ -17,7 +17,7 @@ const MapboxHeatmap = () => {
         initialViewState={{
           latitude: 51.5074,
           longitude: -0.1278,
-          zoom: 10,
+          zoom: 15,
         }}
         mapboxAccessToken={(config.MAPBOX_ACCESS_TOKEN)}
         mapStyle="mapbox://styles/behlock/cljr22vwz011s01pjgtfedqtc"
