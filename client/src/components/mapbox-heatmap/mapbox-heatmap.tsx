@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef } from 'react'
-import ReactMapGL, {Layer, Source } from 'react-map-gl'
+import ReactMapGL, { Layer, Source } from 'react-map-gl'
 
 import { config } from '@/lib/config'
 import combinedGeoData from '@/data/combined'
@@ -13,16 +13,15 @@ const MapboxHeatmap = () => {
         }
       `}</style>
       <ReactMapGL
-        initialViewState={
-          {
-            latitude: 51.5074,
-            longitude: -0.1278,
-            zoom: 10,
-        }
-      }
-        style={{ width: '800', height: '600' }}
-        mapStyle="mapbox://styles/behlock/cljr22vwz011s01pjgtfedqtc"
+        style={{ width: '100vw', height: '100vh' }}
+        initialViewState={{
+          latitude: 51.5074,
+          longitude: -0.1278,
+          zoom: 10,
+        }}
         mapboxAccessToken={String(config.MAPBOX_ACCESS_TOKEN)}
+        mapStyle="mapbox://styles/behlock/cljr22vwz011s01pjgtfedqtc"
+        onRender={(event) => event.target.resize()}
       >
         <Source id="data" type="geojson" data={combinedGeoData}>
           <Layer
@@ -31,7 +30,6 @@ const MapboxHeatmap = () => {
             paint={{
               'line-color': 'blue',
               'line-width': 1,
-              // 'line-dasharray': [2, 2],
               'line-opacity': 1,
             }}
             layout={{
