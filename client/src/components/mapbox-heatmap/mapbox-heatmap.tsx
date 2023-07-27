@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useRef } from 'react'
 import Map, { Layer, Source } from 'react-map-gl'
 
-import { config } from '@/lib/utils'
+import { config } from '@/lib/config'
 import combinedGeoData from '@/data/combined'
 
 const MapboxHeatmap = (geoJsonData: any) => {
