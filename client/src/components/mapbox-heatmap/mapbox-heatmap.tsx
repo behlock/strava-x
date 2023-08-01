@@ -1,10 +1,14 @@
 import ReactMapGL, { Layer, Source } from 'react-map-gl'
+import { useTheme } from 'next-themes'
 
 import { config } from '@/utils/config'
 // @ts-ignore
 import combinedGeoData from '@/data/combined'
 
 const MapboxHeatmap = () => {
+  const { theme } = useTheme()
+  const mapStyle = theme === 'dark' ? config.MAPBOX_MAP_STYLE_DARK : config.MAPBOX_MAP_STYLE_LIGHT
+
   return (
     <div>
       <style jsx global>{`
@@ -20,7 +24,7 @@ const MapboxHeatmap = () => {
           zoom: 15,
         }}
         mapboxAccessToken={(config.MAPBOX_ACCESS_TOKEN)}
-        mapStyle="mapbox://styles/behlock/cljr22vwz011s01pjgtfedqtc"
+        mapStyle={mapStyle}
         onRender={(event) => event.target.resize()}
       >
         <Source id="data" type="geojson" data={combinedGeoData}>
