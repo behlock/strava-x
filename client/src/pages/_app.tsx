@@ -1,19 +1,14 @@
 import Script from 'next/script'
+import 'mapbox-gl/dist/mapbox-gl.css'
 
 import '@/styles/global.scss'
-import 'mapbox-gl/dist/mapbox-gl.css';
+import { config } from '@/utils/config'
 
 // @ts-ignore
 function MyApp({ Component, pageProps }) {
   return (
     <>
-      <Script
-        src="https://stats-peach-alpha.vercel.app/api/stats.js"
-        onLoad={() => {
-          // @ts-ignore
-          collect('page_view')
-        }}
-      />
+      <Script src={config.STATS_TRACKING_URL} />
       <Component {...pageProps} />
     </>
   )
