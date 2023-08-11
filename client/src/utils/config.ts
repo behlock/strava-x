@@ -1,6 +1,15 @@
 export const config: { [key: string]: string  } = {
+  // STATS
   STATS_TRACKING_URL: process.env.NEXT_PUBLIC_STATS_TRACKING_URL || '',
+
+  // MAPBOX
   MAPBOX_ACCESS_TOKEN: process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN || '',
   MAPBOX_MAP_STYLE_DARK: process.env.NEXT_PUBLIC_MAPBOX_MAP_STYLE_DARK || '',
   MAPBOX_MAP_STYLE_LIGHT: process.env.NEXT_PUBLIC_MAPBOX_MAP_STYLE_LIGHT || '',
+
+  // STRAVA API
+  STRAVA_API_URL: "https://www.strava.com/api/v3" || '',
+  STRAVA_CLIENT_ID: process.env.NEXT_PUBLIC_STRAVA_CLIENT_ID || '',
+  STRAVA_CLIENT_SECRET: process.env.NEXT_PUBLIC_STRAVA_CLIENT_SECRET || '',
+  STRAVA_REDIRECT_URI: process.env.NEXT_PUBLIC_STRAVA_REDIRECT_URI || '',
 }
