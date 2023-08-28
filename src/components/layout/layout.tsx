@@ -6,7 +6,7 @@ import ThemeProvider from '@/components/theme-provider'
 function Layout({
   seo = {
     title: 'strava—x',
-    description: 'Strava heatmap',
+    description: 'strava——x',
     keywords: ['Walid Behlock'],
   },
   children = null,
