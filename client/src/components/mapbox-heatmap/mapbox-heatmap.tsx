@@ -8,6 +8,7 @@ import combinedGeoData from '@/data/combined'
 const MapboxHeatmap = () => {
   const { theme } = useTheme()
   const mapStyle = theme === 'dark' ? config.MAPBOX_MAP_STYLE_DARK : config.MAPBOX_MAP_STYLE_LIGHT
+  const lineColor = theme === 'dark' ? 'black' : 'white'
 
   return (
     <div>
@@ -32,7 +33,7 @@ const MapboxHeatmap = () => {
             id="runs2"
             type="line"
             paint={{
-              'line-color': 'black',
+              'line-color': lineColor,
               'line-width': 1,
               'line-opacity': 1,
             }}
