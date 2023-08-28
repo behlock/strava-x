@@ -29,6 +29,12 @@ async function parseGpxFile(fileContent: string): Promise<Feature> {
 
   try {
     const parsedData = await parser.parseStringPromise(fileContent)
+    const activityType = parsedData.gpx.trk[0].type[0] // Access activity type
+
+    if (activityType !== 'running') {
+      throw new Error('Only running activities are supported')
+    }
+
     const trackSegments = parsedData.gpx.trk[0].trkseg
     trackSegments.forEach((segment: any) => {
       segment.trkpt.forEach((point: any) => {
