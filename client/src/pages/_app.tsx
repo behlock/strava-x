@@ -2,7 +2,7 @@ import Script from 'next/script'
 import 'mapbox-gl/dist/mapbox-gl.css'
 
 import '@/styles/global.scss'
-import { config } from '@/utils/config'
+import { config } from '@/lib/config'
 
 // @ts-ignore
 function MyApp({ Component, pageProps }) {

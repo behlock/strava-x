@@ -9,6 +9,4 @@ export default async function handler(
   const fileContents = await fs.readFile(dataDir + '/output.geojson', 'utf8')
 
   res.status(200).json(fileContents)
-
-  console.log(fileContents)
 }

@@ -1,11 +1,9 @@
 import ReactMapGL, { Layer, Source } from 'react-map-gl'
 import { useTheme } from 'next-themes'
 
-import { config } from '@/utils/config'
-// @ts-ignore
-import combinedGeoData from '@/data/combined'
+import { config } from '@/lib/config'
 
-const MapboxHeatmap = () => {
+const MapboxHeatmap = (data: any) => {
   const { theme } = useTheme()
   const mapStyle = theme === 'dark' ? config.MAPBOX_MAP_STYLE_DARK : config.MAPBOX_MAP_STYLE_LIGHT
   const lineColor = theme === 'dark' ? 'black' : 'white'
@@ -24,11 +22,11 @@ const MapboxHeatmap = () => {
           longitude: -0.1278,
           zoom: 15,
         }}
-        mapboxAccessToken={(config.MAPBOX_ACCESS_TOKEN)}
+        mapboxAccessToken={config.MAPBOX_ACCESS_TOKEN}
         mapStyle={mapStyle}
         onRender={(event) => event.target.resize()}
       >
-        <Source id="data" type="geojson" data={combinedGeoData}>
+        <Source id="data" type="geojson" data={data.data}>
           <Layer
             id="runs2"
             type="line"
