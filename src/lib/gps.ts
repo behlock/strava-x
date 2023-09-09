@@ -16,11 +16,17 @@ interface Feature {
   }
 }
 
-async function parseGpxFile(fileContent: string): Promise<Feature | null> {
+interface Activity {
+  type: string | null
+  feature: Feature | null
+}
+
+async function parseGpxFile(fileContent: string): Promise<Activity> {
   const trackPoints: TrackPoint[] = []
 
   const parser = new xml2js.Parser()
   let feature: Feature | null = null
+  let activityType: string | null = null
 
   try {
     const parsedData = await parser.parseStringPromise(fileContent)
@@ -28,12 +34,6 @@ async function parseGpxFile(fileContent: string): Promise<Feature | null> {
     if (!parsedData || !parsedData.gpx || !parsedData.gpx.trk || !parsedData.gpx.trk[0]) {
       throw new Error('Invalid GPX file format')
     }
-
-    // const activityType = parsedData.gpx.trk[0].type[0]
-
-    // if (activityType !== 'running') {
-    //   throw new Error('Only running activities are supported')
-    // }
 
     const trackSegments = parsedData.gpx.trk[0].trkseg
     trackSegments.forEach((segment: any) => {
@@ -53,13 +53,15 @@ async function parseGpxFile(fileContent: string): Promise<Feature | null> {
         coordinates: trackPoints.map((point) => [point.longitude, point.latitude]),
       },
     }
+
+    activityType = parsedData.gpx.trk[0].type[0].toLowerCase()
   } catch (error) {}
 
-  return feature
+  return { type: activityType, feature: feature }
 }
 
-async function parseFitFile(fileContent: Buffer): Promise<Feature | null> {
-  return new Promise<Feature | null>((resolve, reject) => {
+async function parseFitFile(fileContent: Buffer): Promise<Activity> {
+  return new Promise<Activity>((resolve, reject) => {
     const fitParser = new FitParser({
       force: true,
       speedUnit: 'km/h',
@@ -75,37 +77,34 @@ async function parseFitFile(fileContent: Buffer): Promise<Feature | null> {
         return
       }
 
-      // if (data.sport && data.sport.toLowerCase() === 'running') {
-      if (data.sport) {
-        const trackPoints: TrackPoint[] = []
+      const trackPoints: TrackPoint[] = []
 
-        for (const record of data.records) {
-          const latitude = record.position_lat
-          const longitude = record.position_long
-          const elevation = record.altitude
+      for (const record of data.records) {
+        const latitude = record.position_lat
+        const longitude = record.position_long
+        const elevation = record.altitude
 
-          if (latitude !== undefined && longitude !== undefined) {
-            // Check if elevation is defined before adding a track point
-            if (elevation !== undefined) {
-              trackPoints.push({ latitude, longitude, elevation })
-            } else {
-              trackPoints.push({ latitude, longitude, elevation: 0 })
-            }
+        if (latitude !== undefined && longitude !== undefined) {
+          // Check if elevation is defined before adding a track point
+          if (elevation !== undefined) {
+            trackPoints.push({ latitude, longitude, elevation })
+          } else {
+            trackPoints.push({ latitude, longitude, elevation: 0 })
           }
         }
-
-        const feature: Feature = {
-          type: 'Feature',
-          geometry: {
-            type: 'LineString',
-            coordinates: trackPoints.map((point) => [point.longitude, point.latitude]),
-          },
-        }
-
-        resolve(feature)
-      } else {
-        resolve(null)
       }
+
+      const feature: Feature = {
+        type: 'Feature',
+        geometry: {
+          type: 'LineString',
+          coordinates: trackPoints.map((point) => [point.longitude, point.latitude]),
+        },
+      }
+
+      const activityType = data?.sport?.toLowerCase()
+
+      resolve({ type: activityType, feature: feature })
     })
   })
 }
@@ -137,7 +136,7 @@ async function readFileAsBuffer(file: File): Promise<Buffer> {
   })
 }
 
-async function extractAndParseFile(file: File): Promise<Feature | null> {
+async function extractAndParseFile(file: File): Promise<Activity> {
   const fileExtension = file.name.split('.').pop()?.toLowerCase()
 
   if (fileExtension === 'gpx') {
@@ -152,10 +151,10 @@ async function extractAndParseFile(file: File): Promise<Feature | null> {
     return extractAndParseFileFromBuffer(fileContent)
   }
 
-  return null
+  return { type: '', feature: null }
 }
 
-async function extractAndParseFileFromBuffer(buffer: Buffer): Promise<Feature | null> {
+async function extractAndParseFileFromBuffer(buffer: Buffer): Promise<Activity> {
   const fileSignature = buffer.slice(0, 2).toString('hex')
   if (fileSignature === '1f8b') {
     // Check if the buffer appears to be gzip compressed
@@ -178,15 +177,15 @@ async function decompressGzip(buffer: Buffer): Promise<Buffer> {
   })
 }
 
-export async function combineFiles(files: File[]): Promise<Feature[]> {
-  const combinedTrackFeatures: Feature[] = []
+export async function combineFiles(files: File[]): Promise<Activity[]> {
+  const activities: Activity[] = []
 
   for (const file of files) {
-    const trackFeature = await extractAndParseFile(file)
-    if (trackFeature) {
-      combinedTrackFeatures.push(trackFeature)
+    const activity = await extractAndParseFile(file)
+    if (activity.feature && activity.type) {
+      activities.push(activity)
     }
   }
 
-  return combinedTrackFeatures
+  return activities
 }
