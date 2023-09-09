@@ -4,7 +4,7 @@ import FilePicker from '@/components/file-picker'
 import Header from '@/components/header'
 import Layout from '@/components/layout'
 import MapboxHeatmap from '@/components/mapbox-heatmap'
-import { combineGpxFiles } from '@/lib/gpx'
+import { combineFiles } from '@/lib/gpx'
 
 const Home = () => {
   const [isLoading, setIsLoading] = useState(false)
@@ -14,7 +14,7 @@ const Home = () => {
     setIsLoading(true)
     const filesArray = Array.from(selectedFiles)
     // @ts-ignore
-    const combinedTracks = await combineGpxFiles(filesArray)
+    const combinedTracks = await combineFiles(filesArray)
     const combinedGeoData = createCombinedGeoData(combinedTracks)
     // @ts-ignore
     setCombinedGeoData(combinedGeoData)
@@ -42,10 +42,7 @@ const Home = () => {
       <div className="flex h-full w-full flex-col">
         <FilePicker onFilesSelected={handleFilesSelected} />
       </div>
-      {
-        // @ts-ignore
-        isLoading && <div className="flex h-full w-full flex-col">Loading...</div>
-      }
+      {isLoading && <div className="flex h-full w-full flex-col">Loading...</div>}
 
       {combinedGeoData && <MapboxHeatmap data={combinedGeoData} />}
     </Layout>
