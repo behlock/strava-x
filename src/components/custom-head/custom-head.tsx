@@ -34,8 +34,6 @@ function CustomHead({
         <meta name="theme-color" content="#000000" />
         <link rel="icon" href="/favicon.ico" />
 
-        <link rel="stylesheet" href="https://api.tiles.mapbox.com/mapbox-gl-js/v<YOUR_MAPBOX_VERSION>/mapbox-gl.css" />
-
         <title>{title}</title>
       </NextHead>
       <NextSeo

@@ -17,14 +17,14 @@ const FilePicker = ({ onFilesSelected }) => {
       <Collapsible className="flex flex-grow flex-col ">
         <CollapsibleTrigger>
           <div className="flex">
-            <text>[instructions]</text>
+            <span>[instructions]</span>
             <ArrowDown className="ml-2" />
           </div>
         </CollapsibleTrigger>
         <CollapsibleContent>
           <div className="mt-2 flex flex-col ">
             <div className="flex flex-col space-y-1 ">
-              <text>
+              <span>
                 1. head over to your{' '}
                 <a
                   className="text-blue-500"
@@ -35,14 +35,14 @@ const FilePicker = ({ onFilesSelected }) => {
                   strava profile settings
                 </a>{' '}
                 and request your archive
-              </text>
+              </span>
               <div className="flex flex-row space-x-1">
-                <text>2. once available, unzip the downloaded file and</text>
+                <span>2. once available, unzip the downloaded file and</span>
                 <div className="flex w-fit flex-none cursor-pointer items-center justify-end">
                   <Label htmlFor="gpx">
                     <div className="flex items-center justify-center align-middle">
                       <ArrowUpRight className="mr-1" />
-                      <text className="text-base font-bold">pick the activities folder</text>
+                      <span className="text-base font-bold">choose the activities folder</span>
                     </div>
                   </Label>
                   <Input
