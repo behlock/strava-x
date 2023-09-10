@@ -1,5 +1,4 @@
-import { use, useEffect, useState } from 'react'
-import { FilterIcon } from 'lucide-react'
+import { useEffect, useState } from 'react'
 
 import { Button } from '@/components/ui/button'
 import {
@@ -115,7 +114,7 @@ const Home = () => {
         {!isLoading && allActivities.length > 0 && <div>{DropdownMenuCheckboxes}</div>}
       </div>
 
-      {combinedGeoData && <MapboxHeatmap data={combinedGeoData} />}
+      {!isLoading && allActivities.length > 0 && <MapboxHeatmap data={combinedGeoData} />}
     </Layout>
   )
 }
