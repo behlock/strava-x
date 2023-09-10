@@ -63,6 +63,7 @@ const Home = () => {
         <DropdownMenuSeparator />
         {ACTIVITY_TYPES.map((type) => (
           <DropdownMenuCheckboxItem
+            key={type}
             checked={selectedActivityTypes.includes(type)}
             onCheckedChange={(checked) => {
               if (checked) {
