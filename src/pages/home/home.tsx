@@ -1,6 +1,15 @@
 import { use, useEffect, useState } from 'react'
+import { FilterIcon } from 'lucide-react'
 
-import { Checkbox } from '@/components/ui/checkbox'
+import { Button } from '@/components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import FilePicker from '@/components/file-picker'
 import Header from '@/components/header'
 import Layout from '@/components/layout'
@@ -23,27 +32,54 @@ const Home = () => {
   }, [allActivities])
 
   useEffect(() => {
-    if (activities.length > 0) {
-      const combinedGeoData = createCombinedGeoData(activities.map((activity: any) => activity.feature))
-      // @ts-ignore
-      setCombinedGeoData(combinedGeoData)
-    }
+    const combinedGeoData = createCombinedGeoData(activities.map((activity: any) => activity.feature))
+    // @ts-ignore
+    setCombinedGeoData(combinedGeoData)
   }, [activities])
 
   // FILTERS
-  const [selectedActivityType, setSelectedActivityType] = useState('all')
+  const ACTIVITY_TYPES = ['running', 'walking', 'hiking', 'cycling', 'swimming', 'skiing']
+  const [selectedActivityTypes, setSelectedActivityTypes] = useState<string[]>(ACTIVITY_TYPES)
 
   const filterActivities = (activities: any) => {
-    if (selectedActivityType === 'all') {
+    if (selectedActivityTypes === ACTIVITY_TYPES) {
       return activities
     }
 
-    return activities.filter((activity: any) => activity.type === selectedActivityType)
+    return activities.filter((activity: any) => selectedActivityTypes.includes(activity.type))
   }
 
   useEffect(() => {
     setActivities(filterActivities(allActivities))
-  }, [selectedActivityType])
+  }, [selectedActivityTypes])
+
+  const DropdownMenuCheckboxes = (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="outline">
+          <FilterIcon className="h-[1.2rem] w-[1.2rem] rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent className="w-56">
+        <DropdownMenuLabel>activity type</DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        {ACTIVITY_TYPES.map((type) => (
+          <DropdownMenuCheckboxItem
+            checked={selectedActivityTypes.includes(type)}
+            onCheckedChange={(checked) => {
+              if (checked) {
+                setSelectedActivityTypes([...selectedActivityTypes, type])
+              } else {
+                setSelectedActivityTypes(selectedActivityTypes.filter((t) => t !== type))
+              }
+            }}
+          >
+            {type}
+          </DropdownMenuCheckboxItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
 
   const handleFilesSelected = async (selectedFiles: any) => {
     setIsLoading(true)
@@ -67,8 +103,6 @@ const Home = () => {
     return combinedGeoData
   }
 
-  const activityTypes = ['all', 'running', 'cycling']
-
   return (
     // @ts-ignore
     <Layout>
@@ -79,24 +113,7 @@ const Home = () => {
           {isLoading && <div className="flex h-full w-full flex-col">Loading...</div>}
         </div>
 
-        {!isLoading && allActivities.length > 0 && (
-          <div className="flex w-fit flex-row justify-center space-x-4 text-center align-middle">
-            {activityTypes.map((activityType) => (
-              <div
-                className="flex h-fit w-fit flex-row justify-center space-x-2 text-center align-middle"
-                key={activityType}
-              >
-                <Checkbox
-                  key={activityType}
-                  checked={selectedActivityType === activityType}
-                  onCheckedChange={() => setSelectedActivityType(activityType)}
-                  className="mt-1 h-4 w-4"
-                />
-                <span className="h-fit w-fit">{activityType}</span>
-              </div>
-            ))}
-          </div>
-        )}
+        {!isLoading && allActivities.length > 0 && <div>{DropdownMenuCheckboxes}</div>}
       </div>
 
       {combinedGeoData && <MapboxHeatmap data={combinedGeoData} />}
