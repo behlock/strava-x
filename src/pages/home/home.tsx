@@ -38,7 +38,7 @@ const Home = () => {
   }, [activities])
 
   // FILTERS
-  const ACTIVITY_TYPES = ['running', 'walking', 'hiking', 'cycling', 'swimming', 'skiing']
+  const ACTIVITY_TYPES = ['cycling', 'hiking', 'running', 'swimming', 'walking']
   const [selectedActivityTypes, setSelectedActivityTypes] = useState<string[]>(ACTIVITY_TYPES)
 
   const filterActivities = (activities: any) => {
@@ -56,9 +56,7 @@ const Home = () => {
   const DropdownMenuCheckboxes = (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline">
-          <FilterIcon className="h-[1.2rem] w-[1.2rem] rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
-        </Button>
+        <Button variant="ghost">[filters]</Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent className="w-56">
         <DropdownMenuLabel>activity type</DropdownMenuLabel>
