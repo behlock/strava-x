@@ -2,31 +2,15 @@ import * as xml2js from 'xml2js'
 import FitParser from 'fit-file-parser'
 import zlib from 'zlib'
 
-interface TrackPoint {
-  latitude: number
-  longitude: number
-  elevation: number
-}
-
-interface Feature {
-  type: string
-  geometry: {
-    type: string
-    coordinates: number[][]
-  }
-}
-
-interface Activity {
-  type: string | null
-  feature: Feature | null
-}
+import { Activity, Feature, TrackPoint } from '@/models/activity'
 
 async function parseGpxFile(fileContent: string): Promise<Activity> {
   const trackPoints: TrackPoint[] = []
 
   const parser = new xml2js.Parser()
-  let feature: Feature | null = null
   let activityType: string | null = null
+  let activityDate: Date | undefined = undefined
+  let feature: Feature | null = null
 
   try {
     const parsedData = await parser.parseStringPromise(fileContent)
@@ -55,9 +39,10 @@ async function parseGpxFile(fileContent: string): Promise<Activity> {
     }
 
     activityType = parsedData.gpx.trk[0].type[0].toLowerCase()
+    activityDate = new Date(parsedData.gpx.metadata[0].time[0])
   } catch (error) {}
 
-  return { type: activityType, feature: feature }
+  return { type: activityType, date: activityDate, feature: feature }
 }
 
 async function parseFitFile(fileContent: Buffer): Promise<Activity> {
@@ -103,8 +88,9 @@ async function parseFitFile(fileContent: Buffer): Promise<Activity> {
       }
 
       const activityType = data?.sport?.toLowerCase()
+      const activityDate = data?.activity?.timestamp
 
-      resolve({ type: activityType, feature: feature })
+      resolve({ type: activityType, date: activityDate, feature: feature })
     })
   })
 }
@@ -187,5 +173,11 @@ export async function combineFiles(files: File[]): Promise<Activity[]> {
     }
   }
 
-  return activities
+  return activities.sort((a, b) => {
+    if (a.date && b.date) {
+      return a.date.getTime() - b.date.getTime()
+    } else {
+      return 0
+    }
+  })
 }
