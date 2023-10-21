@@ -1,5 +1,7 @@
-![Website](/assets/strava-x-screen.png?raw=true "Website")
+![Website](/assets/my-map-extended.png?raw=true "Website")
 
 ### strava—x
 
-Aggregation of GPX and FIT files to be rendered on a map. Pretty interesting to see which paths you take the most!
+I love discovering cities through activities. I also love data. So I decided to combine the two and gamify my runs. This makes it more fun to explore new areas and get out the door.
+
+This works by parsing the activities GPX and FIT files that can be obtained from Strava. 

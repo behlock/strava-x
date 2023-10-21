@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { ArrowDown, ArrowRight, ChevronDown } from 'lucide-react'
 
+import About from '@/components/about'
+import Instructions from '@/components/instructions'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -10,7 +12,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import FilePicker from '@/components/file-picker'
 import Header from '@/components/header'
 import Layout from '@/components/layout'
 import MapboxHeatmap from '@/components/mapbox-heatmap'
@@ -25,7 +26,8 @@ const Home = () => {
   const [isLoading, setIsLoading] = useState<boolean>(false)
 
   // PANELS
-  const [isInstructionsPanelOpen, setIsInstructionsPanelOpen] = useState<boolean>(true)
+  const [isAboutPanelOpen, setIsAboutPanelOpen] = useState<boolean>(false)
+  const [isInstructionsPanelOpen, setIsInstructionsPanelOpen] = useState<boolean>(false)
   const [isFiltersPanelOpen, setIsFiltersPanelOpen] = useState<boolean>(true)
 
   // DATA
@@ -46,7 +48,7 @@ const Home = () => {
   }, [activities])
 
   // FILTERS
-  const ACTIVITY_TYPES = ['cycling', 'hiking', 'running', 'swimming', 'walking']
+  const ACTIVITY_TYPES = ['cycling', 'hiking', 'running', 'walking']
   const [selectedActivityTypes, setSelectedActivityTypes] = useState<string[]>(ACTIVITY_TYPES)
   const [selectedDate, setSelectedDate] = useState<number>(0)
 
@@ -154,7 +156,8 @@ const Home = () => {
       <Header />
       <div className="flex h-full w-full flex-row">
         <div className="flex h-full w-full flex-col space-y-4">
-          <FilePicker
+          <About isOpen={isAboutPanelOpen} onOpenChange={setIsAboutPanelOpen} />
+          <Instructions
             onFilesSelected={handleFilesSelected}
             isOpen={isInstructionsPanelOpen}
             onOpenChange={setIsInstructionsPanelOpen}
