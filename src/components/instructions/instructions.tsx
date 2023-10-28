@@ -23,7 +23,7 @@ const Instructions = ({ onFilesSelected, isOpen, onOpenChange }) => {
       <CollapsibleContent>
         <div className="mt-2 flex flex-col ">
           <div className="flex flex-col space-y-1 ">
-            <span>You can create your own map in two simple steps — the data never leaves your machine.</span>
+            <span>you can create your own map in two simple steps — the data never leaves your machine.</span>
             <span>
               1. head over to your{' '}
               <a

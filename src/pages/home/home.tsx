@@ -156,7 +156,7 @@ const Home = () => {
       <Header />
       <div className="flex h-full w-full flex-row">
         <div className="flex h-full w-full flex-col space-y-4">
-          <About isOpen={isAboutPanelOpen} onOpenChange={setIsAboutPanelOpen} />
+          {/* <About isOpen={isAboutPanelOpen} onOpenChange={setIsAboutPanelOpen} /> */}
           <Instructions
             onFilesSelected={handleFilesSelected}
             isOpen={isInstructionsPanelOpen}
