@@ -27,7 +27,7 @@ const Home = () => {
 
   // PANELS
   const [isAboutPanelOpen, setIsAboutPanelOpen] = useState<boolean>(false)
-  const [isInstructionsPanelOpen, setIsInstructionsPanelOpen] = useState<boolean>(false)
+  const [isInstructionsPanelOpen, setIsInstructionsPanelOpen] = useState<boolean>(true)
   const [isFiltersPanelOpen, setIsFiltersPanelOpen] = useState<boolean>(true)
 
   // DATA
