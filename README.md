@@ -2,4 +2,4 @@
 
 ### strava—x
 
-Parse GPX and FIT files that can be obtained from Strava and render the result on a map.
+Parse GPX and FIT files that can be obtained from Strava and render the result on a map
