@@ -5,8 +5,8 @@ import { config } from '@/lib/config'
 
 const MapboxHeatmap = (data: any) => {
   const { theme } = useTheme()
-  const mapStyle = theme === 'dark' ? config.MAPBOX_MAP_STYLE_DARK : config.MAPBOX_MAP_STYLE_LIGHT
-  const lineColor = theme === 'dark' ? 'black' : 'white'
+  const mapStyle = theme === 'dark' ? config.MAPBOX_MAP_STYLE_LIGHT : config.MAPBOX_MAP_STYLE_DARK
+  const lineColor = theme === 'dark' ? '#BBB8B8' : '#2F2E2E'
 
   return (
     <div>

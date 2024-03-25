@@ -1,5 +1,5 @@
 import React from 'react'
-import { ArrowDown, ArrowRight, ArrowUpRight } from 'lucide-react'
+import { ArrowDown, ArrowRight, ArrowUpRight, ArrowUp } from 'lucide-react'
 
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -24,10 +24,11 @@ const Instructions = ({ onFilesSelected, isOpen, onOpenChange }) => {
         <div className="mt-2 flex flex-col ">
           <div className="flex flex-col space-y-1 ">
             <span>you can create your own map in two simple steps:</span>
-            <span>
-              1. head over to your{' '}
+            <div className="flex w-fit flex-row">
+              1. head over to your
+              <ArrowUpRight className="mr-1" />
               <a
-                className="text-blue-500"
+                className="mr-2 font-bold"
                 href="https://www.strava.com/athlete/delete_your_account"
                 target="_blank"
                 rel="noreferrer"
@@ -35,13 +36,13 @@ const Instructions = ({ onFilesSelected, isOpen, onOpenChange }) => {
                 strava profile settings
               </a>{' '}
               and request your archive
-            </span>
+            </div>
             <div className="flex flex-row space-x-1">
               <span>2. once available (typically within a few minutes), </span>
               <div className="flex w-fit flex-none cursor-pointer items-center justify-end">
                 <Label htmlFor="gpx">
                   <div className="flex items-center justify-center align-middle">
-                    <ArrowUpRight className="mr-1" />
+                    <ArrowUp className="mr-1" />
                     <span className="text-base font-bold">choose the activities folder</span>
                   </div>
                 </Label>
