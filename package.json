@@ -32,7 +32,7 @@
     "fit-file-parser": "^1.9.3",
     "lucide-react": "^0.263.1",
     "mapbox-gl": "^2.15.0",
-    "next": "13.2.1",
+    "next": "^14.1.0",
     "next-pwa": "^5.0.3",
     "next-seo": "^5.15.0",
     "next-sitemap": "^3.1.44",
