@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { ArrowDown, ArrowRight, ChevronDown } from 'lucide-react'
 
+import { getExampleGeoJson, setExampleGeoJson } from '@/app/actions'
 import Instructions from '@/components/instructions'
 import { Button } from '@/components/ui/button'
 import {
@@ -70,6 +71,25 @@ const Home = () => {
   useEffect(() => {
     setActivities(filterActivities(allActivities))
   }, [selectedActivityTypes, selectedDate])
+
+  const lala = async (data: any) => {
+    await setExampleGeoJson(data)
+  }
+
+  useEffect(() => {
+    if (allActivities.length > 0) {
+      lala(combinedGeoData)
+      console.log(combinedGeoData)
+    }
+  }, [combinedGeoData])
+
+
+  const [exampleJson, setExampleJson] = useState<any>(null)
+  useEffect(() => {
+    getExampleGeoJson().then((data) => {
+      setExampleJson(data)
+    })
+  }, [])
 
   const DropdownMenuCheckboxes = (
     <DropdownMenu>
@@ -189,7 +209,8 @@ const Home = () => {
         </div>
       </div>
 
-      {!isLoading && allActivities.length > 0 && <MapboxHeatmap data={combinedGeoData} />}
+      {exampleJson && <MapboxHeatmap data={setExampleJson} />}
+      {/* {!isLoading && allActivities.length > 0 && <MapboxHeatmap data={combinedGeoData} />} */}
     </Layout>
   )
 }
