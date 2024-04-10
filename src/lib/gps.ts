@@ -128,16 +128,13 @@ async function extractAndParseFile(file: File): Promise<Activity> {
   if (fileExtension === 'gpx') {
     const fileContent = await readFileAsString(file)
     return parseGpxFile(fileContent)
-  } else if (fileExtension === 'fit') {
-    const fileContent = await readFileAsBuffer(file)
-    return parseFitFile(fileContent)
   } else if (fileExtension === 'gz') {
     const compressedContent = await readFileAsBuffer(file)
     const fileContent = await decompressGzip(compressedContent)
     return extractAndParseFileFromBuffer(fileContent)
+  } else {
+    return { type: '', feature: null }
   }
-
-  return { type: '', feature: null }
 }
 
 async function extractAndParseFileFromBuffer(buffer: Buffer): Promise<Activity> {
