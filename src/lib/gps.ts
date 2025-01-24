@@ -46,52 +46,89 @@ async function parseGpxFile(fileContent: string): Promise<Activity> {
 }
 
 async function parseFitFile(fileContent: Buffer): Promise<Activity> {
-  return new Promise<Activity>((resolve, reject) => {
-    const fitParser = new FitParser({
-      force: true,
-      speedUnit: 'km/h',
-      lengthUnit: 'm',
-      temperatureUnit: 'celsius',
-      elapsedRecordField: true,
-      mode: 'list',
-    })
+  return new Promise<Activity>((resolve) => {
+    try {
+      const fitParser = new FitParser({
+        force: true,
+        speedUnit: 'km/h',
+        lengthUnit: 'm',
+        temperatureUnit: 'celsius',
+        elapsedRecordField: true,
+        mode: 'list',
+      })
 
-    fitParser.parse(fileContent, (error: any, data: any) => {
-      if (error) {
-        reject(error)
-        return
-      }
+      const timeoutId = setTimeout(() => {
+        console.error('FIT parse timeout')
+        resolve({ type: '', feature: null })
+      }, 5000)
 
-      const trackPoints: TrackPoint[] = []
-
-      for (const record of data.records) {
-        const latitude = record.position_lat
-        const longitude = record.position_long
-        const elevation = record.altitude
-
-        if (latitude !== undefined && longitude !== undefined) {
-          // Check if elevation is defined before adding a track point
-          if (elevation !== undefined) {
-            trackPoints.push({ latitude, longitude, elevation })
-          } else {
-            trackPoints.push({ latitude, longitude, elevation: 0 })
-          }
+      try {
+        // Check for FIT header magic bytes
+        if (fileContent.length < 14 || fileContent.toString('ascii', 8, 12) !== '.FIT') {
+          console.error('Error parsing fit file: Invalid FIT header')
+          clearTimeout(timeoutId)
+          resolve({ type: '', feature: null })
+          return
         }
+
+        fitParser.parse(fileContent, (error: any, data: any) => {
+          clearTimeout(timeoutId)
+          if (error) {
+            console.error('Error parsing fit file:', error)
+            resolve({ type: '', feature: null })
+            return
+          }
+
+          if (!data || !data.records || !Array.isArray(data.records)) {
+            console.error('Invalid fit file data structure')
+            resolve({ type: '', feature: null })
+            return
+          }
+
+          const trackPoints: TrackPoint[] = []
+          for (const record of data.records) {
+            const latitude = record.position_lat
+            const longitude = record.position_long
+            const elevation = record.altitude
+
+            if (latitude !== undefined && longitude !== undefined) {
+              trackPoints.push({
+                latitude,
+                longitude,
+                elevation: elevation ?? 0,
+              })
+            }
+          }
+
+          if (trackPoints.length === 0) {
+            console.error('No valid track points found')
+            resolve({ type: '', feature: null })
+            return
+          }
+
+          const feature: Feature = {
+            type: 'Feature',
+            geometry: {
+              type: 'LineString',
+              coordinates: trackPoints.map((point) => [point.longitude, point.latitude]),
+            },
+          }
+
+          resolve({
+            type: data?.sport?.toLowerCase() || 'unknown',
+            date: data?.activity?.timestamp || new Date(),
+            feature,
+          })
+        })
+      } catch (parseError) {
+        clearTimeout(timeoutId)
+        console.error('Parse error:', parseError)
+        resolve({ type: '', feature: null })
       }
-
-      const feature: Feature = {
-        type: 'Feature',
-        geometry: {
-          type: 'LineString',
-          coordinates: trackPoints.map((point) => [point.longitude, point.latitude]),
-        },
-      }
-
-      const activityType = data?.sport?.toLowerCase()
-      const activityDate = data?.activity?.timestamp
-
-      resolve({ type: activityType, date: activityDate, feature: feature })
-    })
+    } catch (error) {
+      console.error('Unexpected error:', error)
+      resolve({ type: '', feature: null })
+    }
   })
 }
 
@@ -122,37 +159,12 @@ async function readFileAsBuffer(file: File): Promise<Buffer> {
   })
 }
 
-async function extractAndParseFile(file: File): Promise<Activity> {
-  const fileExtension = file.name.split('.').pop()?.toLowerCase()
-
-  if (fileExtension === 'gpx') {
-    const fileContent = await readFileAsString(file)
-    return parseGpxFile(fileContent)
-  } else if (fileExtension === 'gz') {
-    const compressedContent = await readFileAsBuffer(file)
-    const fileContent = await decompressGzip(compressedContent)
-    return extractAndParseFileFromBuffer(fileContent)
-  } else {
-    return { type: '', feature: null }
-  }
-}
-
-async function extractAndParseFileFromBuffer(buffer: Buffer): Promise<Activity> {
-  const fileSignature = buffer.slice(0, 2).toString('hex')
-  if (fileSignature === '1f8b') {
-    // Check if the buffer appears to be gzip compressed
-    const decompressedBuffer = await decompressGzip(buffer)
-    return extractAndParseFileFromBuffer(decompressedBuffer)
-  } else {
-    return parseFitFile(buffer)
-  }
-}
-
-async function decompressGzip(buffer: Buffer): Promise<Buffer> {
-  return new Promise<Buffer>((resolve, reject) => {
+async function decompressGzip(buffer: Buffer): Promise<Buffer | null> {
+  return new Promise((resolve) => {
     zlib.gunzip(buffer, (err, result) => {
       if (err) {
-        reject(err)
+        console.error('Error decompressing gzip file', err)
+        resolve(null)
       } else {
         resolve(result)
       }
@@ -160,16 +172,76 @@ async function decompressGzip(buffer: Buffer): Promise<Buffer> {
   })
 }
 
+async function extractAndParseFile(file: File): Promise<Activity> {
+  const fileName = file.name.toLowerCase()
+
+  try {
+    if (fileName.endsWith('.gpx')) {
+      console.log(`Processing GPX file: ${fileName}`)
+      const fileContent = await readFileAsString(file)
+      const result = await parseGpxFile(fileContent)
+      if (result.feature && result.type) {
+        console.log(`Successfully parsed GPX: ${fileName} (${result.type})`)
+      } else {
+        console.log(`Failed to parse GPX: ${fileName}`)
+      }
+      return result
+    } else if (fileName.endsWith('.fit.gz')) {
+      console.log(`Processing compressed FIT file: ${fileName}`)
+      const compressedContent = await readFileAsBuffer(file)
+      const decompressedContent = await decompressGzip(compressedContent)
+      if (!decompressedContent || decompressedContent.length === 0) {
+        console.error('Failed to decompress file:', fileName)
+        return { type: '', feature: null }
+      }
+      const result = await parseFitFile(decompressedContent)
+      if (result.feature && result.type) {
+        console.log(`Successfully parsed FIT.GZ: ${fileName} (${result.type})`)
+      } else {
+        console.log(`Failed to parse FIT.GZ: ${fileName}`)
+      }
+      return result
+    } else if (fileName.endsWith('.fit')) {
+      console.log(`Processing FIT file: ${fileName}`)
+      const fileContent = await readFileAsBuffer(file)
+      if (!fileContent || fileContent.length === 0) {
+        console.error('Empty file content:', fileName)
+        return { type: '', feature: null }
+      }
+      const result = await parseFitFile(fileContent)
+      if (result.feature && result.type) {
+        console.log(`Successfully parsed FIT: ${fileName} (${result.type})`)
+      } else {
+        console.log(`Failed to parse FIT: ${fileName}`)
+      }
+      return result
+    }
+  } catch (error) {
+    console.error(`Failed to process file ${fileName}:`, error)
+  }
+
+  return { type: '', feature: null }
+}
+
 export async function combineFiles(files: File[]): Promise<Activity[]> {
   const activities: Activity[] = []
+  console.log(`Processing ${files.length} total files`)
+  let processed = 0,
+    successful = 0
 
   for (const file of files) {
+    processed++
     const activity = await extractAndParseFile(file)
     if (activity.feature && activity.type) {
       activities.push(activity)
+      successful++
+      if (successful % 10 === 0) {
+        console.log(`Successfully processed ${successful}/${processed} files`)
+      }
     }
   }
 
+  console.log(`Final results: ${successful} valid activities from ${processed} files`)
   return activities.sort((a, b) => {
     if (a.date && b.date) {
       return a.date.getTime() - b.date.getTime()
