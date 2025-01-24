@@ -1,23 +1,10 @@
-import dynamic from 'next/dynamic'
-
-import CustomHead from '@/components/custom-head'
 import ThemeProvider from '@/components/theme-provider'
 
-function Layout({
-  seo = {
-    title: 'strava—x',
-    description: 'strava——x',
-    keywords: ['Walid Behlock'],
-  },
-  children = null,
-}) {
+function Layout({ children = null }) {
   return (
-    <>
-      <CustomHead {...seo} />
-      <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-        <main className="p-8 flex flex-col space-y-4">{children}</main>
-      </ThemeProvider>
-    </>
+    <ThemeProvider attribute="class" defaultTheme="dark" enableSystem>
+      <main className="flex flex-col space-y-4 p-8">{children}</main>
+    </ThemeProvider>
   )
 }
 
