@@ -79,23 +79,20 @@ async function parseFitFile(fileContent: Buffer): Promise<Activity> {
             return
           }
 
-          if (!data || !data.records || !Array.isArray(data.records)) {
-            console.error('Invalid fit file data structure')
-            resolve({ type: '', feature: null })
-            return
-          }
-
           const trackPoints: TrackPoint[] = []
           for (const record of data.records) {
+            if (!record.position_lat || !record.position_long) {
+              continue
+            }
+
             const latitude = record.position_lat
             const longitude = record.position_long
-            const elevation = record.altitude
 
-            if (latitude !== undefined && longitude !== undefined) {
+            if (isFinite(latitude) && isFinite(longitude) && Math.abs(latitude) <= 90 && Math.abs(longitude) <= 180) {
               trackPoints.push({
                 latitude,
                 longitude,
-                elevation: elevation ?? 0,
+                elevation: record.altitude ?? 0,
               })
             }
           }
@@ -114,8 +111,10 @@ async function parseFitFile(fileContent: Buffer): Promise<Activity> {
             },
           }
 
+          const sportType = data?.sport || data?.sessions?.[0]?.sport || data?.activity?.sport || 'unknown'
+
           resolve({
-            type: data?.sport?.toLowerCase() || 'unknown',
+            type: sportType.toLowerCase(),
             date: data?.activity?.timestamp || new Date(),
             feature,
           })
