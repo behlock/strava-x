@@ -1,12 +1,27 @@
-import ReactMapGL, { Layer, Source } from 'react-map-gl'
+import { Map, Layer, Source } from 'react-map-gl/mapbox'
 import { useTheme } from 'next-themes'
+import { useEffect, useState } from 'react'
 
 import { config } from '@/lib/config'
 
 const MapboxHeatmap = (data: any) => {
-  const { theme } = useTheme()
-  const mapStyle = theme === 'dark' ? config.MAPBOX_MAP_STYLE_LIGHT : config.MAPBOX_MAP_STYLE_DARK
-  const lineColor = theme === 'dark' ? '#BBB8B8' : '#2F2E2E'
+  const { theme, systemTheme } = useTheme()
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  const currentTheme = theme === 'system' ? systemTheme : theme
+  const isDark = currentTheme === 'dark'
+
+  const mapStyle = isDark ? config.MAPBOX_MAP_STYLE_DARK : config.MAPBOX_MAP_STYLE_LIGHT
+
+  const lineColor = isDark ? '#9CA3AF' : '#1F2937'
+
+  if (!mounted) {
+    return <div style={{ width: '100%', height: '90vh', backgroundColor: isDark ? '#1a1a1a' : '#f0f0f0' }} />
+  }
 
   return (
     <div>
@@ -14,8 +29,12 @@ const MapboxHeatmap = (data: any) => {
         .mapboxgl-ctrl-attrib-inner {
           display: none;
         }
+        .mapboxgl-ctrl-bottom-left,
+        .mapboxgl-ctrl-bottom-right {
+          display: none;
+        }
       `}</style>
-      <ReactMapGL
+      <Map
         style={{ width: '100%', height: '90vh' }}
         initialViewState={{
           latitude: 51.5074,
@@ -32,8 +51,8 @@ const MapboxHeatmap = (data: any) => {
             type="line"
             paint={{
               'line-color': lineColor,
-              'line-width': 1,
-              'line-opacity': 1,
+              'line-width': 2,
+              'line-opacity': 0.8,
             }}
             layout={{
               'line-join': 'round',
@@ -41,7 +60,7 @@ const MapboxHeatmap = (data: any) => {
             }}
           />
         </Source>
-      </ReactMapGL>
+      </Map>
     </div>
   )
 }

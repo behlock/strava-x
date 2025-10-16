@@ -4,6 +4,7 @@ import 'mapbox-gl/dist/mapbox-gl.css'
 
 import '@/styles/global.scss'
 import { config } from '@/lib/config'
+import ThemeProvider from '@/components/theme-provider'
 
 export const metadata: Metadata = {
   title: 'strava — x',
@@ -20,10 +21,12 @@ export const metadata: Metadata = {
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className="dark h-full" suppressHydrationWarning>
+    <html lang="en" suppressHydrationWarning>
       <body className="h-full">
-        <Script src={config.STATS_TRACKING_URL} />
-        {children}
+        <ThemeProvider attribute="class" defaultTheme="dark" enableSystem disableTransitionOnChange>
+          <Script src={config.STATS_TRACKING_URL} />
+          {children}
+        </ThemeProvider>
       </body>
     </html>
   )

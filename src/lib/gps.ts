@@ -40,7 +40,7 @@ async function parseGpxFile(fileContent: string): Promise<Activity> {
 
     activityType = parsedData.gpx.trk[0].type[0].toLowerCase()
     activityDate = new Date(parsedData.gpx.metadata[0].time[0])
-  } catch (error) {}
+  } catch {}
 
   return { type: activityType, date: activityDate, feature: feature }
 }
@@ -80,25 +80,41 @@ async function parseFitFile(fileContent: Buffer): Promise<Activity> {
           }
 
           const trackPoints: TrackPoint[] = []
-          for (const record of data.records) {
-            if (!record.position_lat || !record.position_long) {
+
+          // Try to get records from different possible locations
+          const records = data.records || data.activity?.sessions?.[0]?.laps?.[0]?.records || []
+
+          for (const record of records) {
+            // Handle different field name variations
+            const lat = record.position_lat || record.positionLat || record.lat || record.latitude
+            const lon = record.position_long || record.positionLong || record.lon || record.lng || record.longitude
+
+            if (!lat || !lon) {
               continue
             }
 
-            const latitude = record.position_lat
-            const longitude = record.position_long
+            const latitude = lat
+            const longitude = lon
 
             if (isFinite(latitude) && isFinite(longitude) && Math.abs(latitude) <= 90 && Math.abs(longitude) <= 180) {
               trackPoints.push({
                 latitude,
                 longitude,
-                elevation: record.altitude ?? 0,
+                elevation: record.altitude || record.elevation || record.enhanced_altitude || 0,
               })
             }
           }
 
           if (trackPoints.length === 0) {
             console.error('No valid track points found')
+            console.log('FIT data structure:', {
+              hasRecords: !!data.records,
+              recordsLength: data.records?.length || 0,
+              hasActivity: !!data.activity,
+              hasSessions: !!data.activity?.sessions,
+              sampleRecord: data.records?.[0] || data.activity?.sessions?.[0]?.laps?.[0]?.records?.[0],
+              dataKeys: Object.keys(data),
+            })
             resolve({ type: '', feature: null })
             return
           }

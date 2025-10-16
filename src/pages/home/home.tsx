@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
 import { ArrowDown, ArrowRight, ChevronDown } from 'lucide-react'
 
-import About from '@/components/about'
 import Instructions from '@/components/instructions'
 import { Button } from '@/components/ui/button'
 import {
@@ -26,7 +25,6 @@ const Home = () => {
   const [isLoading, setIsLoading] = useState<boolean>(false)
 
   // PANELS
-  const [isAboutPanelOpen, setIsAboutPanelOpen] = useState<boolean>(false)
   const [isInstructionsPanelOpen, setIsInstructionsPanelOpen] = useState<boolean>(true)
   const [isFiltersPanelOpen, setIsFiltersPanelOpen] = useState<boolean>(true)
 
