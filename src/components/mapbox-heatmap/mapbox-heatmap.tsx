@@ -17,7 +17,7 @@ const MapboxHeatmap = (data: any) => {
 
   const mapStyle = isDark ? config.MAPBOX_MAP_STYLE_DARK : config.MAPBOX_MAP_STYLE_LIGHT
 
-  const lineColor = isDark ? '#9CA3AF' : '#1F2937'
+  const lineColor = isDark ? '#FFFFFF' : '#000000'
 
   if (!mounted) {
     return <div style={{ width: '100%', height: '90vh', backgroundColor: isDark ? '#1a1a1a' : '#f0f0f0' }} />
