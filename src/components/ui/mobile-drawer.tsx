@@ -5,7 +5,7 @@ import { cn } from '@/lib/utils'
 
 type Tab = 'stats' | 'filters' | 'activities'
 
-interface TEMobileDrawerProps {
+interface MobileDrawerProps {
   statsPanel?: ReactNode
   filterPanel?: ReactNode
   activityList?: ReactNode
@@ -13,13 +13,13 @@ interface TEMobileDrawerProps {
   className?: string
 }
 
-export function TEMobileDrawer({
+export function MobileDrawer({
   statsPanel,
   filterPanel,
   activityList,
   hasActivities = false,
   className,
-}: TEMobileDrawerProps) {
+}: MobileDrawerProps) {
   const [isExpanded, setIsExpanded] = useState(false)
   const [activeTab, setActiveTab] = useState<Tab>('stats')
   const [isDragging, setIsDragging] = useState(false)
@@ -52,7 +52,7 @@ export function TEMobileDrawer({
       setIsExpanded(true)
     }
     setDragOffset(0)
-  }, [isDragging, isExpanded, dragOffset])
+  }, [isExpanded, dragOffset])
 
   const handleDragHandleClick = useCallback(() => {
     if (!isDragging) {
@@ -106,7 +106,7 @@ export function TEMobileDrawer({
     <div
       ref={containerRef}
       className={cn(
-        'fixed bottom-0 left-0 right-0 z-20 bg-te-panel/95 te-backdrop border-t border-te-border rounded-t-lg transition-all duration-300 ease-out',
+        'fixed bottom-0 left-0 right-0 z-20 bg-panel/95 panel-blur border-t border-panel-border rounded-t-lg transition-all duration-300 ease-out',
         isExpanded ? 'max-h-[70vh]' : 'max-h-[120px]',
         className
       )}
@@ -120,12 +120,12 @@ export function TEMobileDrawer({
         onTouchEnd={handleTouchEnd}
         onClick={handleDragHandleClick}
       >
-        <div className="w-10 h-1 bg-te-border rounded-full" />
+        <div className="w-10 h-1 bg-panel-border rounded-full" />
       </div>
 
       {/* Tab bar */}
       {tabs.length > 0 && (
-        <div className="flex border-b border-te-border">
+        <div className="flex border-b border-panel-border">
           {tabs.map((tab) => (
             <button
               key={tab.id}
@@ -134,10 +134,10 @@ export function TEMobileDrawer({
                 if (!isExpanded) setIsExpanded(true)
               }}
               className={cn(
-                'flex-1 py-3 text-te-sm tracking-wider transition-colors min-h-[44px]',
+                'flex-1 py-3 text-sm-compact tracking-wider transition-colors min-h-[44px]',
                 activeTab === tab.id
                   ? 'border-b-2 border-foreground'
-                  : 'text-te-muted hover:bg-foreground/5'
+                  : 'text-panel-muted hover:bg-foreground/5'
               )}
             >
               [{tab.label}]

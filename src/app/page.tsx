@@ -1,22 +1,34 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState, startTransition } from 'react'
+import dynamic from 'next/dynamic'
 
-import MapboxHeatmap from '@/components/mapbox-heatmap'
 import {
-  TEAppShell,
-  TEHeader,
-  TEInstructions,
-  TEUploadZone,
-  TEFilterPanel,
-  TEStatsPanel,
-  TEActivityList,
-  TEHelpModal,
-} from '@/components/te-ui'
+  AppShell,
+  Header,
+  Instructions,
+  UploadZone,
+  FilterPanel,
+  StatsPanel,
+  ActivityList,
+  MapSkeleton,
+} from '@/components/ui'
 
 import { combineFiles } from '@/lib/gps'
 import { Activity } from '@/models/activity'
 import { useStatistics } from '@/hooks/use-statistics'
+
+const MapboxHeatmap = dynamic(() => import('@/components/mapbox-heatmap'), {
+  ssr: false,
+  loading: () => <MapSkeleton />,
+})
+
+const HelpModal = dynamic(
+  () => import('@/components/ui/help-modal').then((mod) => ({ default: mod.HelpModal })),
+  {
+    ssr: false,
+  },
+)
 
 const ACTIVITY_TYPES = ['cycling', 'hiking', 'running', 'walking']
 
@@ -58,9 +70,7 @@ const Home = () => {
   // Date range for filter
   const dateRange = useMemo(() => {
     if (allActivities.length === 0) return null
-    const dates = allActivities
-      .filter((a) => a.date)
-      .map((a) => a.date!.getTime())
+    const dates = allActivities.filter((a) => a.date).map((a) => a.date!.getTime())
     if (dates.length === 0) return null
     return {
       min: new Date(Math.min(...dates)),
@@ -87,7 +97,7 @@ const Home = () => {
         return true
       })
     },
-    [selectedActivityTypes, selectedDate, dateRange]
+    [selectedActivityTypes, selectedDate, dateRange],
   )
 
   // Update activities when all activities change
@@ -148,7 +158,7 @@ const Home = () => {
 
   // Reusable panel components for both desktop and mobile
   const uploadZoneComponent = (
-    <TEUploadZone
+    <UploadZone
       onFilesSelected={handleFilesSelected}
       isLoading={isLoading}
       progress={uploadProgress}
@@ -156,21 +166,33 @@ const Home = () => {
     />
   )
 
+  const handleActivityTypesChange = useCallback((types: string[]) => {
+    startTransition(() => {
+      setSelectedActivityTypes(types)
+    })
+  }, [])
+
+  const handleDateChange = useCallback((date: number) => {
+    startTransition(() => {
+      setSelectedDate(date)
+    })
+  }, [])
+
   const filterPanelComponent = (
-    <TEFilterPanel
+    <FilterPanel
       activityTypes={ACTIVITY_TYPES}
       selectedActivityTypes={selectedActivityTypes}
-      onActivityTypesChange={setSelectedActivityTypes}
+      onActivityTypesChange={handleActivityTypesChange}
       activityCounts={activityCounts}
       dateRange={dateRange}
       selectedDate={selectedDate}
-      onDateChange={setSelectedDate}
+      onDateChange={handleDateChange}
       onTypeHover={setHoveredFilterType}
     />
   )
 
   const activityListComponent = (
-    <TEActivityList
+    <ActivityList
       activities={displayedActivities}
       highlightedActivityId={highlightedActivityId}
       onActivityHover={setHighlightedActivityId}
@@ -179,16 +201,14 @@ const Home = () => {
     />
   )
 
-  const statsPanelComponent = (
-    <TEStatsPanel statistics={statistics} loading={isLoading} />
-  )
+  const statsPanelComponent = <StatsPanel statistics={statistics} loading={isLoading} />
 
   return (
-    <TEAppShell
-      header={<TEHeader onHelpClick={() => setHelpOpen(true)} />}
+    <AppShell
+      header={<Header onHelpClick={() => setHelpOpen(true)} />}
       leftPanels={
         <>
-          <TEInstructions />
+          <Instructions />
           {uploadZoneComponent}
           {hasActivities && (
             <>
@@ -212,8 +232,8 @@ const Home = () => {
         highlightedActivityId={highlightedActivityId}
       />
 
-      <TEHelpModal open={helpOpen} onClose={() => setHelpOpen(false)} />
-    </TEAppShell>
+      <HelpModal open={helpOpen} onClose={() => setHelpOpen(false)} />
+    </AppShell>
   )
 }
 

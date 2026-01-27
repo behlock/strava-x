@@ -21,10 +21,10 @@ module.exports = {
         sans: ['Inter', 'sans-serif'],
       },
       fontSize: {
-        'te-xs': ['10px', { lineHeight: '14px', letterSpacing: '0.05em' }],
-        'te-sm': ['11px', { lineHeight: '16px', letterSpacing: '0.02em' }],
-        'te-base': ['12px', { lineHeight: '18px' }],
-        'te-lg': ['14px', { lineHeight: '20px' }],
+        'xs-compact': ['10px', { lineHeight: '14px', letterSpacing: '0.05em' }],
+        'sm-compact': ['11px', { lineHeight: '16px', letterSpacing: '0.02em' }],
+        'base-compact': ['12px', { lineHeight: '18px' }],
+        'lg-compact': ['14px', { lineHeight: '20px' }],
       },
       colors: {
         border: "hsl(var(--border))",
@@ -60,17 +60,16 @@ module.exports = {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
-        te: {
-          panel: "hsl(var(--te-panel) / <alpha-value>)",
-          border: "hsl(var(--te-border))",
-          muted: "hsl(var(--te-muted))",
+        panel: {
+          DEFAULT: "hsl(var(--panel) / <alpha-value>)",
+          border: "hsl(var(--panel-border))",
+          muted: "hsl(var(--panel-muted))",
         },
       },
       borderRadius: {
         lg: "var(--radius)",
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
-        te: "2px",
       },
       keyframes: {
         "accordion-down": {
@@ -122,7 +121,7 @@ module.exports = {
         "drawer-down": "drawer-down 0.3s ease-out",
       },
       backdropBlur: {
-        te: '12px',
+        panel: '12px',
       },
     },
   },

@@ -1,10 +1,10 @@
 'use client'
 
 import { useState } from 'react'
-import { TECheckbox } from './te-checkbox'
+import { Checkbox } from './checkbox'
 import { cn } from '@/lib/utils'
 
-interface TEFilterPanelProps {
+interface FilterPanelProps {
   activityTypes: string[]
   selectedActivityTypes: string[]
   onActivityTypesChange: (types: string[]) => void
@@ -17,7 +17,7 @@ interface TEFilterPanelProps {
   onTypeHover?: (type: string | null) => void
 }
 
-export function TEFilterPanel({
+export function FilterPanel({
   activityTypes,
   selectedActivityTypes,
   onActivityTypesChange,
@@ -28,7 +28,7 @@ export function TEFilterPanel({
   className,
   defaultExpanded = true,
   onTypeHover,
-}: TEFilterPanelProps) {
+}: FilterPanelProps) {
   const [expanded, setExpanded] = useState(defaultExpanded)
   const handleTypeToggle = (type: string, checked: boolean) => {
     if (checked) {
@@ -57,18 +57,18 @@ export function TEFilterPanel({
   return (
     <div
       className={cn(
-        'bg-te-panel/90 te-backdrop border border-te-border rounded-te',
+        'bg-panel/90 panel-blur border border-panel-border rounded-sm',
         className
       )}
     >
       <button
         onClick={() => setExpanded(!expanded)}
-        className="w-full flex items-center justify-between px-3 py-2 border-b border-te-border hover:bg-foreground/5 transition-colors"
+        className="w-full flex items-center justify-between px-3 py-2 border-b border-panel-border hover:bg-foreground/5 transition-colors"
       >
-        <span className="text-te-xs tracking-wider">
+        <span className="text-xs-compact tracking-wider">
           [03]—filters
         </span>
-        <span className="text-te-muted text-te-xs">
+        <span className="text-panel-muted text-xs-compact">
           {expanded ? '[-]' : '[+]'}
         </span>
       </button>
@@ -76,7 +76,7 @@ export function TEFilterPanel({
       {expanded && <div className="p-3 space-y-3">
         {/* Activity type filters */}
         <div className="space-y-0.5">
-          <div className="flex gap-2 text-te-xs text-te-muted mb-1">
+          <div className="flex gap-2 text-xs-compact text-panel-muted mb-1">
             <button
               onClick={() => onActivityTypesChange([...activityTypes])}
               className="hover:text-foreground transition-colors"
@@ -91,7 +91,7 @@ export function TEFilterPanel({
             </button>
           </div>
           {[...activityTypes].sort((a, b) => (activityCounts[b] || 0) - (activityCounts[a] || 0)).map((type) => (
-            <TECheckbox
+            <Checkbox
               key={type}
               checked={selectedActivityTypes.includes(type)}
               onChange={(checked) => handleTypeToggle(type, checked)}
@@ -104,8 +104,8 @@ export function TEFilterPanel({
 
         {/* Timeline filter */}
         {dateRange && (
-          <div className="pt-2 border-t border-te-border">
-            <div className="flex justify-between text-te-xs text-te-muted mb-2">
+          <div className="pt-2 border-t border-panel-border">
+            <div className="flex justify-between text-xs-compact text-panel-muted mb-2">
               <span>{formatDate(dateRange.min)}</span>
               <span>{currentDate ? formatDate(currentDate) : '—'}</span>
             </div>
@@ -115,21 +115,21 @@ export function TEFilterPanel({
               max={100}
               value={selectedDate}
               onChange={(e) => onDateChange(Number(e.target.value))}
-              className="w-full h-2 md:h-1 bg-te-border rounded-te appearance-none cursor-pointer
+              className="w-full h-2 md:h-1 bg-panel-border rounded-sm appearance-none cursor-pointer
                 [&::-webkit-slider-thumb]:appearance-none
                 [&::-webkit-slider-thumb]:w-6
                 [&::-webkit-slider-thumb]:h-6
                 [&::-webkit-slider-thumb]:md:w-3
                 [&::-webkit-slider-thumb]:md:h-3
                 [&::-webkit-slider-thumb]:bg-foreground
-                [&::-webkit-slider-thumb]:rounded-te
+                [&::-webkit-slider-thumb]:rounded-sm
                 [&::-webkit-slider-thumb]:cursor-pointer
                 [&::-moz-range-thumb]:w-6
                 [&::-moz-range-thumb]:h-6
                 [&::-moz-range-thumb]:md:w-3
                 [&::-moz-range-thumb]:md:h-3
                 [&::-moz-range-thumb]:bg-foreground
-                [&::-moz-range-thumb]:rounded-te
+                [&::-moz-range-thumb]:rounded-sm
                 [&::-moz-range-thumb]:cursor-pointer
                 [&::-moz-range-thumb]:border-0"
             />

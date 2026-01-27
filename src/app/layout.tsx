@@ -1,6 +1,5 @@
 import type { Metadata } from 'next'
 import Script from 'next/script'
-import 'mapbox-gl/dist/mapbox-gl.css'
 
 import '@/styles/global.scss'
 import { config } from '@/lib/config'

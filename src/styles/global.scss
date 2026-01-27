@@ -41,10 +41,10 @@
 
     --radius: 2px;
 
-    /* Teenage Engineering design tokens */
-    --te-panel: 0 0% 100%;
-    --te-border: 0 0% 85%;
-    --te-muted: 0 0% 50%;
+    /* Panel design tokens */
+    --panel: 0 0% 100%;
+    --panel-border: 0 0% 85%;
+    --panel-muted: 0 0% 50%;
   }
 
   .dark {
@@ -78,10 +78,10 @@
 
     --ring: 0 0% 30%;
 
-    /* Teenage Engineering design tokens */
-    --te-panel: 0 0% 8%;
-    --te-border: 0 0% 20%;
-    --te-muted: 0 0% 60%;
+    /* Panel design tokens */
+    --panel: 0 0% 8%;
+    --panel-border: 0 0% 20%;
+    --panel-muted: 0 0% 60%;
   }
 }
 
@@ -114,7 +114,7 @@
     }
   }
 
-  /* Custom scrollbar styling - TE minimal style */
+  /* Custom scrollbar styling - minimal style */
   .scrollbar-thin {
     scrollbar-width: thin;
     &::-webkit-scrollbar {
@@ -125,23 +125,23 @@
       background: transparent;
     }
     &::-webkit-scrollbar-thumb {
-      background: hsl(var(--te-border));
+      background: hsl(var(--panel-border));
       border-radius: 0;
     }
     &::-webkit-scrollbar-thumb:hover {
-      background: hsl(var(--te-muted));
+      background: hsl(var(--panel-muted));
     }
   }
 
-  /* TE Panel backdrop blur */
-  .te-backdrop {
+  /* Panel backdrop blur */
+  .panel-blur {
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
   }
 
-  /* TE label style */
-  .te-label {
-    @apply tracking-wider text-te-xs;
+  /* Label style */
+  .label-compact {
+    @apply tracking-wider text-xs-compact;
   }
 }
 

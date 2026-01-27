@@ -3,9 +3,9 @@
 import { ReactNode } from 'react'
 import { cn } from '@/lib/utils'
 import { useIsMobile } from '@/hooks/use-media-query'
-import { TEMobileDrawer } from './te-mobile-drawer'
+import { MobileDrawer } from './mobile-drawer'
 
-interface TEAppShellProps {
+interface AppShellProps {
   header: ReactNode
   leftPanels: ReactNode
   bottomRightPanel?: ReactNode
@@ -19,7 +19,7 @@ interface TEAppShellProps {
   hasActivities?: boolean
 }
 
-export function TEAppShell({
+export function AppShell({
   header,
   leftPanels,
   bottomRightPanel,
@@ -31,7 +31,7 @@ export function TEAppShell({
   filterPanel,
   activityList,
   hasActivities = false,
-}: TEAppShellProps) {
+}: AppShellProps) {
   const isMobile = useIsMobile()
 
   return (
@@ -75,7 +75,7 @@ export function TEAppShell({
 
           {/* Bottom sheet drawer when activities exist */}
           {hasActivities && (
-            <TEMobileDrawer
+            <MobileDrawer
               statsPanel={statsPanel}
               filterPanel={filterPanel}
               activityList={activityList}

@@ -3,7 +3,7 @@
 import { useState, ReactNode } from 'react'
 import { cn } from '@/lib/utils'
 
-interface TEPanelProps {
+interface PanelProps {
   sectionNumber: string
   title: string
   children: ReactNode
@@ -12,31 +12,31 @@ interface TEPanelProps {
   contentClassName?: string
 }
 
-export function TEPanel({
+export function Panel({
   sectionNumber,
   title,
   children,
   defaultExpanded = true,
   className,
   contentClassName,
-}: TEPanelProps) {
+}: PanelProps) {
   const [expanded, setExpanded] = useState(defaultExpanded)
 
   return (
     <div
       className={cn(
-        'bg-te-panel/90 te-backdrop border border-te-border rounded-te',
+        'bg-panel/90 panel-blur border border-panel-border rounded-sm',
         className
       )}
     >
       <button
         onClick={() => setExpanded(!expanded)}
-        className="w-full flex items-center justify-between px-3 py-2 border-b border-te-border hover:bg-foreground/5 transition-colors"
+        className="w-full flex items-center justify-between px-3 py-2 border-b border-panel-border hover:bg-foreground/5 transition-colors"
       >
-        <span className="text-te-xs tracking-wider">
+        <span className="text-xs-compact tracking-wider">
           [{sectionNumber}]—{title}
         </span>
-        <span className="text-te-muted text-te-xs">
+        <span className="text-panel-muted text-xs-compact">
           {expanded ? '[-]' : '[+]'}
         </span>
       </button>
@@ -49,16 +49,16 @@ export function TEPanel({
   )
 }
 
-interface TEPanelHeaderProps {
+interface PanelHeaderProps {
   sectionNumber: string
   title: string
   action?: ReactNode
 }
 
-export function TEPanelHeader({ sectionNumber, title, action }: TEPanelHeaderProps) {
+export function PanelHeader({ sectionNumber, title, action }: PanelHeaderProps) {
   return (
-    <div className="flex items-center justify-between px-3 py-2 border-b border-te-border">
-      <span className="text-te-xs tracking-wider">
+    <div className="flex items-center justify-between px-3 py-2 border-b border-panel-border">
+      <span className="text-xs-compact tracking-wider">
         [{sectionNumber}]—{title}
       </span>
       {action}
@@ -66,11 +66,11 @@ export function TEPanelHeader({ sectionNumber, title, action }: TEPanelHeaderPro
   )
 }
 
-interface TEPanelContentProps {
+interface PanelContentProps {
   children: ReactNode
   className?: string
 }
 
-export function TEPanelContent({ children, className }: TEPanelContentProps) {
+export function PanelContent({ children, className }: PanelContentProps) {
   return <div className={cn('p-3', className)}>{children}</div>
 }

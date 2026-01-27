@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { Statistics } from '@/hooks/use-statistics'
 import { cn } from '@/lib/utils'
 
-interface TEStatsPanelProps {
+interface StatsPanelProps {
   statistics: Statistics
   loading?: boolean
   className?: string
@@ -19,39 +19,39 @@ function formatNumber(num: number, decimals: number = 0): string {
   })
 }
 
-export function TEStatsPanel({
+export function StatsPanel({
   statistics,
   loading = false,
   className,
   defaultExpanded = true,
-}: TEStatsPanelProps) {
+}: StatsPanelProps) {
   const [expanded, setExpanded] = useState(defaultExpanded)
 
   if (loading) {
     return (
       <div
         className={cn(
-          'bg-te-panel/90 te-backdrop border border-te-border rounded-te',
+          'bg-panel/90 panel-blur border border-panel-border rounded-sm',
           className
         )}
       >
         <button
           onClick={() => setExpanded(!expanded)}
-          className="w-full flex items-center justify-between px-3 py-2 border-b border-te-border hover:bg-foreground/5 transition-colors"
+          className="w-full flex items-center justify-between px-3 py-2 border-b border-panel-border hover:bg-foreground/5 transition-colors"
         >
-          <span className="text-te-xs tracking-wider">
+          <span className="text-xs-compact tracking-wider">
             [05]—statistics
           </span>
-          <span className="text-te-muted text-te-xs">
+          <span className="text-panel-muted text-xs-compact">
             {expanded ? '[-]' : '[+]'}
           </span>
         </button>
         {expanded && (
           <div className="p-3">
             <div className="animate-pulse space-y-2">
-              <div className="h-4 bg-te-border rounded-te w-3/4" />
-              <div className="h-4 bg-te-border rounded-te w-1/2" />
-              <div className="h-4 bg-te-border rounded-te w-2/3" />
+              <div className="h-4 bg-panel-border rounded-sm w-3/4" />
+              <div className="h-4 bg-panel-border rounded-sm w-1/2" />
+              <div className="h-4 bg-panel-border rounded-sm w-2/3" />
             </div>
           </div>
         )}
@@ -62,18 +62,18 @@ export function TEStatsPanel({
   return (
     <div
       className={cn(
-        'bg-te-panel/90 te-backdrop border border-te-border rounded-te',
+        'bg-panel/90 panel-blur border border-panel-border rounded-sm',
         className
       )}
     >
       <button
         onClick={() => setExpanded(!expanded)}
-        className="w-full flex items-center justify-between px-3 py-2 border-b border-te-border hover:bg-foreground/5 transition-colors"
+        className="w-full flex items-center justify-between px-3 py-2 border-b border-panel-border hover:bg-foreground/5 transition-colors"
       >
-        <span className="text-te-xs tracking-wider">
+        <span className="text-xs-compact tracking-wider">
           [05]—statistics
         </span>
-        <span className="text-te-muted text-te-xs">
+        <span className="text-panel-muted text-xs-compact">
           {expanded ? '[-]' : '[+]'}
         </span>
       </button>
@@ -81,41 +81,41 @@ export function TEStatsPanel({
       {expanded && <div className="p-3 space-y-2">
         {/* Total activities */}
         <div className="flex justify-between items-baseline">
-          <span className="text-te-xs text-te-muted">activities</span>
-          <span className="text-te-lg tabular-nums font-medium">
+          <span className="text-xs-compact text-panel-muted">activities</span>
+          <span className="text-lg-compact tabular-nums font-medium">
             {formatNumber(statistics.totalActivities)}
           </span>
         </div>
 
         {/* Total distance */}
         <div className="flex justify-between items-baseline">
-          <span className="text-te-xs text-te-muted">distance</span>
-          <span className="text-te-lg tabular-nums font-medium">
+          <span className="text-xs-compact text-panel-muted">distance</span>
+          <span className="text-lg-compact tabular-nums font-medium">
             {formatNumber(statistics.totalDistance, 1)} km
           </span>
         </div>
 
         {/* Total elevation */}
         <div className="flex justify-between items-baseline">
-          <span className="text-te-xs text-te-muted">elevation</span>
-          <span className="text-te-lg tabular-nums font-medium">
+          <span className="text-xs-compact text-panel-muted">elevation</span>
+          <span className="text-lg-compact tabular-nums font-medium">
             {formatNumber(statistics.totalElevation)} m
           </span>
         </div>
 
         {/* Activity breakdown */}
         {statistics.breakdown.length > 0 && (
-          <div className="pt-2 mt-2 border-t border-te-border space-y-1">
+          <div className="pt-2 mt-2 border-t border-panel-border space-y-1">
             {statistics.breakdown.map((item) => (
               <div
                 key={item.type}
-                className="flex items-center gap-2 text-te-xs"
+                className="flex items-center gap-2 text-xs-compact"
               >
                 <div
-                  className="w-2 h-2 rounded-te flex-shrink-0"
+                  className="w-2 h-2 rounded-sm flex-shrink-0"
                   style={{ backgroundColor: item.color }}
                 />
-                <span className="flex-1 text-te-muted">{item.type}</span>
+                <span className="flex-1 text-panel-muted">{item.type}</span>
                 <span className="tabular-nums">
                   {item.count.toLocaleString()}
                 </span>

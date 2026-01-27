@@ -3,7 +3,7 @@
 import { useCallback, useState, useRef, useEffect } from 'react'
 import { cn } from '@/lib/utils'
 
-interface TEUploadZoneProps {
+interface UploadZoneProps {
   onFilesSelected: (files: File[]) => void
   isLoading?: boolean
   progress?: { processed: number; total: number } | null
@@ -12,14 +12,14 @@ interface TEUploadZoneProps {
   defaultExpanded?: boolean
 }
 
-export function TEUploadZone({
+export function UploadZone({
   onFilesSelected,
   isLoading = false,
   progress,
   hasActivities = false,
   className,
   defaultExpanded = true,
-}: TEUploadZoneProps) {
+}: UploadZoneProps) {
   const [isDragging, setIsDragging] = useState(false)
   const [expanded, setExpanded] = useState(defaultExpanded)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -103,18 +103,18 @@ export function TEUploadZone({
   return (
     <div
       className={cn(
-        'bg-te-panel/90 te-backdrop border border-te-border rounded-te',
+        'bg-panel/90 panel-blur border border-panel-border rounded-sm',
         className
       )}
     >
       <button
         onClick={() => setExpanded(!expanded)}
-        className="w-full flex items-center justify-between px-3 py-2 border-b border-te-border hover:bg-foreground/5 transition-colors"
+        className="w-full flex items-center justify-between px-3 py-2 border-b border-panel-border hover:bg-foreground/5 transition-colors"
       >
-        <span className="text-te-xs tracking-wider">
+        <span className="text-xs-compact tracking-wider">
           [02]—upload
         </span>
-        <span className="text-te-muted text-te-xs">
+        <span className="text-panel-muted text-xs-compact">
           {expanded ? '[-]' : '[+]'}
         </span>
       </button>
@@ -140,10 +140,10 @@ export function TEUploadZone({
 
           {isLoading ? (
             <div className="space-y-2">
-              <div className="text-te-sm text-te-muted">
+              <div className="text-sm-compact text-panel-muted">
                 processing {progress?.processed || 0}/{progress?.total || 0}
               </div>
-              <div className="h-1 bg-te-border rounded-te overflow-hidden">
+              <div className="h-1 bg-panel-border rounded-sm overflow-hidden">
                 <div
                   className="h-full bg-foreground transition-all duration-300"
                   style={{ width: `${progressPercent}%` }}
@@ -152,10 +152,10 @@ export function TEUploadZone({
             </div>
           ) : (
             <div className="text-center py-4 md:py-2 min-h-[100px] md:min-h-0 flex flex-col justify-center">
-              <div className="text-te-sm mb-1">
+              <div className="text-sm-compact mb-1">
                 {hasActivities ? '[_] drop more files' : '[_] drop files here'}
               </div>
-              <div className="text-te-xs text-te-muted">
+              <div className="text-xs-compact text-panel-muted">
                 strava export folder or .gpx/.fit files
               </div>
             </div>

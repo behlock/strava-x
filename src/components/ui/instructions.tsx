@@ -3,46 +3,46 @@
 import { useState } from 'react'
 import { cn } from '@/lib/utils'
 
-interface TEInstructionsProps {
+interface InstructionsProps {
   className?: string
 }
 
-export function TEInstructions({ className }: TEInstructionsProps) {
+export function Instructions({ className }: InstructionsProps) {
   const [expanded, setExpanded] = useState(true)
 
   return (
     <div
       className={cn(
-        'bg-te-panel/90 te-backdrop border border-te-border rounded-te',
+        'bg-panel/90 panel-blur border border-panel-border rounded-sm',
         className
       )}
     >
       <button
         onClick={() => setExpanded(!expanded)}
-        className="w-full flex items-center justify-between px-3 py-2 border-b border-te-border hover:bg-foreground/5 transition-colors"
+        className="w-full flex items-center justify-between px-3 py-2 border-b border-panel-border hover:bg-foreground/5 transition-colors"
       >
-        <span className="text-te-xs tracking-wider">
+        <span className="text-xs-compact tracking-wider">
           [01]—download
         </span>
-        <span className="text-te-muted text-te-xs">
+        <span className="text-panel-muted text-xs-compact">
           {expanded ? '[-]' : '[+]'}
         </span>
       </button>
 
       {expanded && (
         <div className="p-3 space-y-2">
-          <div className="text-te-sm">
+          <div className="text-sm-compact">
             request your data archive from{' '}
             <a
               href="https://www.strava.com/athlete/delete_your_account"
               target="_blank"
               rel="noreferrer"
-              className="underline hover:text-te-muted transition-colors"
+              className="underline hover:text-panel-muted transition-colors"
             >
               strava settings
             </a>
           </div>
-          <div className="text-te-xs text-te-muted">
+          <div className="text-xs-compact text-panel-muted">
             available within a few minutes
           </div>
         </div>
