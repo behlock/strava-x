@@ -8,9 +8,9 @@
       "Bash(xargs:*)",
       "Bash(sort:*)",
       "Bash(find:*)",
-      "WebSearch",
       "Bash(npm install)",
-      "Bash(npm run lint)"
+      "Bash(npm run lint)",
+      "WebSearch"
     ]
   }
 }
