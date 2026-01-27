@@ -8,12 +8,12 @@ import { useMemo } from 'react'
 import type { FeatureCollection, Feature, LineString } from 'geojson'
 
 import { config } from '@/lib/config'
-import { Activity } from '@/models/activity'
+import { Activity, ActivityFeatureCollection } from '@/models/activity'
 import { getActivityColor } from '@/hooks/use-statistics'
 import { useMounted } from '@/hooks/use-mounted'
 
 interface MapboxHeatmapProps {
-  data: any
+  data: ActivityFeatureCollection
   activities?: Activity[]
   highlightedActivityId?: string | null
 }

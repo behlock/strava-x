@@ -10,6 +10,8 @@ interface UploadZoneProps {
   hasActivities?: boolean
   className?: string
   defaultExpanded?: boolean
+  error?: string | null
+  onErrorDismiss?: () => void
 }
 
 export function UploadZone({
@@ -19,6 +21,8 @@ export function UploadZone({
   hasActivities = false,
   className,
   defaultExpanded = true,
+  error,
+  onErrorDismiss,
 }: UploadZoneProps) {
   const [isDragging, setIsDragging] = useState(false)
   const [expanded, setExpanded] = useState(defaultExpanded)
@@ -138,7 +142,24 @@ export function UploadZone({
             disabled={isLoading}
           />
 
-          {isLoading ? (
+          {error ? (
+            <div className="space-y-2 py-2">
+              <div className="text-sm-compact text-red-500 dark:text-red-400">
+                [!] {error}
+              </div>
+              {onErrorDismiss && (
+                <button
+                  onClick={(e) => {
+                    e.preventDefault()
+                    onErrorDismiss()
+                  }}
+                  className="text-xs-compact text-panel-muted hover:text-foreground transition-colors"
+                >
+                  [dismiss]
+                </button>
+              )}
+            </div>
+          ) : isLoading ? (
             <div className="space-y-2">
               <div className="text-sm-compact text-panel-muted">
                 processing {progress?.processed || 0}/{progress?.total || 0}

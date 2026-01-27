@@ -77,23 +77,3 @@ export function calculateElevationGain(elevations: number[]): number {
   return totalGain
 }
 
-/**
- * Format distance for display
- * @param km Distance in kilometers
- * @returns Formatted string (e.g., "12.5 km" or "850 m")
- */
-export function formatDistance(km: number): string {
-  if (km < 1) {
-    return `${Math.round(km * 1000)} m`
-  }
-  return `${km.toFixed(1)} km`
-}
-
-/**
- * Format elevation for display
- * @param meters Elevation in meters
- * @returns Formatted string (e.g., "1,234 m")
- */
-export function formatElevation(meters: number): string {
-  return `${Math.round(meters).toLocaleString()} m`
-}

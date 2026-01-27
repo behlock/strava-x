@@ -15,7 +15,7 @@ import {
 } from '@/components/ui'
 
 import { combineFiles } from '@/lib/gps'
-import { Activity } from '@/models/activity'
+import { Activity, ActivityFeatureCollection } from '@/models/activity'
 import { useStatistics } from '@/hooks/use-statistics'
 
 const MapboxHeatmap = dynamic(() => import('@/components/mapbox-heatmap'), {
@@ -36,6 +36,7 @@ const Home = () => {
   // Loading state
   const [isLoading, setIsLoading] = useState<boolean>(false)
   const [uploadProgress, setUploadProgress] = useState<{ processed: number; total: number } | null>(null)
+  const [uploadError, setUploadError] = useState<string | null>(null)
 
   // Data state
   const [allActivities, setAllActivities] = useState<Activity[]>([])
@@ -114,17 +115,17 @@ const Home = () => {
   }, [activities, hoveredFilterType])
 
   // Update combined geo data when displayed activities change
-  const combinedGeoData = useMemo(() => {
+  const combinedGeoData = useMemo((): ActivityFeatureCollection => {
     const features = displayedActivities
       .filter((a) => a.feature)
       .map((activity) => ({
-        type: 'Feature',
+        type: 'Feature' as const,
         geometry: activity.feature!.geometry,
         properties: { id: activity.id },
       }))
 
     return {
-      type: 'FeatureCollection',
+      type: 'FeatureCollection' as const,
       features,
     }
   }, [displayedActivities])
@@ -132,17 +133,23 @@ const Home = () => {
   // Handle file upload
   const handleFilesSelected = async (files: File[]) => {
     setIsLoading(true)
+    setUploadError(null)
     setUploadProgress({ processed: 0, total: files.length })
 
     try {
       const parsedActivities = await combineFiles(files, (processed, total) => {
         setUploadProgress({ processed, total })
       })
-      setAllActivities(parsedActivities)
-      setSelectedActivityTypes(ACTIVITY_TYPES)
-      setSelectedDate(100)
+      if (parsedActivities.length === 0) {
+        setUploadError('No valid activity files found. Please select a folder containing .gpx or .fit files.')
+      } else {
+        setAllActivities(parsedActivities)
+        setSelectedActivityTypes(ACTIVITY_TYPES)
+        setSelectedDate(100)
+      }
     } catch (error) {
       console.error('Error processing files:', error)
+      setUploadError(error instanceof Error ? error.message : 'Failed to process files. Please try again.')
     } finally {
       setIsLoading(false)
       setUploadProgress(null)
@@ -163,6 +170,8 @@ const Home = () => {
       isLoading={isLoading}
       progress={uploadProgress}
       hasActivities={hasActivities}
+      error={uploadError}
+      onErrorDismiss={() => setUploadError(null)}
     />
   )
 

@@ -2,8 +2,60 @@ import * as xml2js from 'xml2js'
 import FitParser from 'fit-file-parser'
 import zlib from 'zlib'
 
-import { Activity, Feature, TrackPoint } from '@/models/activity'
+import { Activity, ActivityFeature, TrackPoint } from '@/models/activity'
 import { calculateTotalDistance, calculateElevationGain } from '@/lib/geo-utils'
+
+// GPX parsed data types
+interface GpxTrackPoint {
+  $: { lat: string; lon: string }
+  ele?: string[]
+}
+
+interface GpxTrackSegment {
+  trkpt: GpxTrackPoint[]
+}
+
+// FIT record types
+interface FitRecord {
+  position_lat?: number
+  positionLat?: number
+  lat?: number
+  latitude?: number
+  position_long?: number
+  positionLong?: number
+  lon?: number
+  lng?: number
+  longitude?: number
+  altitude?: number
+  elevation?: number
+  enhanced_altitude?: number
+}
+
+interface FitData {
+  records?: FitRecord[]
+  activity?: {
+    timestamp?: number
+    local_timestamp?: number
+    sport?: string
+    sessions?: Array<{
+      laps?: Array<{
+        records?: FitRecord[]
+      }>
+      start_time?: number
+      timestamp?: number
+      sport?: string
+    }>
+  }
+  sessions?: Array<{
+    start_time?: number
+    timestamp?: number
+    sport?: string
+  }>
+  sport?: string
+  file_id?: {
+    time_created?: number
+  }
+}
 
 let activityIdCounter = 0
 
@@ -43,7 +95,7 @@ async function parseGpxFile(fileContent: string): Promise<Activity> {
   const parser = new xml2js.Parser()
   let activityType: string | null = null
   let activityDate: Date | undefined = undefined
-  let feature: Feature | null = null
+  let feature: ActivityFeature | null = null
   let distance = 0
   let elevationGain = 0
 
@@ -54,9 +106,9 @@ async function parseGpxFile(fileContent: string): Promise<Activity> {
       throw new Error('Invalid GPX file format')
     }
 
-    const trackSegments = parsedData.gpx.trk[0].trkseg
-    trackSegments.forEach((segment: any) => {
-      segment.trkpt.forEach((point: any) => {
+    const trackSegments: GpxTrackSegment[] = parsedData.gpx.trk[0].trkseg
+    trackSegments.forEach((segment) => {
+      segment.trkpt.forEach((point) => {
         const latitude = parseFloat(point.$.lat)
         const longitude = parseFloat(point.$.lon)
         const elevation = point.ele?.[0] ? parseFloat(point.ele[0]) : 0
@@ -66,11 +118,12 @@ async function parseGpxFile(fileContent: string): Promise<Activity> {
     })
 
     feature = {
-      type: 'Feature',
+      type: 'Feature' as const,
       geometry: {
-        type: 'LineString',
+        type: 'LineString' as const,
         coordinates: trackPoints.map((point) => [point.longitude, point.latitude]),
       },
+      properties: {},
     }
 
     // Calculate distance and elevation
@@ -129,7 +182,7 @@ async function parseFitFile(fileContent: Buffer): Promise<Activity> {
           return
         }
 
-        fitParser.parse(fileContent, (error: any, data: any) => {
+        fitParser.parse(fileContent, (error: Error | null, data: FitData) => {
           clearTimeout(timeoutId)
           if (error) {
             resolve({
@@ -180,12 +233,13 @@ async function parseFitFile(fileContent: Buffer): Promise<Activity> {
             return
           }
 
-          const feature: Feature = {
-            type: 'Feature',
+          const feature: ActivityFeature = {
+            type: 'Feature' as const,
             geometry: {
-              type: 'LineString',
+              type: 'LineString' as const,
               coordinates: trackPoints.map((point) => [point.longitude, point.latitude]),
             },
+            properties: {},
           }
 
           // Calculate distance and elevation
