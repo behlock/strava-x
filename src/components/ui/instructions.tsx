@@ -1,0 +1,52 @@
+'use client'
+
+import { useState } from 'react'
+import { cn } from '@/lib/utils'
+
+interface InstructionsProps {
+  className?: string
+}
+
+export function Instructions({ className }: InstructionsProps) {
+  const [expanded, setExpanded] = useState(true)
+
+  return (
+    <div
+      className={cn(
+        'bg-panel/90 panel-blur border border-panel-border rounded-sm',
+        className
+      )}
+    >
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="w-full flex items-center justify-between px-3 py-2 border-b border-panel-border hover:bg-foreground/5 transition-colors"
+      >
+        <span className="text-xs-compact tracking-wider">
+          [01]—download
+        </span>
+        <span className="text-panel-muted text-xs-compact">
+          {expanded ? '[-]' : '[+]'}
+        </span>
+      </button>
+
+      {expanded && (
+        <div className="p-3 space-y-2">
+          <div className="text-sm-compact">
+            request your data archive from{' '}
+            <a
+              href="https://www.strava.com/athlete/delete_your_account"
+              target="_blank"
+              rel="noreferrer"
+              className="underline hover:text-panel-muted transition-colors"
+            >
+              strava settings
+            </a>
+          </div>
+          <div className="text-xs-compact text-panel-muted">
+            available within a few minutes
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}

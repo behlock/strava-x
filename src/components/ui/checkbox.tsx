@@ -1,28 +1,43 @@
-import * as React from "react"
-import * as CheckboxPrimitive from "@radix-ui/react-checkbox"
-import { CheckIcon } from "@radix-ui/react-icons"
+'use client'
 
-import { cn } from "@/lib/utils"
+import { cn } from '@/lib/utils'
 
-const Checkbox = React.forwardRef<
-  React.ElementRef<typeof CheckboxPrimitive.Root>,
-  React.ComponentPropsWithoutRef<typeof CheckboxPrimitive.Root>
->(({ className, ...props }, ref) => (
-  <CheckboxPrimitive.Root
-    ref={ref}
-    className={cn(
-      "peer h-4 w-4 shrink-0 rounded-sm border border-primary shadow focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground",
-      className
-    )}
-    {...props}
-  >
-    <CheckboxPrimitive.Indicator
-      className={cn("flex items-center justify-center text-current")}
+interface CheckboxProps {
+  checked: boolean
+  onChange: (checked: boolean) => void
+  label: string
+  count?: number
+  className?: string
+  onHover?: (hovered: boolean) => void
+}
+
+export function Checkbox({
+  checked,
+  onChange,
+  label,
+  count,
+  className,
+  onHover,
+}: CheckboxProps) {
+  return (
+    <button
+      onClick={() => onChange(!checked)}
+      onMouseEnter={() => onHover?.(true)}
+      onMouseLeave={() => onHover?.(false)}
+      className={cn(
+        'flex items-center justify-between w-full text-sm-compact py-3 md:py-1 min-h-[44px] md:min-h-0 hover:bg-foreground/5 px-1 -mx-1 transition-colors',
+        className
+      )}
     >
-      <CheckIcon className="h-4 w-4" />
-    </CheckboxPrimitive.Indicator>
-  </CheckboxPrimitive.Root>
-))
-Checkbox.displayName = CheckboxPrimitive.Root.displayName
-
-export { Checkbox }
+      <span className="text-panel-muted font-mono">
+        {checked ? '[x]' : '[ ]'}
+      </span>
+      <span className="flex-1 text-left ml-2">{label}</span>
+      {count !== undefined && (
+        <span className="text-panel-muted tabular-nums">
+          ({count.toString().padStart(3, '0')})
+        </span>
+      )}
+    </button>
+  )
+}

@@ -4,69 +4,84 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Import JetBrains Mono font */
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap');
+
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    /* Base colors */
+    --background: 0 0% 98%;
+    --foreground: 0 0% 8%;
 
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
+    --muted: 0 0% 96%;
+    --muted-foreground: 0 0% 50%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
+    --popover-foreground: 0 0% 8%;
 
     --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    --card-foreground: 0 0% 8%;
 
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
+    --border: 0 0% 85%;
+    --input: 0 0% 85%;
 
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
+    --primary: 0 0% 8%;
+    --primary-foreground: 0 0% 98%;
 
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
+    --secondary: 0 0% 96%;
+    --secondary-foreground: 0 0% 8%;
 
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
+    --accent: 0 0% 96%;
+    --accent-foreground: 0 0% 8%;
 
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 98%;
 
-    --ring: 215 20.2% 65.1%;
+    --ring: 0 0% 65%;
 
-    --radius: 0.5rem;
+    --radius: 2px;
+
+    /* Panel design tokens */
+    --panel: 0 0% 100%;
+    --panel-border: 0 0% 85%;
+    --panel-muted: 0 0% 50%;
   }
 
   .dark {
-    --background: 255 0% 4.9%;
-    --foreground: 210 40% 98%;
+    /* Base colors */
+    --background: 0 0% 4%;
+    --foreground: 0 0% 95%;
 
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
+    --muted: 0 0% 12%;
+    --muted-foreground: 0 0% 60%;
 
-    --popover: 255 0% 4.9%;
-    --popover-foreground: 210 40% 98%;
+    --popover: 0 0% 8%;
+    --popover-foreground: 0 0% 95%;
 
-    --card: 255 0% 4.9%;
-    --card-foreground: 210 40% 98%;
+    --card: 0 0% 8%;
+    --card-foreground: 0 0% 95%;
 
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
+    --border: 0 0% 20%;
+    --input: 0 0% 20%;
 
-    --primary: 210 40% 98%;
-    --primary-foreground: 222.2 47.4% 11.2%;
+    --primary: 0 0% 95%;
+    --primary-foreground: 0 0% 8%;
 
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
+    --secondary: 0 0% 15%;
+    --secondary-foreground: 0 0% 95%;
 
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
+    --accent: 0 0% 15%;
+    --accent-foreground: 0 0% 95%;
 
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 0 85.7% 97.3%;
+    --destructive: 0 62% 30%;
+    --destructive-foreground: 0 85% 97%;
 
-    --ring: 217.2 32.6% 17.5%;
+    --ring: 0 0% 30%;
+
+    /* Panel design tokens */
+    --panel: 0 0% 8%;
+    --panel-border: 0 0% 20%;
+    --panel-muted: 0 0% 60%;
   }
 }
 
@@ -75,6 +90,67 @@
     @apply border-border;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground font-mono;
   }
+}
+
+@layer utilities {
+  /* Tabular numbers for statistics */
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Text utilities */
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  /* Hide scrollbar but allow scrolling */
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+    &::-webkit-scrollbar {
+      display: none;
+    }
+  }
+
+  /* Custom scrollbar styling - minimal style */
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    &::-webkit-scrollbar {
+      width: 4px;
+      height: 4px;
+    }
+    &::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    &::-webkit-scrollbar-thumb {
+      background: hsl(var(--panel-border));
+      border-radius: 0;
+    }
+    &::-webkit-scrollbar-thumb:hover {
+      background: hsl(var(--panel-muted));
+    }
+  }
+
+  /* Panel backdrop blur */
+  .panel-blur {
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+  }
+
+  /* Label style */
+  .label-compact {
+    @apply tracking-wider text-xs-compact;
+  }
+}
+
+/* Mapbox overrides */
+.mapboxgl-ctrl-attrib-inner {
+  display: none;
+}
+
+.mapboxgl-ctrl-bottom-left,
+.mapboxgl-ctrl-bottom-right {
+  display: none;
 }

@@ -2,7 +2,92 @@ import * as xml2js from 'xml2js'
 import FitParser from 'fit-file-parser'
 import zlib from 'zlib'
 
-import { Activity, Feature, TrackPoint } from '@/models/activity'
+import { Activity, ActivityFeature, TrackPoint } from '@/models/activity'
+import { calculateTotalDistance, calculateElevationGain } from '@/lib/geo-utils'
+
+// GPX parsed data types
+interface GpxTrackPoint {
+  $: { lat: string; lon: string }
+  ele?: string[]
+}
+
+interface GpxTrackSegment {
+  trkpt: GpxTrackPoint[]
+}
+
+// FIT record types
+interface FitRecord {
+  position_lat?: number
+  positionLat?: number
+  lat?: number
+  latitude?: number
+  position_long?: number
+  positionLong?: number
+  lon?: number
+  lng?: number
+  longitude?: number
+  altitude?: number
+  elevation?: number
+  enhanced_altitude?: number
+}
+
+interface FitData {
+  records?: FitRecord[]
+  activity?: {
+    timestamp?: number
+    local_timestamp?: number
+    sport?: string
+    sessions?: Array<{
+      laps?: Array<{
+        records?: FitRecord[]
+      }>
+      start_time?: number
+      timestamp?: number
+      sport?: string
+    }>
+  }
+  sessions?: Array<{
+    start_time?: number
+    timestamp?: number
+    sport?: string
+  }>
+  sport?: string
+  file_id?: {
+    time_created?: number
+  }
+}
+
+let activityIdCounter = 0
+
+function generateActivityId(): string {
+  return `activity-${Date.now()}-${activityIdCounter++}`
+}
+
+// FIT epoch offset: seconds from Unix epoch (Jan 1, 1970) to FIT epoch (Dec 31, 1989)
+const FIT_EPOCH_OFFSET_SECONDS = 631065600
+
+/**
+ * Parse timestamp from various formats including FIT epoch timestamps.
+ * FIT files use seconds since Dec 31, 1989, not Unix epoch.
+ */
+const parseTimestamp = (ts: unknown): Date | undefined => {
+  if (ts instanceof Date) return ts
+  if (typeof ts === 'string') return new Date(ts)
+  if (typeof ts === 'number') {
+    // Determine format by magnitude
+    if (ts > 1e12) {
+      // Already Unix milliseconds (> year 2001 in ms)
+      return new Date(ts)
+    } else if (ts > 1e9) {
+      // Unix seconds (> year 2001 in seconds)
+      return new Date(ts * 1000)
+    } else {
+      // FIT epoch seconds - add offset then convert to ms
+      return new Date((ts + FIT_EPOCH_OFFSET_SECONDS) * 1000)
+    }
+  }
+  return undefined
+}
 
 async function parseGpxFile(fileContent: string): Promise<Activity> {
   const trackPoints: TrackPoint[] = []
@@ -10,7 +95,9 @@ async function parseGpxFile(fileContent: string): Promise<Activity> {
   const parser = new xml2js.Parser()
   let activityType: string | null = null
   let activityDate: Date | undefined = undefined
-  let feature: Feature | null = null
+  let feature: ActivityFeature | null = null
+  let distance = 0
+  let elevationGain = 0
 
   try {
     const parsedData = await parser.parseStringPromise(fileContent)
@@ -19,30 +106,44 @@ async function parseGpxFile(fileContent: string): Promise<Activity> {
       throw new Error('Invalid GPX file format')
     }
 
-    const trackSegments = parsedData.gpx.trk[0].trkseg
-    trackSegments.forEach((segment: any) => {
-      segment.trkpt.forEach((point: any) => {
+    const trackSegments: GpxTrackSegment[] = parsedData.gpx.trk[0].trkseg
+    trackSegments.forEach((segment) => {
+      segment.trkpt.forEach((point) => {
         const latitude = parseFloat(point.$.lat)
         const longitude = parseFloat(point.$.lon)
-        const elevation = parseFloat(point.ele[0])
+        const elevation = point.ele?.[0] ? parseFloat(point.ele[0]) : 0
 
         trackPoints.push({ latitude, longitude, elevation })
       })
     })
 
     feature = {
-      type: 'Feature',
+      type: 'Feature' as const,
       geometry: {
-        type: 'LineString',
+        type: 'LineString' as const,
         coordinates: trackPoints.map((point) => [point.longitude, point.latitude]),
       },
+      properties: {},
     }
 
-    activityType = parsedData.gpx.trk[0].type[0].toLowerCase()
-    activityDate = new Date(parsedData.gpx.metadata[0].time[0])
+    // Calculate distance and elevation
+    distance = calculateTotalDistance(feature.geometry.coordinates)
+    elevationGain = calculateElevationGain(trackPoints.map((p) => p.elevation))
+
+    activityType = parsedData.gpx.trk[0].type?.[0]?.toLowerCase() || null
+    activityDate = parsedData.gpx.metadata?.[0]?.time?.[0]
+      ? new Date(parsedData.gpx.metadata[0].time[0])
+      : undefined
   } catch {}
 
-  return { type: activityType, date: activityDate, feature: feature }
+  return {
+    id: generateActivityId(),
+    type: activityType,
+    date: activityDate,
+    feature: feature,
+    distance,
+    elevationGain,
+  }
 }
 
 async function parseFitFile(fileContent: Buffer): Promise<Activity> {
@@ -58,24 +159,39 @@ async function parseFitFile(fileContent: Buffer): Promise<Activity> {
       })
 
       const timeoutId = setTimeout(() => {
-        console.error('FIT parse timeout')
-        resolve({ type: '', feature: null })
+        resolve({
+          id: generateActivityId(),
+          type: '',
+          feature: null,
+          distance: 0,
+          elevationGain: 0,
+        })
       }, 5000)
 
       try {
         // Check for FIT header magic bytes
         if (fileContent.length < 14 || fileContent.toString('ascii', 8, 12) !== '.FIT') {
-          console.error('Error parsing fit file: Invalid FIT header')
           clearTimeout(timeoutId)
-          resolve({ type: '', feature: null })
+          resolve({
+            id: generateActivityId(),
+            type: '',
+            feature: null,
+            distance: 0,
+            elevationGain: 0,
+          })
           return
         }
 
-        fitParser.parse(fileContent, (error: any, data: any) => {
+        fitParser.parse(fileContent, (error: Error | null, data: FitData) => {
           clearTimeout(timeoutId)
           if (error) {
-            console.error('Error parsing fit file:', error)
-            resolve({ type: '', feature: null })
+            resolve({
+              id: generateActivityId(),
+              type: '',
+              feature: null,
+              distance: 0,
+              elevationGain: 0,
+            })
             return
           }
 
@@ -106,43 +222,68 @@ async function parseFitFile(fileContent: Buffer): Promise<Activity> {
           }
 
           if (trackPoints.length === 0) {
-            console.error('No valid track points found')
-            console.log('FIT data structure:', {
-              hasRecords: !!data.records,
-              recordsLength: data.records?.length || 0,
-              hasActivity: !!data.activity,
-              hasSessions: !!data.activity?.sessions,
-              sampleRecord: data.records?.[0] || data.activity?.sessions?.[0]?.laps?.[0]?.records?.[0],
-              dataKeys: Object.keys(data),
+            // Indoor activities (treadmill, etc.) don't have GPS data - this is expected
+            resolve({
+              id: generateActivityId(),
+              type: '',
+              feature: null,
+              distance: 0,
+              elevationGain: 0,
             })
-            resolve({ type: '', feature: null })
             return
           }
 
-          const feature: Feature = {
-            type: 'Feature',
+          const feature: ActivityFeature = {
+            type: 'Feature' as const,
             geometry: {
-              type: 'LineString',
+              type: 'LineString' as const,
               coordinates: trackPoints.map((point) => [point.longitude, point.latitude]),
             },
+            properties: {},
           }
+
+          // Calculate distance and elevation
+          const distance = calculateTotalDistance(feature.geometry.coordinates)
+          const elevationGain = calculateElevationGain(trackPoints.map((p) => p.elevation))
 
           const sportType = data?.sport || data?.sessions?.[0]?.sport || data?.activity?.sport || 'unknown'
 
+          // Try multiple possible locations for timestamp
+          const timestamp =
+            data?.activity?.timestamp ||
+            data?.sessions?.[0]?.start_time ||
+            data?.sessions?.[0]?.timestamp ||
+            data?.activity?.local_timestamp ||
+            data?.file_id?.time_created ||
+            undefined
+
           resolve({
+            id: generateActivityId(),
             type: sportType.toLowerCase(),
-            date: data?.activity?.timestamp || new Date(),
+            date: parseTimestamp(timestamp),
             feature,
+            distance,
+            elevationGain,
           })
         })
-      } catch (parseError) {
+      } catch {
         clearTimeout(timeoutId)
-        console.error('Parse error:', parseError)
-        resolve({ type: '', feature: null })
+        resolve({
+          id: generateActivityId(),
+          type: '',
+          feature: null,
+          distance: 0,
+          elevationGain: 0,
+        })
       }
-    } catch (error) {
-      console.error('Unexpected error:', error)
-      resolve({ type: '', feature: null })
+    } catch {
+      resolve({
+        id: generateActivityId(),
+        type: '',
+        feature: null,
+        distance: 0,
+        elevationGain: 0,
+      })
     }
   })
 }
@@ -178,7 +319,6 @@ async function decompressGzip(buffer: Buffer): Promise<Buffer | null> {
   return new Promise((resolve) => {
     zlib.gunzip(buffer, (err, result) => {
       if (err) {
-        console.error('Error decompressing gzip file', err)
         resolve(null)
       } else {
         resolve(result)
@@ -192,71 +332,59 @@ async function extractAndParseFile(file: File): Promise<Activity> {
 
   try {
     if (fileName.endsWith('.gpx')) {
-      console.log(`Processing GPX file: ${fileName}`)
-      const fileContent = await readFileAsString(file)
-      const result = await parseGpxFile(fileContent)
-      if (result.feature && result.type) {
-        console.log(`Successfully parsed GPX: ${fileName} (${result.type})`)
-      } else {
-        console.log(`Failed to parse GPX: ${fileName}`)
-      }
-      return result
+      return await parseGpxFile(await readFileAsString(file))
     } else if (fileName.endsWith('.fit.gz')) {
-      console.log(`Processing compressed FIT file: ${fileName}`)
       const compressedContent = await readFileAsBuffer(file)
       const decompressedContent = await decompressGzip(compressedContent)
       if (!decompressedContent || decompressedContent.length === 0) {
-        console.error('Failed to decompress file:', fileName)
-        return { type: '', feature: null }
+        return {
+          id: generateActivityId(),
+          type: '',
+          feature: null,
+          distance: 0,
+          elevationGain: 0,
+        }
       }
-      const result = await parseFitFile(decompressedContent)
-      if (result.feature && result.type) {
-        console.log(`Successfully parsed FIT.GZ: ${fileName} (${result.type})`)
-      } else {
-        console.log(`Failed to parse FIT.GZ: ${fileName}`)
-      }
-      return result
+      return await parseFitFile(decompressedContent)
     } else if (fileName.endsWith('.fit')) {
-      console.log(`Processing FIT file: ${fileName}`)
       const fileContent = await readFileAsBuffer(file)
       if (!fileContent || fileContent.length === 0) {
-        console.error('Empty file content:', fileName)
-        return { type: '', feature: null }
+        return {
+          id: generateActivityId(),
+          type: '',
+          feature: null,
+          distance: 0,
+          elevationGain: 0,
+        }
       }
-      const result = await parseFitFile(fileContent)
-      if (result.feature && result.type) {
-        console.log(`Successfully parsed FIT: ${fileName} (${result.type})`)
-      } else {
-        console.log(`Failed to parse FIT: ${fileName}`)
-      }
-      return result
+      return await parseFitFile(fileContent)
     }
-  } catch (error) {
-    console.error(`Failed to process file ${fileName}:`, error)
-  }
+  } catch {}
 
-  return { type: '', feature: null }
+  return {
+    id: generateActivityId(),
+    type: '',
+    feature: null,
+    distance: 0,
+    elevationGain: 0,
+  }
 }
 
-export async function combineFiles(files: File[]): Promise<Activity[]> {
+export type ProgressCallback = (processed: number, total: number) => void
+
+export async function combineFiles(files: File[], onProgress?: ProgressCallback): Promise<Activity[]> {
   const activities: Activity[] = []
-  console.log(`Processing ${files.length} total files`)
-  let processed = 0,
-    successful = 0
+  let processed = 0
 
   for (const file of files) {
     processed++
     const activity = await extractAndParseFile(file)
     if (activity.feature && activity.type) {
       activities.push(activity)
-      successful++
-      if (successful % 10 === 0) {
-        console.log(`Successfully processed ${successful}/${processed} files`)
-      }
     }
+    onProgress?.(processed, files.length)
   }
 
-  console.log(`Final results: ${successful} valid activities from ${processed} files`)
   return activities.sort((a, b) => {
     if (a.date && b.date) {
       return a.date.getTime() - b.date.getTime()

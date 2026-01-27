@@ -1,13 +1,12 @@
 import type { Metadata } from 'next'
 import Script from 'next/script'
-import 'mapbox-gl/dist/mapbox-gl.css'
 
 import '@/styles/global.scss'
 import { config } from '@/lib/config'
 import ThemeProvider from '@/components/theme-provider'
 
 export const metadata: Metadata = {
-  title: 'strava — x',
+  title: 'strava—x',
   description: 'strava——x',
   keywords: ['Walid Behlock'],
   authors: [{ name: 'Walid Behlock' }],
