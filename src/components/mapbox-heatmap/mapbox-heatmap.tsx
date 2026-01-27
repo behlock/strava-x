@@ -1,10 +1,21 @@
+"use client"
+
 import { Map, Layer, Source } from 'react-map-gl/mapbox'
 import { useTheme } from 'next-themes'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
+import type { FeatureCollection, Feature, LineString } from 'geojson'
 
 import { config } from '@/lib/config'
+import { Activity } from '@/models/activity'
+import { getActivityColor } from '@/hooks/use-statistics'
 
-const MapboxHeatmap = (data: any) => {
+interface MapboxHeatmapProps {
+  data: any
+  activities?: Activity[]
+  highlightedActivityId?: string | null
+}
+
+const MapboxHeatmap = ({ data, activities = [], highlightedActivityId }: MapboxHeatmapProps) => {
   const { theme, systemTheme } = useTheme()
   const [mounted, setMounted] = useState(false)
 
@@ -16,26 +27,44 @@ const MapboxHeatmap = (data: any) => {
   const isDark = currentTheme === 'dark'
 
   const mapStyle = isDark ? config.MAPBOX_MAP_STYLE_DARK : config.MAPBOX_MAP_STYLE_LIGHT
+  // Warm charcoal for light mode, cream for dark mode (TE-inspired)
+  const lineColor = isDark ? '#F0EBE3' : '#2D2D2D'
 
-  const lineColor = isDark ? '#000000' : '#FFFFFF'
+  // Create highlighted activity data
+  const highlightedData = useMemo((): FeatureCollection<LineString> | null => {
+    if (!highlightedActivityId || !activities.length) return null
+
+    const activity = activities.find((a) => a.id === highlightedActivityId)
+    if (!activity?.feature) return null
+
+    const feature: Feature<LineString> = {
+      type: 'Feature',
+      geometry: {
+        type: 'LineString',
+        coordinates: activity.feature.geometry.coordinates,
+      },
+      properties: {
+        color: getActivityColor(activity.type),
+      },
+    }
+
+    return {
+      type: 'FeatureCollection',
+      features: [feature],
+    }
+  }, [highlightedActivityId, activities])
 
   if (!mounted) {
-    return <div style={{ width: '100%', height: '90vh', backgroundColor: isDark ? '#1a1a1a' : '#f0f0f0' }} />
+    return (
+      <div
+        className="absolute inset-0 bg-background"
+      />
+    )
   }
 
   return (
-    <div>
-      <style jsx global>{`
-        .mapboxgl-ctrl-attrib-inner {
-          display: none;
-        }
-        .mapboxgl-ctrl-bottom-left,
-        .mapboxgl-ctrl-bottom-right {
-          display: none;
-        }
-      `}</style>
-      <Map
-        style={{ width: '100%', height: '90vh' }}
+    <Map
+        style={{ width: '100%', height: '100%' }}
         initialViewState={{
           latitude: 51.5074,
           longitude: -0.1278,
@@ -45,14 +74,15 @@ const MapboxHeatmap = (data: any) => {
         mapStyle={mapStyle}
         onRender={(event) => event.target.resize()}
       >
-        <Source id="data" type="geojson" data={data.data}>
+        {/* Base layer - all activities */}
+        <Source id="all-activities" type="geojson" data={data}>
           <Layer
-            id="runs2"
+            id="all-activities-layer"
             type="line"
             paint={{
               'line-color': lineColor,
-              'line-width': 2,
-              'line-opacity': 0.8,
+              'line-width': highlightedActivityId ? 1 : 1.5,
+              'line-opacity': highlightedActivityId ? 0.25 : 0.5,
             }}
             layout={{
               'line-join': 'round',
@@ -60,8 +90,26 @@ const MapboxHeatmap = (data: any) => {
             }}
           />
         </Source>
-      </Map>
-    </div>
+
+        {/* Highlighted activity layer */}
+        {highlightedData && (
+          <Source id="highlighted-activity" type="geojson" data={highlightedData}>
+            <Layer
+              id="highlighted-activity-layer"
+              type="line"
+              paint={{
+                'line-color': ['get', 'color'],
+                'line-width': 3,
+                'line-opacity': 1,
+              }}
+              layout={{
+                'line-join': 'round',
+                'line-cap': 'round',
+              }}
+            />
+          </Source>
+        )}
+    </Map>
   )
 }
 

@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run build:*)",
+      "Bash(curl:*)",
+      "WebFetch(domain:teenage.engineering)",
+      "Bash(grep:*)",
+      "Bash(ls:*)",
+      "Bash(xargs:*)",
+      "Bash(sort:*)",
+      "Bash(find:*)",
+      "WebSearch"
+    ]
+  }
+}

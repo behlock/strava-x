@@ -13,7 +13,10 @@ export interface Feature {
 }
 
 export interface Activity {
+  id: string
   type: string | null
   date?: Date
   feature: Feature | null
+  distance: number // in kilometers
+  elevationGain: number // in meters
 }

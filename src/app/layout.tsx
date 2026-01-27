@@ -7,7 +7,7 @@ import { config } from '@/lib/config'
 import ThemeProvider from '@/components/theme-provider'
 
 export const metadata: Metadata = {
-  title: 'strava — x',
+  title: 'strava—x',
   description: 'strava——x',
   keywords: ['Walid Behlock'],
   authors: [{ name: 'Walid Behlock' }],
