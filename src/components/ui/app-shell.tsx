@@ -12,6 +12,7 @@ interface AppShellProps {
   children: ReactNode
   className?: string
   // Mobile-specific props
+  instructions?: ReactNode
   uploadZone?: ReactNode
   statsPanel?: ReactNode
   filterPanel?: ReactNode
@@ -26,6 +27,7 @@ export function AppShell({
   children,
   className,
   // Mobile props
+  instructions,
   uploadZone,
   statsPanel,
   filterPanel,
@@ -50,13 +52,13 @@ export function AppShell({
       {!isMobile && (
         <>
           {/* Left floating panels */}
-          <div className="absolute top-14 left-4 z-10 w-64 space-y-3 max-h-[calc(100vh-5rem)] overflow-y-auto scrollbar-hide">
+          <div className="absolute top-14 left-4 z-10 w-56 lg:w-64 xl:w-72 space-y-3 max-h-[calc(100vh-5rem)] overflow-y-auto scrollbar-hide">
             {leftPanels}
           </div>
 
           {/* Bottom right statistics panel */}
           {bottomRightPanel && (
-            <div className="absolute bottom-4 right-4 z-10 w-72">
+            <div className="absolute bottom-4 right-4 z-10 w-64 lg:w-72 xl:w-80">
               {bottomRightPanel}
             </div>
           )}
@@ -66,9 +68,10 @@ export function AppShell({
       {/* Mobile layout */}
       {isMobile && (
         <>
-          {/* Upload zone floats at top-center when no activities */}
-          {!hasActivities && uploadZone && (
-            <div className="absolute top-16 left-4 right-4 z-10">
+          {/* Instructions and upload zone float at top when no activities */}
+          {!hasActivities && (
+            <div className="absolute top-16 left-4 right-4 z-10 space-y-3">
+              {instructions}
               {uploadZone}
             </div>
           )}

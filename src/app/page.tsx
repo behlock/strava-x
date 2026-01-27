@@ -229,6 +229,7 @@ const Home = () => {
       }
       bottomRightPanel={hasActivities ? statsPanelComponent : null}
       // Mobile-specific props
+      instructions={<Instructions />}
       uploadZone={uploadZoneComponent}
       statsPanel={statsPanelComponent}
       filterPanel={filterPanelComponent}

@@ -108,7 +108,7 @@ export function ActivityList({
       {expanded && (
         <div
           ref={parentRef}
-          className="max-h-64 overflow-y-auto scrollbar-thin"
+          className="max-h-48 lg:max-h-64 xl:max-h-80 overflow-y-auto scrollbar-thin"
         >
           {activities.length === 0 ? (
             <div className="p-3 text-xs-compact text-panel-muted text-center">

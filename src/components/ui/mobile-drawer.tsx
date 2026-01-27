@@ -3,7 +3,7 @@
 import { ReactNode, useCallback, useRef, useState } from 'react'
 import { cn } from '@/lib/utils'
 
-type Tab = 'stats' | 'filters' | 'activities'
+type Section = 'stats' | 'filters' | 'activities'
 
 interface MobileDrawerProps {
   statsPanel?: ReactNode
@@ -11,6 +11,39 @@ interface MobileDrawerProps {
   activityList?: ReactNode
   hasActivities?: boolean
   className?: string
+}
+
+interface CollapsibleSectionProps {
+  title: string
+  isOpen: boolean
+  onToggle: () => void
+  children: ReactNode
+}
+
+function CollapsibleSection({ title, isOpen, onToggle, children }: CollapsibleSectionProps) {
+  return (
+    <div className="border-b border-panel-border last:border-b-0">
+      <button
+        onClick={onToggle}
+        className="w-full flex items-center justify-between px-4 py-3 hover:bg-foreground/5 transition-colors"
+      >
+        <span className="text-sm-compact tracking-wider">[{title}]</span>
+        <span className="text-panel-muted text-xs-compact">
+          {isOpen ? '[-]' : '[+]'}
+        </span>
+      </button>
+      <div
+        className={cn(
+          'overflow-hidden transition-all duration-200',
+          isOpen ? 'max-h-[40vh]' : 'max-h-0'
+        )}
+      >
+        <div className="px-4 pb-4 overflow-y-auto max-h-[40vh]">
+          {children}
+        </div>
+      </div>
+    </div>
+  )
 }
 
 export function MobileDrawer({
@@ -21,7 +54,7 @@ export function MobileDrawer({
   className,
 }: MobileDrawerProps) {
   const [isExpanded, setIsExpanded] = useState(false)
-  const [activeTab, setActiveTab] = useState<Tab>('stats')
+  const [openSection, setOpenSection] = useState<Section | null>('filters')
   const [isDragging, setIsDragging] = useState(false)
   const [dragOffset, setDragOffset] = useState(0)
   const startYRef = useRef(0)
@@ -37,17 +70,14 @@ export function MobileDrawer({
     if (!isDragging) return
     const currentY = e.touches[0].clientY
     const diff = currentY - startYRef.current
-    // Limit drag offset
     setDragOffset(Math.max(-100, Math.min(100, diff)))
   }, [isDragging])
 
   const handleTouchEnd = useCallback(() => {
     setIsDragging(false)
-    // If dragged down more than 50px while expanded, collapse
     if (isExpanded && dragOffset > 50) {
       setIsExpanded(false)
     }
-    // If dragged up more than 50px while collapsed, expand
     if (!isExpanded && dragOffset < -50) {
       setIsExpanded(true)
     }
@@ -60,39 +90,20 @@ export function MobileDrawer({
     }
   }, [isDragging, isExpanded])
 
-  const tabs: { id: Tab; label: string }[] = hasActivities
-    ? [
-        { id: 'stats', label: 'stats' },
-        { id: 'filters', label: 'filters' },
-        { id: 'activities', label: 'list' },
-      ]
-    : []
-
-  const renderContent = () => {
-    if (!hasActivities) {
-      return null
-    }
-
-    switch (activeTab) {
-      case 'stats':
-        return statsPanel
-      case 'filters':
-        return filterPanel
-      case 'activities':
-        return activityList
-      default:
-        return null
+  const toggleSection = (section: Section) => {
+    if (!isExpanded) {
+      setIsExpanded(true)
+      setOpenSection(section)
+    } else {
+      setOpenSection(openSection === section ? null : section)
     }
   }
 
-  // Calculate transform based on drag offset
   const getTransform = () => {
     if (isDragging && isExpanded) {
-      // Allow dragging down when expanded
       return `translateY(${Math.max(0, dragOffset)}px)`
     }
     if (isDragging && !isExpanded) {
-      // Allow dragging up when collapsed
       return `translateY(${Math.min(0, dragOffset)}px)`
     }
     return 'translateY(0)'
@@ -107,55 +118,58 @@ export function MobileDrawer({
       ref={containerRef}
       className={cn(
         'fixed bottom-0 left-0 right-0 z-20 bg-panel/95 panel-blur border-t border-panel-border rounded-t-lg transition-all duration-300 ease-out',
-        isExpanded ? 'max-h-[70vh]' : 'max-h-[120px]',
+        isExpanded ? 'max-h-[80vh]' : 'max-h-[56px]',
         className
       )}
-      style={{ transform: getTransform() }}
+      style={{
+        transform: getTransform(),
+        paddingBottom: 'env(safe-area-inset-bottom, 0px)'
+      }}
     >
       {/* Drag handle */}
       <div
-        className="flex flex-col items-center pt-2 pb-1 cursor-grab active:cursor-grabbing touch-none"
+        className="flex flex-col items-center py-2 cursor-grab active:cursor-grabbing touch-none"
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
         onClick={handleDragHandleClick}
       >
         <div className="w-10 h-1 bg-panel-border rounded-full" />
+        {!isExpanded && (
+          <span className="text-xs-compact text-panel-muted mt-1">swipe up for controls</span>
+        )}
       </div>
 
-      {/* Tab bar */}
-      {tabs.length > 0 && (
-        <div className="flex border-b border-panel-border">
-          {tabs.map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => {
-                setActiveTab(tab.id)
-                if (!isExpanded) setIsExpanded(true)
-              }}
-              className={cn(
-                'flex-1 py-3 text-sm-compact tracking-wider transition-colors min-h-[44px]',
-                activeTab === tab.id
-                  ? 'border-b-2 border-foreground'
-                  : 'text-panel-muted hover:bg-foreground/5'
-              )}
-            >
-              [{tab.label}]
-            </button>
-          ))}
-        </div>
-      )}
-
-      {/* Content area */}
+      {/* Collapsible sections */}
       <div
         className={cn(
-          'overflow-y-auto transition-all duration-300',
-          isExpanded ? 'max-h-[calc(70vh-100px)]' : 'max-h-0 overflow-hidden'
+          'overflow-hidden transition-all duration-300',
+          isExpanded ? 'max-h-[70vh]' : 'max-h-0'
         )}
       >
-        <div className="p-4">
-          {renderContent()}
-        </div>
+        <CollapsibleSection
+          title="filters"
+          isOpen={openSection === 'filters'}
+          onToggle={() => toggleSection('filters')}
+        >
+          {filterPanel}
+        </CollapsibleSection>
+
+        <CollapsibleSection
+          title="list"
+          isOpen={openSection === 'activities'}
+          onToggle={() => toggleSection('activities')}
+        >
+          {activityList}
+        </CollapsibleSection>
+
+        <CollapsibleSection
+          title="stats"
+          isOpen={openSection === 'stats'}
+          onToggle={() => toggleSection('stats')}
+        >
+          {statsPanel}
+        </CollapsibleSection>
       </div>
     </div>
   )
