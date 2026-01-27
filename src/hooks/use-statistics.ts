@@ -1,7 +1,7 @@
-"use client"
+'use client'
 
-import { useMemo } from "react"
-import { Activity } from "@/models/activity"
+import { useMemo } from 'react'
+import { Activity } from '@/models/activity'
 
 export interface ActivityTypeBreakdown {
   type: string
@@ -18,15 +18,14 @@ export interface Statistics {
   breakdown: ActivityTypeBreakdown[]
 }
 
-// Teenage Engineering-inspired color palette
 const ACTIVITY_TYPE_COLORS: Record<string, string> = {
-  running: "#FF4F00",  // TE orange
-  cycling: "#FFC003",  // TE yellow
-  hiking: "#1AA167",   // TE green
-  walking: "#1270B8",  // TE blue
+  running: '#FF4F00',
+  cycling: '#FFC003',
+  hiking: '#1AA167',
+  walking: '#1270B8',
 }
 
-const DEFAULT_COLOR = "#BDBDBD"  // TE gray
+const DEFAULT_COLOR = '#BDBDBD'
 
 export function useStatistics(activities: Activity[]): Statistics {
   return useMemo(() => {
@@ -38,7 +37,7 @@ export function useStatistics(activities: Activity[]): Statistics {
     const typeMap = new Map<string, { count: number; distance: number; elevation: number }>()
 
     for (const activity of activities) {
-      const type = activity.type || "unknown"
+      const type = activity.type || 'unknown'
       const existing = typeMap.get(type) || { count: 0, distance: 0, elevation: 0 }
       typeMap.set(type, {
         count: existing.count + 1,
