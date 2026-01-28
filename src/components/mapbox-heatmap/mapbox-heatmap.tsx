@@ -2,9 +2,9 @@
 
 import 'mapbox-gl/dist/mapbox-gl.css'
 
-import { Map, Layer, Source } from 'react-map-gl/mapbox'
+import { Map, Layer, Source, MapRef } from 'react-map-gl/mapbox'
 import { useTheme } from 'next-themes'
-import { useMemo } from 'react'
+import { useMemo, useRef, useImperativeHandle, forwardRef } from 'react'
 import type { FeatureCollection, Feature, LineString } from 'geojson'
 
 import { config } from '@/lib/config'
@@ -12,13 +12,25 @@ import { Activity, ActivityFeatureCollection } from '@/models/activity'
 import { getActivityColor } from '@/hooks/use-statistics'
 import { useMounted } from '@/hooks/use-mounted'
 
+export interface MapboxHeatmapRef {
+  getCanvas: () => HTMLCanvasElement | null
+}
+
 interface MapboxHeatmapProps {
   data: ActivityFeatureCollection
   activities?: Activity[]
   highlightedActivityId?: string | null
 }
 
-const MapboxHeatmap = ({ data, activities = [], highlightedActivityId }: MapboxHeatmapProps) => {
+const MapboxHeatmap = forwardRef<MapboxHeatmapRef, MapboxHeatmapProps>(function MapboxHeatmap(
+  { data, activities = [], highlightedActivityId },
+  ref
+) {
+  const mapRef = useRef<MapRef>(null)
+
+  useImperativeHandle(ref, () => ({
+    getCanvas: () => mapRef.current?.getCanvas() ?? null,
+  }))
   const { theme, systemTheme } = useTheme()
   const mounted = useMounted()
 
@@ -57,6 +69,7 @@ const MapboxHeatmap = ({ data, activities = [], highlightedActivityId }: MapboxH
 
   return (
     <Map
+      ref={mapRef}
       style={{ width: '100%', height: '100%' }}
       initialViewState={{
         latitude: 51.5074,
@@ -65,6 +78,7 @@ const MapboxHeatmap = ({ data, activities = [], highlightedActivityId }: MapboxH
       }}
       mapboxAccessToken={config.MAPBOX_ACCESS_TOKEN}
       mapStyle={mapStyle}
+      preserveDrawingBuffer={true}
       onRender={(event) => event.target.resize()}
     >
       <Source id="all-activities" type="geojson" data={data}>
@@ -102,6 +116,6 @@ const MapboxHeatmap = ({ data, activities = [], highlightedActivityId }: MapboxH
       )}
     </Map>
   )
-}
+})
 
 export default MapboxHeatmap

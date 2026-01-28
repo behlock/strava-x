@@ -8,9 +8,11 @@ import { useMounted } from '@/hooks/use-mounted'
 interface HeaderProps {
   className?: string
   onHelpClick?: () => void
+  onExportClick?: () => void
+  hasActivities?: boolean
 }
 
-export function Header({ className, onHelpClick }: HeaderProps) {
+export function Header({ className, onHelpClick, onExportClick, hasActivities }: HeaderProps) {
   const { theme, setTheme } = useTheme()
   const mounted = useMounted()
 
@@ -39,6 +41,14 @@ export function Header({ className, onHelpClick }: HeaderProps) {
         >
           [{isDark ? 'light' : 'dark'}]
         </button>
+        {hasActivities && (
+          <button
+            onClick={onExportClick}
+            className="min-h-[44px] px-3 py-2 md:px-2 md:py-1 md:min-h-0 text-xs-compact tracking-wider hover:bg-foreground/5 transition-colors border border-transparent hover:border-panel-border rounded-sm"
+          >
+            [export]
+          </button>
+        )}
         <button
           onClick={onHelpClick}
           className="min-h-[44px] px-3 py-2 md:px-2 md:py-1 md:min-h-0 text-xs-compact tracking-wider hover:bg-foreground/5 transition-colors border border-transparent hover:border-panel-border rounded-sm text-panel-muted"
