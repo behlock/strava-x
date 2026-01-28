@@ -51,7 +51,6 @@ const Home = () => {
 
   // Data state
   const [allActivities, setAllActivities] = useState<Activity[]>([])
-  const [activities, setActivities] = useState<Activity[]>([])
 
   // Filter state
   const [selectedActivityTypes, setSelectedActivityTypes] = useState<string[]>(ACTIVITY_TYPES)
@@ -72,6 +71,38 @@ const Home = () => {
 
   // Location/cluster state
   const [selectedClusterId, setSelectedClusterId] = useState<string | null>(null)
+
+  // Date range for filter
+  const dateRange = useMemo(() => {
+    if (allActivities.length === 0) return null
+    const dates = allActivities.filter((a) => a.date).map((a) => a.date!.getTime())
+    if (dates.length === 0) return null
+    return {
+      min: new Date(Math.min(...dates)),
+      max: new Date(Math.max(...dates)),
+    }
+  }, [allActivities])
+
+  // Derive filtered activities directly - no state synchronization needed
+  const activities = useMemo(() => {
+    if (allActivities.length === 0) return []
+
+    return allActivities.filter((activity) => {
+      // Filter by type
+      if (!selectedActivityTypes.includes(activity.type as string)) {
+        return false
+      }
+      // Filter by date
+      if (activity.date && dateRange) {
+        const timeRange = dateRange.max.getTime() - dateRange.min.getTime()
+        const cutoffTime = dateRange.min.getTime() + (timeRange * selectedDate) / 100
+        if (activity.date.getTime() > cutoffTime) {
+          return false
+        }
+      }
+      return true
+    })
+  }, [allActivities, selectedActivityTypes, selectedDate, dateRange])
 
   // Statistics
   const statistics = useStatistics(activities)
@@ -103,46 +134,6 @@ const Home = () => {
     }
     return counts
   }, [allActivities])
-
-  // Date range for filter
-  const dateRange = useMemo(() => {
-    if (allActivities.length === 0) return null
-    const dates = allActivities.filter((a) => a.date).map((a) => a.date!.getTime())
-    if (dates.length === 0) return null
-    return {
-      min: new Date(Math.min(...dates)),
-      max: new Date(Math.max(...dates)),
-    }
-  }, [allActivities])
-
-  // Filter activities when filter values change
-  const filterActivities = useCallback(
-    (activities: Activity[]) => {
-      return activities.filter((activity) => {
-        // Filter by type
-        if (!selectedActivityTypes.includes(activity.type as string)) {
-          return false
-        }
-        // Filter by date
-        if (activity.date && dateRange) {
-          const timeRange = dateRange.max.getTime() - dateRange.min.getTime()
-          const cutoffTime = dateRange.min.getTime() + (timeRange * selectedDate) / 100
-          if (activity.date.getTime() > cutoffTime) {
-            return false
-          }
-        }
-        return true
-      })
-    },
-    [selectedActivityTypes, selectedDate, dateRange],
-  )
-
-  // Update activities when all activities change
-  useEffect(() => {
-    if (allActivities.length > 0) {
-      setActivities(filterActivities(allActivities))
-    }
-  }, [allActivities, filterActivities])
 
   // Filter activities by hovered type (for preview)
   const displayedActivities = useMemo(() => {
