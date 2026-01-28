@@ -3,7 +3,7 @@
 import { useCallback, useState } from 'react'
 import type { MapboxHeatmapRef } from '@/components/mapbox-heatmap'
 
-export type AspectRatio = '1:1' | '16:9'
+export type AspectRatio = '1:1' | '16:9' | '4:5'
 
 interface AspectRatioConfig {
   width: number
@@ -14,6 +14,7 @@ interface AspectRatioConfig {
 const ASPECT_RATIOS: Record<AspectRatio, AspectRatioConfig> = {
   '1:1': { width: 2160, height: 2160, label: 'Square' },
   '16:9': { width: 3840, height: 2160, label: 'Landscape' },
+  '4:5': { width: 1728, height: 2160, label: 'Portrait' },
 }
 
 const PREVIEW_SCALE = 0.25 // Preview at 25% resolution for performance
@@ -187,4 +188,4 @@ export function getAspectRatioConfig(aspectRatio: AspectRatio): AspectRatioConfi
   return ASPECT_RATIOS[aspectRatio]
 }
 
-export const ASPECT_RATIO_OPTIONS: AspectRatio[] = ['1:1', '16:9']
+export const ASPECT_RATIO_OPTIONS: AspectRatio[] = ['1:1', '16:9', '4:5']
