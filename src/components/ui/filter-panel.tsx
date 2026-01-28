@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { Checkbox } from './checkbox'
 import { cn } from '@/lib/utils'
+import { ActivityCluster } from '@/models/location'
 
 interface FilterPanelProps {
   activityTypes: string[]
@@ -15,6 +16,10 @@ interface FilterPanelProps {
   className?: string
   defaultExpanded?: boolean
   onTypeHover?: (type: string | null) => void
+  // Location props
+  clusters?: ActivityCluster[]
+  selectedClusterId?: string | null
+  onClusterSelect?: (clusterId: string | null) => void
 }
 
 export function FilterPanel({
@@ -28,6 +33,9 @@ export function FilterPanel({
   className,
   defaultExpanded = true,
   onTypeHover,
+  clusters = [],
+  selectedClusterId = null,
+  onClusterSelect,
 }: FilterPanelProps) {
   const [expanded, setExpanded] = useState(defaultExpanded)
   const handleTypeToggle = (type: string, checked: boolean) => {
@@ -54,6 +62,29 @@ export function FilterPanel({
 
   const currentDate = getCurrentDate()
 
+  // Location navigation
+  const currentIndex = selectedClusterId
+    ? clusters.findIndex((c) => c.id === selectedClusterId)
+    : -1
+
+  const handlePrev = () => {
+    if (!onClusterSelect || clusters.length === 0) return
+    if (currentIndex <= 0) {
+      onClusterSelect(clusters[clusters.length - 1].id)
+    } else {
+      onClusterSelect(clusters[currentIndex - 1].id)
+    }
+  }
+
+  const handleNext = () => {
+    if (!onClusterSelect || clusters.length === 0) return
+    if (currentIndex < 0 || currentIndex >= clusters.length - 1) {
+      onClusterSelect(clusters[0].id)
+    } else {
+      onClusterSelect(clusters[currentIndex + 1].id)
+    }
+  }
+
   return (
     <div
       className={cn(
@@ -74,6 +105,50 @@ export function FilterPanel({
       </button>
 
       {expanded && <div className="p-3 space-y-3">
+        {/* Location selector */}
+        {clusters.length > 0 && onClusterSelect && (
+          <div className="space-y-0.5">
+            <div className="flex justify-end gap-2 text-xs-compact text-panel-muted mb-1">
+              <button
+                onClick={handlePrev}
+                className="hover:text-foreground transition-colors"
+                title="Previous location"
+              >
+                [&lt;]
+              </button>
+              <button
+                onClick={handleNext}
+                className="hover:text-foreground transition-colors"
+                title="Next location"
+              >
+                [&gt;]
+              </button>
+            </div>
+
+            {/* Location list */}
+            <div className="space-y-0.5 max-h-[120px] overflow-y-auto">
+              {clusters.map((cluster) => (
+                <button
+                  key={cluster.id}
+                  onClick={() => onClusterSelect(cluster.id)}
+                  className={cn(
+                    'w-full flex items-center justify-between px-2 py-1.5 text-left text-xs-compact tracking-wider hover:bg-foreground/5 transition-colors rounded-sm',
+                    selectedClusterId === cluster.id && 'bg-foreground/10'
+                  )}
+                >
+                  <span className="truncate mr-2">{cluster.displayName}</span>
+                  <span className="text-panel-muted flex-shrink-0">{cluster.activityCount}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Divider if both locations and activity types exist */}
+        {clusters.length > 0 && onClusterSelect && (
+          <div className="border-t border-panel-border" />
+        )}
+
         {/* Activity type filters */}
         <div className="space-y-0.5">
           <div className="flex gap-2 text-xs-compact text-panel-muted mb-1">

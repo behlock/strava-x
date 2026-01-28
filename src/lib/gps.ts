@@ -379,7 +379,7 @@ export async function combineFiles(files: File[], onProgress?: ProgressCallback)
   for (const file of files) {
     processed++
     const activity = await extractAndParseFile(file)
-    if (activity.feature && activity.type) {
+    if (activity.feature && activity.type && activity.date) {
       activities.push(activity)
     }
     onProgress?.(processed, files.length)

@@ -5,6 +5,14 @@ import type { MapboxHeatmapRef } from '@/components/mapbox-heatmap'
 
 export type AspectRatio = '1:1' | '16:9' | '4:5'
 
+export interface ExportStatistics {
+  totalActivities: number
+  totalDistance: number // in km
+  totalElevation: number // in meters
+  breakdown: { type: string; count: number; distance: number; color: string }[]
+  locationName?: string
+}
+
 interface AspectRatioConfig {
   width: number
   height: number
@@ -25,8 +33,10 @@ export interface PanOffset {
   y: number // -1 to 1, where 0 is center
 }
 
-const PADDING = 24
-const BRANDING_HEIGHT = 40
+const PADDING = 48
+const HEADER_HEIGHT = 80
+const FOOTER_HEIGHT = 120
+const BORDER_WIDTH = 3
 
 // Ensure font is loaded before rendering branding
 async function ensureFontLoaded(): Promise<void> {
@@ -44,6 +54,7 @@ interface UseMapScreenshotOptions {
   showBranding: boolean
   isDark: boolean
   panOffset?: PanOffset
+  statistics?: ExportStatistics
 }
 
 interface UseMapScreenshotResult {
@@ -59,6 +70,7 @@ export function useMapScreenshot({
   showBranding,
   isDark,
   panOffset = { x: 0, y: 0 },
+  statistics,
 }: UseMapScreenshotOptions): UseMapScreenshotResult {
   const [isCapturing, setIsCapturing] = useState(false)
 
@@ -83,16 +95,134 @@ export function useMapScreenshot({
     const ctx = compositeCanvas.getContext('2d')
     if (!ctx) return null
 
-    // Background color
+    // Background color (outer background)
     const bgColor = isDark ? '#0a0a0a' : '#FAFAFA'
     ctx.fillStyle = bgColor
     ctx.fillRect(0, 0, targetWidth, targetHeight)
 
-    // Calculate map area (with padding)
+    // Calculate dimensions
     const padding = PADDING * scale
-    const brandingSpace = showBranding ? BRANDING_HEIGHT * scale : 0
-    const mapAreaWidth = targetWidth - padding * 2
-    const mapAreaHeight = targetHeight - padding * 2 - brandingSpace
+    const headerHeight = showBranding ? HEADER_HEIGHT * scale : 0
+    const footerHeight = showBranding && statistics ? FOOTER_HEIGHT * scale : 0
+    const borderWidth = BORDER_WIDTH * scale
+
+    // Card dimensions (the polaroid frame)
+    const cardX = padding
+    const cardY = padding
+    const cardWidth = targetWidth - padding * 2
+    const cardHeight = targetHeight - padding * 2
+
+    // Draw card border
+    const borderColor = isDark ? '#F0EBE3' : '#2D2D2D'
+    const mutedColor = isDark ? '#666666' : '#888888'
+    ctx.strokeStyle = borderColor
+    ctx.lineWidth = borderWidth
+    ctx.strokeRect(cardX + borderWidth / 2, cardY + borderWidth / 2, cardWidth - borderWidth, cardHeight - borderWidth)
+
+    await ensureFontLoaded()
+    const textColor = isDark ? '#F0EBE3' : '#2D2D2D'
+
+    // Draw header
+    if (showBranding) {
+      ctx.fillStyle = bgColor
+      ctx.fillRect(cardX + borderWidth, cardY + borderWidth, cardWidth - borderWidth * 2, headerHeight)
+
+      ctx.fillStyle = textColor
+      const headerFontSize = Math.round(24 * scale)
+      ctx.font = `${headerFontSize}px "${BRANDING_FONT}", monospace`
+      ctx.textBaseline = 'middle'
+
+      const headerTextY = cardY + borderWidth + headerHeight / 2
+
+      // Draw "strava—x" on the left
+      ctx.textAlign = 'left'
+      ctx.fillText('strava—x', cardX + borderWidth + padding / 2, headerTextY)
+
+      // Draw location name on the right (if available)
+      if (statistics?.locationName) {
+        ctx.textAlign = 'right'
+        ctx.fillStyle = mutedColor
+        const locationFontSize = Math.round(18 * scale)
+        ctx.font = `${locationFontSize}px "${BRANDING_FONT}", monospace`
+        ctx.fillText(statistics.locationName, cardX + cardWidth - borderWidth - padding / 2, headerTextY)
+      }
+
+      // Draw separator line under header
+      ctx.strokeStyle = borderColor
+      ctx.lineWidth = borderWidth / 2
+      ctx.beginPath()
+      ctx.moveTo(cardX + borderWidth, cardY + borderWidth + headerHeight)
+      ctx.lineTo(cardX + cardWidth - borderWidth, cardY + borderWidth + headerHeight)
+      ctx.stroke()
+    }
+
+    // Draw footer with statistics
+    if (showBranding && statistics) {
+      const footerY = cardY + cardHeight - borderWidth - footerHeight
+
+      // Draw separator line above footer
+      ctx.strokeStyle = borderColor
+      ctx.lineWidth = borderWidth / 2
+      ctx.beginPath()
+      ctx.moveTo(cardX + borderWidth, footerY)
+      ctx.lineTo(cardX + cardWidth - borderWidth, footerY)
+      ctx.stroke()
+
+      // Footer background
+      ctx.fillStyle = bgColor
+      ctx.fillRect(cardX + borderWidth, footerY, cardWidth - borderWidth * 2, footerHeight)
+
+      const footerPadding = padding / 2
+      const statStartX = cardX + borderWidth + footerPadding
+      const statWidth = (cardWidth - borderWidth * 2 - footerPadding * 2) / 3
+
+      // Helper to format distance
+      const formatDistance = (km: number): string => {
+        if (km >= 1000) return `${(km / 1000).toFixed(1)}k`
+        if (km >= 100) return km.toFixed(0)
+        return km.toFixed(1)
+      }
+
+      // Helper to format elevation
+      const formatElevation = (m: number): string => {
+        if (m >= 1000) return `${(m / 1000).toFixed(1)}k`
+        return m.toFixed(0)
+      }
+
+      // Draw stats
+      const labelFontSize = Math.round(12 * scale)
+      const valueFontSize = Math.round(28 * scale)
+      const labelY = footerY + footerHeight * 0.35
+      const valueY = footerY + footerHeight * 0.72
+
+      const stats = [
+        { label: 'activities', value: statistics.totalActivities.toLocaleString() },
+        { label: 'kilometers', value: formatDistance(statistics.totalDistance) },
+        { label: 'elevation (m)', value: formatElevation(statistics.totalElevation) },
+      ]
+
+      stats.forEach((stat, i) => {
+        const centerX = statStartX + statWidth * i + statWidth / 2
+
+        // Label
+        ctx.fillStyle = mutedColor
+        ctx.font = `${labelFontSize}px "${BRANDING_FONT}", monospace`
+        ctx.textAlign = 'center'
+        ctx.textBaseline = 'middle'
+        ctx.fillText(stat.label, centerX, labelY)
+
+        // Value
+        ctx.fillStyle = textColor
+        ctx.font = `${valueFontSize}px "${BRANDING_FONT}", monospace`
+        ctx.fillText(stat.value, centerX, valueY)
+      })
+    }
+
+    // Calculate map area (inside the card, between header and footer)
+    const mapAreaX = cardX + borderWidth
+    const mapAreaY = cardY + borderWidth + headerHeight
+    const mapAreaWidth = cardWidth - borderWidth * 2
+    const mapAreaHeight = cardHeight - borderWidth * 2 - headerHeight - footerHeight
 
     // Calculate crop from source canvas (center crop with pan offset)
     // Scale down to 60% to allow more panning range in both directions
@@ -126,25 +256,14 @@ export function useMapScreenshot({
       sourceY,
       sourceWidth,
       sourceHeight,
-      padding,
-      padding,
+      mapAreaX,
+      mapAreaY,
       mapAreaWidth,
       mapAreaHeight
     )
 
-    // Draw branding if enabled
-    if (showBranding) {
-      await ensureFontLoaded()
-      const textColor = isDark ? '#F0EBE3' : '#2D2D2D'
-      ctx.fillStyle = textColor
-      const fontSize = Math.round(16 * scale)
-      ctx.font = `${fontSize}px "${BRANDING_FONT}", monospace`
-      ctx.textBaseline = 'bottom'
-      ctx.fillText('strava—x', padding, targetHeight - padding)
-    }
-
     return compositeCanvas
-  }, [mapRef, aspectRatio, showBranding, isDark, panOffset])
+  }, [mapRef, aspectRatio, showBranding, isDark, panOffset, statistics])
 
   const capture = useCallback(async (scale: number): Promise<string | null> => {
     const canvas = await captureToCanvas(scale)

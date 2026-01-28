@@ -1,14 +1,21 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { cn } from '@/lib/utils'
 
 interface InstructionsProps {
   className?: string
+  defaultExpanded?: boolean
 }
 
-export function Instructions({ className }: InstructionsProps) {
-  const [expanded, setExpanded] = useState(true)
+export function Instructions({ className, defaultExpanded = true }: InstructionsProps) {
+  const [expanded, setExpanded] = useState(defaultExpanded)
+
+  useEffect(() => {
+    if (!defaultExpanded) {
+      setExpanded(false)
+    }
+  }, [defaultExpanded])
 
   return (
     <div className={cn('bg-panel/90 panel-blur border border-panel-border rounded-sm', className)}>
@@ -28,7 +35,7 @@ export function Instructions({ className }: InstructionsProps) {
               href="https://www.strava.com/athlete/delete_your_account"
               target="_blank"
               rel="noreferrer"
-              className="underline text-orange-500 hover:text-orange-400 transition-colors"
+              className="underline hover:text-panel-muted transition-colors"
             >
               strava settings
             </a>

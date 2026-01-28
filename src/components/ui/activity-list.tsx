@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useMemo } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { Activity } from '@/models/activity'
 import { getActivityColor } from '@/hooks/use-statistics'
@@ -28,6 +28,7 @@ function formatDate(date: Date | undefined): string {
   return date.toLocaleDateString('en-US', {
     month: 'short',
     day: 'numeric',
+    year: 'numeric',
   }).toLowerCase()
 }
 
@@ -46,8 +47,17 @@ export function ActivityList({
   const [expanded, setExpanded] = useState(defaultExpanded)
   const parentRef = useRef<HTMLDivElement>(null)
 
+  // Sort activities by date in descending order (newest first)
+  const sortedActivities = useMemo(() => {
+    return [...activities].sort((a, b) => {
+      const dateA = a.date?.getTime() ?? 0
+      const dateB = b.date?.getTime() ?? 0
+      return dateB - dateA
+    })
+  }, [activities])
+
   const virtualizer = useVirtualizer({
-    count: activities.length,
+    count: sortedActivities.length,
     getScrollElement: () => parentRef.current,
     estimateSize: () => ITEM_HEIGHT,
     overscan: 5,
@@ -123,7 +133,7 @@ export function ActivityList({
               }}
             >
               {virtualizer.getVirtualItems().map((virtualItem) => {
-                const activity = activities[virtualItem.index]
+                const activity = sortedActivities[virtualItem.index]
                 const color = getActivityColor(activity.type)
                 const isHighlighted = activity.id === highlightedActivityId
 

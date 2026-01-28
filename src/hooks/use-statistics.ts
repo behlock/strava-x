@@ -19,13 +19,13 @@ export interface Statistics {
 }
 
 const ACTIVITY_TYPE_COLORS: Record<string, string> = {
-  running: '#FF4F00',
-  cycling: '#FFC003',
-  hiking: '#1AA167',
-  walking: '#1270B8',
+  running: '#FF5500',  // TE signature orange
+  cycling: '#FFE600',  // electric yellow
+  hiking: '#00FF87',   // neon green
+  walking: '#00D4FF',  // electric cyan
 }
 
-const DEFAULT_COLOR = '#BDBDBD'
+const DEFAULT_COLOR = '#FF0080' // hot pink
 
 export function useStatistics(activities: Activity[]): Statistics {
   return useMemo(() => {

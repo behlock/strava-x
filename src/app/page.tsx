@@ -17,6 +17,8 @@ import {
 import { combineFiles } from '@/lib/gps'
 import { Activity, ActivityFeatureCollection } from '@/models/activity'
 import { useStatistics } from '@/hooks/use-statistics'
+import { usePersistedMapPosition } from '@/hooks/use-persisted-map-position'
+import { useActivityClusters } from '@/hooks/use-activity-clusters'
 
 const MapboxHeatmap = dynamic(() => import('@/components/mapbox-heatmap'), {
   ssr: false,
@@ -68,8 +70,29 @@ const Home = () => {
   const [exportOpen, setExportOpen] = useState(false)
   const mapRef = useRef<MapboxHeatmapRef>(null)
 
+  // Location/cluster state
+  const [selectedClusterId, setSelectedClusterId] = useState<string | null>(null)
+
   // Statistics
   const statistics = useStatistics(activities)
+
+  // Activity clusters for location navigation (uses filtered activities)
+  const clusters = useActivityClusters(activities)
+
+  // Export statistics with location name
+  const exportStatistics = useMemo(() => {
+    // Get location name from selected cluster or primary cluster
+    const locationName = selectedClusterId
+      ? clusters.find((c) => c.id === selectedClusterId)?.displayName
+      : clusters[0]?.displayName
+    return {
+      ...statistics,
+      locationName,
+    }
+  }, [statistics, clusters, selectedClusterId])
+
+  // Initial map position (saved -> geolocation -> latest activity -> default)
+  const { position: initialMapPosition, savePosition, isLoading: isMapPositionLoading } = usePersistedMapPosition(allActivities)
 
   // Activity counts for filter panel
   const activityCounts = useMemo(() => {
@@ -169,10 +192,99 @@ const Home = () => {
     }
   }
 
-  // Handle activity click - could zoom to activity bounds
+  // Handle activity click - zoom to activity bounds
   const handleActivityClick = (activity: Activity) => {
     setHighlightedActivityId(activity.id)
+
+    // Fit map to activity bounds
+    if (activity.feature?.geometry.coordinates) {
+      mapRef.current?.fitToBounds(activity.feature.geometry.coordinates as [number, number][])
+    }
   }
+
+  // Handle logo click - fly to user's location or latest activity
+  const handleLogoClick = useCallback(() => {
+    // Try geolocation first
+    if (typeof navigator !== 'undefined' && navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          mapRef.current?.flyTo({
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude,
+            zoom: 12,
+          })
+        },
+        () => {
+          // Geolocation failed, try latest activity
+          const sortedActivities = [...allActivities]
+            .filter((a) => a.date && a.feature?.geometry?.coordinates?.length)
+            .sort((a, b) => (b.date?.getTime() ?? 0) - (a.date?.getTime() ?? 0))
+
+          const latestActivity = sortedActivities[0]
+          if (latestActivity?.feature?.geometry.coordinates.length) {
+            const [longitude, latitude] = latestActivity.feature.geometry.coordinates[0]
+            mapRef.current?.flyTo({ latitude, longitude, zoom: 12 })
+          }
+        },
+        { enableHighAccuracy: false, timeout: 5000, maximumAge: 300000 }
+      )
+    } else {
+      // No geolocation, use latest activity
+      const sortedActivities = [...allActivities]
+        .filter((a) => a.date && a.feature?.geometry?.coordinates?.length)
+        .sort((a, b) => (b.date?.getTime() ?? 0) - (a.date?.getTime() ?? 0))
+
+      const latestActivity = sortedActivities[0]
+      if (latestActivity?.feature?.geometry.coordinates.length) {
+        const [longitude, latitude] = latestActivity.feature.geometry.coordinates[0]
+        mapRef.current?.flyTo({ latitude, longitude, zoom: 12 })
+      }
+    }
+  }, [allActivities])
+
+  // Handle cluster selection - zoom to cluster bounds (uses filtered activities)
+  const handleClusterSelect = useCallback((clusterId: string | null) => {
+    setSelectedClusterId(clusterId)
+
+    if (clusterId === null) {
+      // "All" selected - fit to filtered activities
+      const allCoords: [number, number][] = []
+      for (const activity of activities) {
+        const coords = activity.feature?.geometry.coordinates
+        if (coords) {
+          allCoords.push(...(coords as [number, number][]))
+        }
+      }
+      if (allCoords.length > 0) {
+        mapRef.current?.fitToBounds(allCoords)
+      }
+    } else {
+      const cluster = clusters.find((c) => c.id === clusterId)
+      if (cluster) {
+        // Collect all coordinates from filtered activities in this cluster
+        const clusterCoords: [number, number][] = []
+        const activityIdSet = new Set(cluster.activityIds)
+        for (const activity of activities) {
+          if (activityIdSet.has(activity.id)) {
+            const coords = activity.feature?.geometry.coordinates
+            if (coords) {
+              clusterCoords.push(...(coords as [number, number][]))
+            }
+          }
+        }
+        if (clusterCoords.length > 0) {
+          mapRef.current?.fitToBounds(clusterCoords)
+        }
+      }
+    }
+  }, [activities, clusters])
+
+  // Reset cluster selection if selected cluster no longer exists (due to filtering)
+  useEffect(() => {
+    if (selectedClusterId && !clusters.find((c) => c.id === selectedClusterId)) {
+      setSelectedClusterId(null)
+    }
+  }, [clusters, selectedClusterId])
 
   const hasActivities = allActivities.length > 0
 
@@ -185,6 +297,7 @@ const Home = () => {
       hasActivities={hasActivities}
       error={uploadError}
       onErrorDismiss={() => setUploadError(null)}
+      defaultExpanded={!hasActivities}
     />
   )
 
@@ -210,6 +323,9 @@ const Home = () => {
       selectedDate={selectedDate}
       onDateChange={handleDateChange}
       onTypeHover={setHoveredFilterType}
+      clusters={clusters}
+      selectedClusterId={selectedClusterId}
+      onClusterSelect={handleClusterSelect}
     />
   )
 
@@ -227,10 +343,17 @@ const Home = () => {
 
   return (
     <AppShell
-      header={<Header onHelpClick={() => setHelpOpen(true)} onExportClick={() => setExportOpen(true)} hasActivities={hasActivities} />}
+      header={
+        <Header
+          onHelpClick={() => setHelpOpen(true)}
+          onExportClick={() => setExportOpen(true)}
+          onLogoClick={handleLogoClick}
+          hasActivities={hasActivities}
+        />
+      }
       leftPanels={
         <>
-          <Instructions />
+          <Instructions defaultExpanded={!hasActivities} />
           {uploadZoneComponent}
           {hasActivities && (
             <>
@@ -242,22 +365,28 @@ const Home = () => {
       }
       bottomRightPanel={hasActivities ? statsPanelComponent : null}
       // Mobile-specific props
-      instructions={<Instructions />}
+      instructions={<Instructions defaultExpanded={!hasActivities} />}
       uploadZone={uploadZoneComponent}
       statsPanel={statsPanelComponent}
       filterPanel={filterPanelComponent}
       activityList={activityListComponent}
       hasActivities={hasActivities}
     >
-      <MapboxHeatmap
-        ref={mapRef}
-        data={combinedGeoData}
-        activities={displayedActivities}
-        highlightedActivityId={highlightedActivityId}
-      />
+      {isMapPositionLoading ? (
+        <MapSkeleton />
+      ) : (
+        <MapboxHeatmap
+          ref={mapRef}
+          data={combinedGeoData}
+          activities={displayedActivities}
+          highlightedActivityId={highlightedActivityId}
+          initialPosition={initialMapPosition}
+          onPositionChange={savePosition}
+        />
+      )}
 
       <HelpModal open={helpOpen} onClose={() => setHelpOpen(false)} />
-      <ExportModal open={exportOpen} onClose={() => setExportOpen(false)} mapRef={mapRef} />
+      <ExportModal open={exportOpen} onClose={() => setExportOpen(false)} mapRef={mapRef} statistics={exportStatistics} />
     </AppShell>
   )
 }

@@ -14,7 +14,11 @@
       "Bash(npm install:*)",
       "Bash(npx husky init)",
       "Bash(gh pr list:*)",
-      "Bash(gh pr diff:*)"
+      "Bash(gh pr diff:*)",
+      "Bash(npx tsc:*)",
+      "Bash(pip3 install:*)",
+      "Bash(python3:*)",
+      "Bash(node:*)"
     ]
   }
 }
