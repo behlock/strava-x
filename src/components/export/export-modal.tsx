@@ -10,16 +10,18 @@ import {
   ASPECT_RATIO_OPTIONS,
   getAspectRatioConfig,
   PanOffset,
+  ExportStatistics,
 } from './use-map-screenshot'
 
 interface ExportModalProps {
   open: boolean
   onClose: () => void
   mapRef: React.RefObject<MapboxHeatmapRef | null>
+  statistics?: ExportStatistics
   className?: string
 }
 
-export function ExportModal({ open, onClose, mapRef, className }: ExportModalProps) {
+export function ExportModal({ open, onClose, mapRef, statistics, className }: ExportModalProps) {
   const { theme, systemTheme } = useTheme()
   const currentTheme = theme === 'system' ? systemTheme : theme
   const isDark = currentTheme === 'dark'
@@ -39,6 +41,7 @@ export function ExportModal({ open, onClose, mapRef, className }: ExportModalPro
     showBranding: true,
     isDark,
     panOffset,
+    statistics,
   })
 
   // Feature detection

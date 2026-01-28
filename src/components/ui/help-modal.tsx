@@ -57,8 +57,19 @@ export function HelpModal({ open, onClose, className }: HelpModalProps) {
             </ol>
           </div>
 
-          <div className="pt-2 border-t border-panel-border">
+          <div className="pt-2 border-t border-panel-border space-y-2">
             <p className="text-xs-compact text-panel-muted">your data stays local and is never uploaded to any server</p>
+            <p className="text-xs-compact text-panel-muted">
+              built by{' '}
+              <a
+                href="https://behlock.xyz"
+                target="_blank"
+                rel="noreferrer"
+                className="underline hover:text-foreground transition-colors"
+              >
+                walid behlock
+              </a>
+            </p>
           </div>
         </div>
       </div>

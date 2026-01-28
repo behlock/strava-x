@@ -35,6 +35,12 @@ export function UploadZone({
     }
   }, [])
 
+  useEffect(() => {
+    if (!defaultExpanded) {
+      setExpanded(false)
+    }
+  }, [defaultExpanded])
+
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault()
     setIsDragging(true)
@@ -53,6 +59,34 @@ export function UploadZone({
       const items = e.dataTransfer.items
       const files: File[] = []
 
+      const readAllEntries = async (reader: FileSystemDirectoryReader): Promise<FileSystemEntry[]> => {
+        const allEntries: FileSystemEntry[] = []
+        let entries: FileSystemEntry[]
+        do {
+          entries = await new Promise<FileSystemEntry[]>((resolve) => {
+            reader.readEntries(resolve)
+          })
+          allEntries.push(...entries)
+        } while (entries.length > 0)
+        return allEntries
+      }
+
+      const collectFilesFromDirectory = async (dirEntry: FileSystemDirectoryEntry): Promise<void> => {
+        const reader = dirEntry.createReader()
+        const entries = await readAllEntries(reader)
+        for (const entry of entries) {
+          if (entry.isFile) {
+            const file = await new Promise<File>((resolve) => {
+              ;(entry as FileSystemFileEntry).file(resolve)
+            })
+            const name = file.name.toLowerCase()
+            if (name.endsWith('.gpx') || name.endsWith('.fit') || name.endsWith('.fit.gz')) {
+              files.push(file)
+            }
+          }
+        }
+      }
+
       const processEntry = async (entry: FileSystemEntry): Promise<void> => {
         if (entry.isFile) {
           const file = await new Promise<File>((resolve) => {
@@ -63,12 +97,21 @@ export function UploadZone({
             files.push(file)
           }
         } else if (entry.isDirectory) {
-          const reader = (entry as FileSystemDirectoryEntry).createReader()
-          const entries = await new Promise<FileSystemEntry[]>((resolve) => {
-            reader.readEntries(resolve)
-          })
-          for (const childEntry of entries) {
-            await processEntry(childEntry)
+          const dirEntry = entry as FileSystemDirectoryEntry
+          const reader = dirEntry.createReader()
+          const entries = await readAllEntries(reader)
+
+          // Check if this is a Strava export root folder (has an 'activities' subfolder)
+          const activitiesFolder = entries.find(
+            (e) => e.isDirectory && e.name.toLowerCase() === 'activities'
+          ) as FileSystemDirectoryEntry | undefined
+
+          if (activitiesFolder) {
+            // Only process files directly inside the activities folder
+            await collectFilesFromDirectory(activitiesFolder)
+          } else {
+            // Not a Strava export root - collect files from this directory only (no recursion)
+            await collectFilesFromDirectory(dirEntry)
           }
         }
       }
@@ -89,10 +132,32 @@ export function UploadZone({
 
   const handleFileInput = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
-      const files = Array.from(e.target.files || []).filter((f) => {
-        const name = f.name.toLowerCase()
-        return name.endsWith('.gpx') || name.endsWith('.fit') || name.endsWith('.fit.gz')
+      const allFiles = Array.from(e.target.files || [])
+
+      // Check if any file has a path indicating an 'activities' subfolder exists
+      const hasActivitiesFolder = allFiles.some((f) => {
+        const relativePath = f.webkitRelativePath.toLowerCase()
+        const parts = relativePath.split('/')
+        return parts.length >= 2 && parts[1] === 'activities'
       })
+
+      const files = allFiles.filter((f) => {
+        const name = f.name.toLowerCase()
+        if (!name.endsWith('.gpx') && !name.endsWith('.fit') && !name.endsWith('.fit.gz')) {
+          return false
+        }
+
+        // If there's an activities folder, only include files from it
+        if (hasActivitiesFolder) {
+          const relativePath = f.webkitRelativePath.toLowerCase()
+          const parts = relativePath.split('/')
+          // File should be directly in the activities folder (e.g., "export/activities/file.gpx")
+          return parts.length === 3 && parts[1] === 'activities'
+        }
+
+        return true
+      })
+
       if (files.length > 0) {
         onFilesSelected(files)
       }

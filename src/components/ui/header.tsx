@@ -1,6 +1,5 @@
 'use client'
 
-import Link from 'next/link'
 import { useTheme } from 'next-themes'
 import { cn } from '@/lib/utils'
 import { useMounted } from '@/hooks/use-mounted'
@@ -9,10 +8,11 @@ interface HeaderProps {
   className?: string
   onHelpClick?: () => void
   onExportClick?: () => void
+  onLogoClick?: () => void
   hasActivities?: boolean
 }
 
-export function Header({ className, onHelpClick, onExportClick, hasActivities }: HeaderProps) {
+export function Header({ className, onHelpClick, onExportClick, onLogoClick, hasActivities }: HeaderProps) {
   const { theme, setTheme } = useTheme()
   const mounted = useMounted()
 
@@ -29,9 +29,12 @@ export function Header({ className, onHelpClick, onExportClick, hasActivities }:
         className
       )}
     >
-      <Link href="/">
-        <span className="text-base-compact font-medium tracking-tight">strava—x</span>
-      </Link>
+      <button
+        onClick={onLogoClick}
+        className="text-base-compact font-medium tracking-tight hover:opacity-70 transition-opacity"
+      >
+        strava—x
+      </button>
 
       <div className="flex items-center gap-1">
         <button

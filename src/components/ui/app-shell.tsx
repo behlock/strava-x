@@ -52,7 +52,7 @@ export function AppShell({
       {!isMobile && (
         <>
           {/* Left floating panels */}
-          <div className="absolute top-14 left-4 z-10 w-56 lg:w-64 xl:w-72 space-y-3 max-h-[calc(100vh-5rem)] overflow-y-auto scrollbar-hide">
+          <div className="absolute top-14 left-4 z-10 w-56 lg:w-64 xl:w-72 space-y-3">
             {leftPanels}
           </div>
 
