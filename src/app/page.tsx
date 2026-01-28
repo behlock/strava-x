@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState, startTransition } from 'react'
+import { useCallback, useEffect, useMemo, useState, useRef, startTransition } from 'react'
 import dynamic from 'next/dynamic'
 
 import {
@@ -22,6 +22,15 @@ const MapboxHeatmap = dynamic(() => import('@/components/mapbox-heatmap'), {
   ssr: false,
   loading: () => <MapSkeleton />,
 })
+
+import type { MapboxHeatmapRef } from '@/components/mapbox-heatmap'
+
+const ExportModal = dynamic(
+  () => import('@/components/export').then((mod) => ({ default: mod.ExportModal })),
+  {
+    ssr: false,
+  },
+)
 
 const HelpModal = dynamic(
   () => import('@/components/ui/help-modal').then((mod) => ({ default: mod.HelpModal })),
@@ -54,6 +63,10 @@ const Home = () => {
 
   // Help modal state
   const [helpOpen, setHelpOpen] = useState(false)
+
+  // Export modal state
+  const [exportOpen, setExportOpen] = useState(false)
+  const mapRef = useRef<MapboxHeatmapRef>(null)
 
   // Statistics
   const statistics = useStatistics(activities)
@@ -214,7 +227,7 @@ const Home = () => {
 
   return (
     <AppShell
-      header={<Header onHelpClick={() => setHelpOpen(true)} />}
+      header={<Header onHelpClick={() => setHelpOpen(true)} onExportClick={() => setExportOpen(true)} hasActivities={hasActivities} />}
       leftPanels={
         <>
           <Instructions />
@@ -237,12 +250,14 @@ const Home = () => {
       hasActivities={hasActivities}
     >
       <MapboxHeatmap
+        ref={mapRef}
         data={combinedGeoData}
         activities={displayedActivities}
         highlightedActivityId={highlightedActivityId}
       />
 
       <HelpModal open={helpOpen} onClose={() => setHelpOpen(false)} />
+      <ExportModal open={exportOpen} onClose={() => setExportOpen(false)} mapRef={mapRef} />
     </AppShell>
   )
 }

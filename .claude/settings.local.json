@@ -12,7 +12,9 @@
       "Bash(npm install)",
       "Bash(npm run lint)",
       "Bash(npm install:*)",
-      "Bash(npx husky init)"
+      "Bash(npx husky init)",
+      "Bash(gh pr list:*)",
+      "Bash(gh pr diff:*)"
     ]
   }
 }
