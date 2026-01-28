@@ -17,6 +17,7 @@ const ASPECT_RATIOS: Record<AspectRatio, AspectRatioConfig> = {
 }
 
 const PREVIEW_SCALE = 0.25 // Preview at 25% resolution for performance
+const BRANDING_FONT = 'JetBrains Mono'
 
 export interface PanOffset {
   x: number // -1 to 1, where 0 is center
@@ -25,6 +26,16 @@ export interface PanOffset {
 
 const PADDING = 24
 const BRANDING_HEIGHT = 40
+
+// Ensure font is loaded before rendering branding
+async function ensureFontLoaded(): Promise<void> {
+  if (typeof document === 'undefined') return
+  try {
+    await document.fonts.load(`16px "${BRANDING_FONT}"`)
+  } catch {
+    // Font loading failed, will fall back to monospace
+  }
+}
 
 interface UseMapScreenshotOptions {
   mapRef: React.RefObject<MapboxHeatmapRef | null>
@@ -36,6 +47,7 @@ interface UseMapScreenshotOptions {
 
 interface UseMapScreenshotResult {
   captureScreenshot: () => Promise<string | null>
+  captureBlob: () => Promise<Blob | null>
   capturePreview: () => Promise<string | null>
   isCapturing: boolean
 }
@@ -49,18 +61,24 @@ export function useMapScreenshot({
 }: UseMapScreenshotOptions): UseMapScreenshotResult {
   const [isCapturing, setIsCapturing] = useState(false)
 
-  const capture = useCallback(async (scale: number): Promise<string | null> => {
+  const captureToCanvas = useCallback(async (scale: number): Promise<HTMLCanvasElement | null> => {
     const canvas = mapRef.current?.getCanvas()
     if (!canvas) return null
 
     const config = ASPECT_RATIOS[aspectRatio]
-    const targetWidth = config.width * scale
-    const targetHeight = config.height * scale
+    const targetWidth = Math.round(config.width * scale)
+    const targetHeight = Math.round(config.height * scale)
 
-    // Create composite canvas
+    // Create composite canvas with error handling for memory constraints
     const compositeCanvas = document.createElement('canvas')
-    compositeCanvas.width = targetWidth
-    compositeCanvas.height = targetHeight
+    try {
+      compositeCanvas.width = targetWidth
+      compositeCanvas.height = targetHeight
+    } catch {
+      console.error('Failed to create canvas - dimensions may be too large')
+      return null
+    }
+
     const ctx = compositeCanvas.getContext('2d')
     if (!ctx) return null
 
@@ -115,16 +133,23 @@ export function useMapScreenshot({
 
     // Draw branding if enabled
     if (showBranding) {
+      await ensureFontLoaded()
       const textColor = isDark ? '#F0EBE3' : '#2D2D2D'
       ctx.fillStyle = textColor
       const fontSize = Math.round(16 * scale)
-      ctx.font = `${fontSize}px "JetBrains Mono", monospace`
+      ctx.font = `${fontSize}px "${BRANDING_FONT}", monospace`
       ctx.textBaseline = 'bottom'
       ctx.fillText('strava—x', padding, targetHeight - padding)
     }
 
-    return compositeCanvas.toDataURL('image/png')
+    return compositeCanvas
   }, [mapRef, aspectRatio, showBranding, isDark, panOffset])
+
+  const capture = useCallback(async (scale: number): Promise<string | null> => {
+    const canvas = await captureToCanvas(scale)
+    if (!canvas) return null
+    return canvas.toDataURL('image/png')
+  }, [captureToCanvas])
 
   const captureScreenshot = useCallback(async (): Promise<string | null> => {
     setIsCapturing(true)
@@ -139,7 +164,23 @@ export function useMapScreenshot({
     return await capture(PREVIEW_SCALE)
   }, [capture])
 
-  return { captureScreenshot, capturePreview, isCapturing }
+  const captureBlob = useCallback(async (): Promise<Blob | null> => {
+    setIsCapturing(true)
+    try {
+      const canvas = await captureToCanvas(1)
+      if (!canvas) return null
+
+      return new Promise((resolve) => {
+        canvas.toBlob((blob) => {
+          resolve(blob)
+        }, 'image/png')
+      })
+    } finally {
+      setIsCapturing(false)
+    }
+  }, [captureToCanvas])
+
+  return { captureScreenshot, captureBlob, capturePreview, isCapturing }
 }
 
 export function getAspectRatioConfig(aspectRatio: AspectRatio): AspectRatioConfig {

@@ -27,12 +27,13 @@ export function ExportModal({ open, onClose, mapRef, className }: ExportModalPro
   const [aspectRatio, setAspectRatio] = useState<AspectRatio>('1:1')
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const [panOffset, setPanOffset] = useState<PanOffset>({ x: 0, y: 0 })
   const [isDragging, setIsDragging] = useState(false)
   const dragStartRef = useRef<{ x: number; y: number; startOffset: PanOffset } | null>(null)
   const previewRef = useRef<HTMLDivElement>(null)
 
-  const { captureScreenshot, capturePreview, isCapturing } = useMapScreenshot({
+  const { captureScreenshot, captureBlob, capturePreview, isCapturing } = useMapScreenshot({
     mapRef,
     aspectRatio,
     showBranding: true,
@@ -44,16 +45,15 @@ export function ExportModal({ open, onClose, mapRef, className }: ExportModalPro
   const canCopy = typeof navigator !== 'undefined' && 'clipboard' in navigator && 'write' in navigator.clipboard
   const canShare = typeof navigator !== 'undefined' && 'share' in navigator && 'canShare' in navigator
 
-  // Generate preview when modal opens or settings change
-  const generatePreview = useCallback(async () => {
-    if (!open) return
-    const dataUrl = await capturePreview()
-    setPreviewUrl(dataUrl)
-  }, [open, capturePreview])
-
+  // Generate preview when settings change
   useEffect(() => {
-    generatePreview()
-  }, [generatePreview])
+    if (!open) return
+    const generate = async () => {
+      const dataUrl = await capturePreview()
+      setPreviewUrl(dataUrl)
+    }
+    generate()
+  }, [open, capturePreview])
 
   // Close on escape key
   useEffect(() => {
@@ -87,7 +87,6 @@ export function ExportModal({ open, onClose, mapRef, className }: ExportModalPro
     const deltaX = (clientX - dragStartRef.current.x) / rect.width
     const deltaY = (clientY - dragStartRef.current.y) / rect.height
 
-    // Scale the delta and clamp to -1 to 1
     const sensitivity = 2
     const newX = Math.max(-1, Math.min(1, dragStartRef.current.startOffset.x - deltaX * sensitivity))
     const newY = Math.max(-1, Math.min(1, dragStartRef.current.startOffset.y - deltaY * sensitivity))
@@ -155,12 +154,15 @@ export function ExportModal({ open, onClose, mapRef, className }: ExportModalPro
   }, [captureScreenshot])
 
   const handleCopy = useCallback(async () => {
-    const dataUrl = await captureScreenshot()
-    if (!dataUrl) return
+    setError(null)
+    const blob = await captureBlob()
+    if (!blob) {
+      setError('Failed to capture image')
+      setTimeout(() => setError(null), 3000)
+      return
+    }
 
     try {
-      const response = await fetch(dataUrl)
-      const blob = await response.blob()
       await navigator.clipboard.write([
         new ClipboardItem({ 'image/png': blob }),
       ])
@@ -168,16 +170,21 @@ export function ExportModal({ open, onClose, mapRef, className }: ExportModalPro
       setTimeout(() => setCopied(false), 2000)
     } catch (err) {
       console.error('Failed to copy image:', err)
+      setError('Failed to copy to clipboard')
+      setTimeout(() => setError(null), 3000)
     }
-  }, [captureScreenshot])
+  }, [captureBlob])
 
   const handleShare = useCallback(async () => {
-    const dataUrl = await captureScreenshot()
-    if (!dataUrl) return
+    setError(null)
+    const blob = await captureBlob()
+    if (!blob) {
+      setError('Failed to capture image')
+      setTimeout(() => setError(null), 3000)
+      return
+    }
 
     try {
-      const response = await fetch(dataUrl)
-      const blob = await response.blob()
       const file = new File([blob], 'strava-x-map.png', { type: 'image/png' })
 
       if (navigator.canShare?.({ files: [file] })) {
@@ -189,9 +196,11 @@ export function ExportModal({ open, onClose, mapRef, className }: ExportModalPro
     } catch (err) {
       if ((err as Error).name !== 'AbortError') {
         console.error('Failed to share:', err)
+        setError('Failed to share')
+        setTimeout(() => setError(null), 3000)
       }
     }
-  }, [captureScreenshot])
+  }, [captureBlob])
 
   if (!open) return null
 
@@ -266,8 +275,12 @@ export function ExportModal({ open, onClose, mapRef, className }: ExportModalPro
                 ))}
               </div>
             </div>
-
           </div>
+
+          {/* Error feedback */}
+          {error && (
+            <p className="text-xs-compact text-red-500 text-center">{error}</p>
+          )}
 
           {/* Actions */}
           <div className="flex gap-2 pt-2 border-t border-panel-border">

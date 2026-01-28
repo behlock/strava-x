@@ -31,6 +31,7 @@ const MapboxHeatmap = forwardRef<MapboxHeatmapRef, MapboxHeatmapProps>(function 
   useImperativeHandle(ref, () => ({
     getCanvas: () => mapRef.current?.getCanvas() ?? null,
   }))
+
   const { theme, systemTheme } = useTheme()
   const mounted = useMounted()
 
