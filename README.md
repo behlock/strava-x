@@ -6,8 +6,6 @@ upload your strava data. see every route. one map
 
 runs locally in your browser
 
-![map](/assets/map.png?raw=true "map")
-
 ## setup
 
 ```bash
