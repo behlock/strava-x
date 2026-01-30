@@ -19,6 +19,7 @@ import { Activity, ActivityFeatureCollection } from '@/models/activity'
 import { useStatistics } from '@/hooks/use-statistics'
 import { usePersistedMapPosition } from '@/hooks/use-persisted-map-position'
 import { useActivityClusters } from '@/hooks/use-activity-clusters'
+import { usePersistedActivities } from '@/hooks/use-persisted-activities'
 
 const MapboxHeatmap = dynamic(() => import('@/components/mapbox-heatmap'), {
   ssr: false,
@@ -49,8 +50,18 @@ const Home = () => {
   const [uploadProgress, setUploadProgress] = useState<{ processed: number; total: number } | null>(null)
   const [uploadError, setUploadError] = useState<string | null>(null)
 
+  // Persisted activities from IndexedDB
+  const { cachedActivities, saveActivities: persistActivities } = usePersistedActivities()
+
   // Data state
   const [allActivities, setAllActivities] = useState<Activity[]>([])
+
+  // Load cached activities on mount
+  useEffect(() => {
+    if (cachedActivities && cachedActivities.length > 0 && allActivities.length === 0) {
+      setAllActivities(cachedActivities)
+    }
+  }, [cachedActivities, allActivities.length])
 
   // Filter state
   const [selectedActivityTypes, setSelectedActivityTypes] = useState<string[]>(ACTIVITY_TYPES)
@@ -157,7 +168,7 @@ const Home = () => {
     }
   }, [displayedActivities])
 
-  // Handle file upload
+  // Handle file upload - merges new activities with existing ones
   const handleFilesSelected = async (files: File[]) => {
     setIsLoading(true)
     setUploadError(null)
@@ -170,7 +181,15 @@ const Home = () => {
       if (parsedActivities.length === 0) {
         setUploadError('No valid activity files found. Please select a folder containing .gpx or .fit files.')
       } else {
-        setAllActivities(parsedActivities)
+        // Merge new activities with existing ones (deduplicate by ID)
+        const existingIds = new Set(allActivities.map((a) => a.id))
+        const newActivities = parsedActivities.filter((a) => !existingIds.has(a.id))
+        const mergedActivities = [...allActivities, ...newActivities].sort(
+          (a, b) => (b.date?.getTime() ?? 0) - (a.date?.getTime() ?? 0)
+        )
+
+        setAllActivities(mergedActivities)
+        persistActivities(mergedActivities)
         setSelectedActivityTypes(ACTIVITY_TYPES)
         setSelectedDate(100)
       }

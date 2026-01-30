@@ -30,17 +30,19 @@ export function Instructions({ className, defaultExpanded = true }: Instructions
       {expanded && (
         <div className="p-3 space-y-2">
           <div className="text-sm-compact">
-            request your data archive from your{' '}
+            request your data archive from{' '}
             <a
               href="https://www.strava.com/athlete/delete_your_account"
               target="_blank"
               rel="noreferrer"
               className="underline hover:text-panel-muted transition-colors"
             >
-              strava settings
+              strava's download page
             </a>
           </div>
-          <div className="text-xs-compact text-panel-muted">available within a few minutes</div>
+          <div className="text-xs-compact text-panel-muted">
+            look for "Download Request" → click "Request Your Archive"
+          </div>
         </div>
       )}
     </div>

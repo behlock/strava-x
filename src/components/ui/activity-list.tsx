@@ -152,7 +152,7 @@ export function ActivityList({
                     <div
                       className={cn(
                         'relative h-full border-b border-panel-border cursor-pointer transition-colors',
-                        isHighlighted ? 'bg-foreground/10' : 'hover:bg-foreground/5'
+                        isHighlighted ? 'bg-foreground/20' : 'hover:bg-foreground/5'
                       )}
                       onMouseEnter={() => onActivityHover?.(activity.id)}
                       onMouseLeave={() => onActivityHover?.(null)}

@@ -108,7 +108,7 @@ export function FilterPanel({
         {/* Location selector */}
         {clusters.length > 0 && onClusterSelect && (
           <div className="space-y-0.5">
-            <div className="flex justify-end gap-2 text-xs-compact text-panel-muted mb-1">
+            <div className="flex justify-start gap-2 text-xs-compact text-panel-muted mb-1 pl-2">
               <button
                 onClick={handlePrev}
                 className="hover:text-foreground transition-colors"

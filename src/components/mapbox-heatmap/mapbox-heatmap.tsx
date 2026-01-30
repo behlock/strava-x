@@ -103,7 +103,7 @@ const MapboxHeatmap = forwardRef<MapboxHeatmapRef, MapboxHeatmapProps>(function 
   const isDark = currentTheme === 'dark'
 
   const mapStyle = isDark ? config.MAPBOX_MAP_STYLE_DARK : config.MAPBOX_MAP_STYLE_LIGHT
-  const lineColor = isDark ? '#F0EBE3' : '#2D2D2D'
+  const lineColor = isDark ? '#F0EBE3' : '#000000'
 
   const highlightedData = useMemo((): FeatureCollection<LineString> | null => {
     if (!highlightedActivityId || !activities.length) return null
@@ -154,7 +154,7 @@ const MapboxHeatmap = forwardRef<MapboxHeatmapRef, MapboxHeatmapProps>(function 
           paint={{
             'line-color': lineColor,
             'line-width': highlightedActivityId ? 1 : 1.5,
-            'line-opacity': highlightedActivityId ? 0.25 : 0.5,
+            'line-opacity': highlightedActivityId ? 0.15 : 0.5,
           }}
           layout={{
             'line-join': 'round',
@@ -170,7 +170,7 @@ const MapboxHeatmap = forwardRef<MapboxHeatmapRef, MapboxHeatmapProps>(function 
             type="line"
             paint={{
               'line-color': ['get', 'color'],
-              'line-width': 3,
+              'line-width': 4,
               'line-opacity': 1,
             }}
             layout={{

@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useState, useRef, useEffect } from 'react'
+import { useCallback, useState, useEffect } from 'react'
 import { cn } from '@/lib/utils'
 
 interface UploadZoneProps {
@@ -26,12 +26,10 @@ export function UploadZone({
 }: UploadZoneProps) {
   const [isDragging, setIsDragging] = useState(false)
   const [expanded, setExpanded] = useState(defaultExpanded)
-  const inputRef = useRef<HTMLInputElement>(null)
-
-  useEffect(() => {
-    if (inputRef.current) {
-      inputRef.current.setAttribute('webkitdirectory', '')
-      inputRef.current.setAttribute('directory', '')
+  const inputRef = useCallback((el: HTMLInputElement | null) => {
+    if (el) {
+      el.setAttribute('webkitdirectory', '')
+      el.setAttribute('directory', '')
     }
   }, [])
 
