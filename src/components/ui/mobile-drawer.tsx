@@ -3,12 +3,13 @@
 import { ReactNode, useCallback, useRef, useState } from 'react'
 import { cn } from '@/lib/utils'
 
-type Section = 'stats' | 'filters' | 'activities'
+type Section = 'stats' | 'filters' | 'activities' | 'upload'
 
 interface MobileDrawerProps {
   statsPanel?: ReactNode
   filterPanel?: ReactNode
   activityList?: ReactNode
+  uploadZone?: ReactNode
   hasActivities?: boolean
   className?: string
 }
@@ -50,6 +51,7 @@ export function MobileDrawer({
   statsPanel,
   filterPanel,
   activityList,
+  uploadZone,
   hasActivities = false,
   className,
 }: MobileDrawerProps) {
@@ -169,6 +171,14 @@ export function MobileDrawer({
           onToggle={() => toggleSection('stats')}
         >
           {statsPanel}
+        </CollapsibleSection>
+
+        <CollapsibleSection
+          title="upload"
+          isOpen={openSection === 'upload'}
+          onToggle={() => toggleSection('upload')}
+        >
+          {uploadZone}
         </CollapsibleSection>
       </div>
     </div>

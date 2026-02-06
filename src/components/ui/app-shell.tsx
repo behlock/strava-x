@@ -82,6 +82,7 @@ export function AppShell({
               statsPanel={statsPanel}
               filterPanel={filterPanel}
               activityList={activityList}
+              uploadZone={uploadZone}
               hasActivities={hasActivities}
             />
           )}
