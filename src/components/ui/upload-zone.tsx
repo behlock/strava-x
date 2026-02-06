@@ -2,6 +2,7 @@
 
 import { useCallback, useState, useEffect } from 'react'
 import { cn } from '@/lib/utils'
+import { useIsMobile } from '@/hooks/use-media-query'
 
 interface UploadZoneProps {
   onFilesSelected: (files: File[]) => void
@@ -24,14 +25,15 @@ export function UploadZone({
   error,
   onErrorDismiss,
 }: UploadZoneProps) {
+  const isMobile = useIsMobile()
   const [isDragging, setIsDragging] = useState(false)
   const [expanded, setExpanded] = useState(defaultExpanded)
   const inputRef = useCallback((el: HTMLInputElement | null) => {
-    if (el) {
+    if (el && !isMobile) {
       el.setAttribute('webkitdirectory', '')
       el.setAttribute('directory', '')
     }
-  }, [])
+  }, [isMobile])
 
   useEffect(() => {
     if (!defaultExpanded) {
@@ -203,6 +205,7 @@ export function UploadZone({
             multiple
             onChange={handleFileInput}
             disabled={isLoading}
+            {...(isMobile ? { accept: '.gpx,.fit,.fit.gz' } : {})}
           />
 
           {error ? (
@@ -237,10 +240,12 @@ export function UploadZone({
           ) : (
             <div className="text-center py-4 md:py-2 min-h-[100px] md:min-h-0 flex flex-col justify-center">
               <div className="text-sm-compact mb-1">
-                {hasActivities ? '[_] drop more files' : '[_] drop files here'}
+                {isMobile
+                  ? (hasActivities ? '[_] tap to add more files' : '[_] tap to select files')
+                  : (hasActivities ? '[_] drop more files' : '[_] drop files here')}
               </div>
               <div className="text-xs-compact text-panel-muted">
-                strava export folder or .gpx/.fit files
+                {isMobile ? '.gpx/.fit activity files' : 'strava export folder or .gpx/.fit files'}
               </div>
             </div>
           )}
