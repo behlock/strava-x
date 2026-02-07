@@ -1,6 +1,7 @@
 import * as xml2js from 'xml2js'
 import FitParser from 'fit-file-parser'
 import zlib from 'zlib'
+import JSZip from 'jszip'
 
 import { Activity, ActivityFeature, TrackPoint } from '@/models/activity'
 import { calculateTotalDistance, calculateElevationGain } from '@/lib/geo-utils'
@@ -370,19 +371,65 @@ async function extractAndParseFile(file: File): Promise<Activity> {
   }
 }
 
+function isActivityFile(name: string): boolean {
+  const lower = name.toLowerCase()
+  return lower.endsWith('.gpx') || lower.endsWith('.fit') || lower.endsWith('.fit.gz')
+}
+
+async function extractFilesFromZip(zipFile: File): Promise<File[]> {
+  const arrayBuffer = await zipFile.arrayBuffer()
+  const zip = await JSZip.loadAsync(arrayBuffer)
+  const files: File[] = []
+
+  // Check if there's an activities/ folder (Strava export structure)
+  const hasActivitiesFolder = Object.keys(zip.files).some((path) => {
+    const parts = path.toLowerCase().split('/')
+    return parts.includes('activities')
+  })
+
+  for (const [path, entry] of Object.entries(zip.files)) {
+    if (entry.dir) continue
+
+    const fileName = path.split('/').pop() || ''
+    if (!isActivityFile(fileName)) continue
+
+    // If there's an activities folder, only include files from it
+    if (hasActivitiesFolder) {
+      const parts = path.toLowerCase().split('/')
+      if (!parts.includes('activities')) continue
+    }
+
+    const blob = await entry.async('blob')
+    files.push(new File([blob], fileName, { type: blob.type }))
+  }
+
+  return files
+}
+
 export type ProgressCallback = (processed: number, total: number) => void
 
 export async function combineFiles(files: File[], onProgress?: ProgressCallback): Promise<Activity[]> {
+  // Extract activity files from any ZIPs first
+  const activityFiles: File[] = []
+  for (const file of files) {
+    if (file.name.toLowerCase().endsWith('.zip')) {
+      const extracted = await extractFilesFromZip(file)
+      activityFiles.push(...extracted)
+    } else {
+      activityFiles.push(file)
+    }
+  }
+
   const activities: Activity[] = []
   let processed = 0
 
-  for (const file of files) {
+  for (const file of activityFiles) {
     processed++
     const activity = await extractAndParseFile(file)
     if (activity.feature && activity.type && activity.date) {
       activities.push(activity)
     }
-    onProgress?.(processed, files.length)
+    onProgress?.(processed, activityFiles.length)
   }
 
   return activities.sort((a, b) => {

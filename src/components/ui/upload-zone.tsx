@@ -93,7 +93,7 @@ export function UploadZone({
             ;(entry as FileSystemFileEntry).file(resolve)
           })
           const name = file.name.toLowerCase()
-          if (name.endsWith('.gpx') || name.endsWith('.fit') || name.endsWith('.fit.gz')) {
+          if (name.endsWith('.gpx') || name.endsWith('.fit') || name.endsWith('.fit.gz') || name.endsWith('.zip')) {
             files.push(file)
           }
         } else if (entry.isDirectory) {
@@ -143,6 +143,10 @@ export function UploadZone({
 
       const files = allFiles.filter((f) => {
         const name = f.name.toLowerCase()
+        // Allow ZIP files through - they'll be extracted in combineFiles
+        if (name.endsWith('.zip')) {
+          return true
+        }
         if (!name.endsWith('.gpx') && !name.endsWith('.fit') && !name.endsWith('.fit.gz')) {
           return false
         }
@@ -205,7 +209,7 @@ export function UploadZone({
             multiple
             onChange={handleFileInput}
             disabled={isLoading}
-            {...(isMobile ? { accept: '.gpx,.fit,.fit.gz' } : {})}
+            {...(isMobile ? { accept: '.gpx,.fit,.fit.gz,.zip' } : {})}
           />
 
           {error ? (
@@ -245,7 +249,7 @@ export function UploadZone({
                   : (hasActivities ? '[_] drop more files' : '[_] drop files here')}
               </div>
               <div className="text-xs-compact text-panel-muted">
-                {isMobile ? '.gpx/.fit activity files' : 'strava export folder or .gpx/.fit files'}
+                {isMobile ? '.zip export or .gpx/.fit files' : 'strava export folder/zip or .gpx/.fit files'}
               </div>
             </div>
           )}
