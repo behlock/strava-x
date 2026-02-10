@@ -259,43 +259,6 @@ const Home = () => {
     }
   }, [allActivities])
 
-  // Handle cluster selection - zoom to cluster bounds (uses filtered activities)
-  const handleClusterSelect = useCallback((clusterId: string | null) => {
-    setSelectedClusterId(clusterId)
-
-    if (clusterId === null) {
-      // "All" selected - fit to filtered activities
-      const allCoords: [number, number][] = []
-      for (const activity of activities) {
-        const coords = activity.feature?.geometry.coordinates
-        if (coords) {
-          allCoords.push(...(coords as [number, number][]))
-        }
-      }
-      if (allCoords.length > 0) {
-        mapRef.current?.fitToBounds(allCoords)
-      }
-    } else {
-      const cluster = clusters.find((c) => c.id === clusterId)
-      if (cluster) {
-        // Collect all coordinates from filtered activities in this cluster
-        const clusterCoords: [number, number][] = []
-        const activityIdSet = new Set(cluster.activityIds)
-        for (const activity of activities) {
-          if (activityIdSet.has(activity.id)) {
-            const coords = activity.feature?.geometry.coordinates
-            if (coords) {
-              clusterCoords.push(...(coords as [number, number][]))
-            }
-          }
-        }
-        if (clusterCoords.length > 0) {
-          mapRef.current?.fitToBounds(clusterCoords)
-        }
-      }
-    }
-  }, [activities, clusters])
-
   // Reset cluster selection if selected cluster no longer exists (due to filtering)
   useEffect(() => {
     if (selectedClusterId && !clusters.find((c) => c.id === selectedClusterId)) {
