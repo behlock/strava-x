@@ -52,7 +52,7 @@ export function AppShell({
       {!isMobile && (
         <>
           {/* Left floating panels */}
-          <div className="absolute top-14 left-4 z-10 w-56 lg:w-64 xl:w-72 space-y-3">
+          <div className="absolute top-14 bottom-4 left-4 z-10 w-56 lg:w-64 xl:w-72 flex flex-col gap-3">
             {leftPanels}
           </div>
 

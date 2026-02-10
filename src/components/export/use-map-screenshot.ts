@@ -2,8 +2,9 @@
 
 import { useCallback, useState } from 'react'
 import type { MapboxHeatmapRef } from '@/components/mapbox-heatmap'
+import type { DistanceUnit } from '@/hooks/use-units'
 
-export type AspectRatio = '1:1' | '16:9' | '4:5'
+export type AspectRatio = '1:1' | '16:9' | '4:5' | '9:16'
 
 export interface ExportStatistics {
   totalActivities: number
@@ -23,9 +24,10 @@ const ASPECT_RATIOS: Record<AspectRatio, AspectRatioConfig> = {
   '1:1': { width: 2160, height: 2160, label: 'Square' },
   '16:9': { width: 3840, height: 2160, label: 'Landscape' },
   '4:5': { width: 1728, height: 2160, label: 'Portrait' },
+  '9:16': { width: 1080, height: 1920, label: 'Story' },
 }
 
-const PREVIEW_SCALE = 0.25 // Preview at 25% resolution for performance
+const PREVIEW_SCALE = 0.5 // Preview at 50% resolution
 const BRANDING_FONT = 'JetBrains Mono'
 
 export interface PanOffset {
@@ -55,6 +57,7 @@ interface UseMapScreenshotOptions {
   isDark: boolean
   panOffset?: PanOffset
   statistics?: ExportStatistics
+  distanceUnit?: DistanceUnit
 }
 
 interface UseMapScreenshotResult {
@@ -71,6 +74,7 @@ export function useMapScreenshot({
   isDark,
   panOffset = { x: 0, y: 0 },
   statistics,
+  distanceUnit = 'km',
 }: UseMapScreenshotOptions): UseMapScreenshotResult {
   const [isCapturing, setIsCapturing] = useState(false)
 
@@ -134,9 +138,9 @@ export function useMapScreenshot({
 
       const headerTextY = cardY + borderWidth + headerHeight / 2
 
-      // Draw "strava—x" on the left
+      // Draw "strava-x.com" on the left
       ctx.textAlign = 'left'
-      ctx.fillText('strava—x', cardX + borderWidth + padding / 2, headerTextY)
+      ctx.fillText('strava-x.com', cardX + borderWidth + padding / 2, headerTextY)
 
       // Draw location name on the right (if available)
       if (statistics?.locationName) {
@@ -195,10 +199,14 @@ export function useMapScreenshot({
       const labelY = footerY + footerHeight * 0.35
       const valueY = footerY + footerHeight * 0.72
 
+      const isMiles = distanceUnit === 'mi'
+      const distance = isMiles ? statistics.totalDistance * 0.621371 : statistics.totalDistance
+      const elevation = isMiles ? statistics.totalElevation * 3.28084 : statistics.totalElevation
+
       const stats = [
         { label: 'activities', value: statistics.totalActivities.toLocaleString() },
-        { label: 'kilometers', value: formatDistance(statistics.totalDistance) },
-        { label: 'elevation (m)', value: formatElevation(statistics.totalElevation) },
+        { label: isMiles ? 'miles' : 'kilometers', value: formatDistance(distance) },
+        { label: isMiles ? 'elevation (ft)' : 'elevation (m)', value: formatElevation(elevation) },
       ]
 
       stats.forEach((stat, i) => {
@@ -263,7 +271,7 @@ export function useMapScreenshot({
     )
 
     return compositeCanvas
-  }, [mapRef, aspectRatio, showBranding, isDark, panOffset, statistics])
+  }, [mapRef, aspectRatio, showBranding, isDark, panOffset, statistics, distanceUnit])
 
   const capture = useCallback(async (scale: number): Promise<string | null> => {
     const canvas = await captureToCanvas(scale)
@@ -307,4 +315,4 @@ export function getAspectRatioConfig(aspectRatio: AspectRatio): AspectRatioConfi
   return ASPECT_RATIOS[aspectRatio]
 }
 
-export const ASPECT_RATIO_OPTIONS: AspectRatio[] = ['1:1', '16:9', '4:5']
+export const ASPECT_RATIO_OPTIONS: AspectRatio[] = ['1:1', '16:9', '4:5', '9:16']

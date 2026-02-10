@@ -3,6 +3,7 @@
 import { useTheme } from 'next-themes'
 import { cn } from '@/lib/utils'
 import { useMounted } from '@/hooks/use-mounted'
+import { DistanceUnit } from '@/hooks/use-units'
 
 interface HeaderProps {
   className?: string
@@ -10,9 +11,11 @@ interface HeaderProps {
   onExportClick?: () => void
   onLogoClick?: () => void
   hasActivities?: boolean
+  unit?: DistanceUnit
+  onToggleUnit?: () => void
 }
 
-export function Header({ className, onHelpClick, onExportClick, onLogoClick, hasActivities }: HeaderProps) {
+export function Header({ className, onHelpClick, onExportClick, onLogoClick, hasActivities, unit, onToggleUnit }: HeaderProps) {
   const { theme, setTheme } = useTheme()
   const mounted = useMounted()
 
@@ -37,6 +40,14 @@ export function Header({ className, onHelpClick, onExportClick, onLogoClick, has
       </button>
 
       <div className="flex items-center gap-1">
+        {mounted && onToggleUnit && (
+          <button
+            onClick={onToggleUnit}
+            className="min-h-[44px] px-3 py-2 md:px-2 md:py-1 md:min-h-0 text-xs-compact tracking-wider hover:bg-foreground/5 transition-colors border border-transparent hover:border-panel-border rounded-sm"
+          >
+            [{unit === 'km' ? 'mi' : 'km'}]
+          </button>
+        )}
         <button
           onClick={toggleTheme}
           className="min-h-[44px] px-3 py-2 md:px-2 md:py-1 md:min-h-0 text-xs-compact tracking-wider hover:bg-foreground/5 transition-colors border border-transparent hover:border-panel-border rounded-sm"

@@ -14,6 +14,10 @@ interface ActivityListProps {
   loading?: boolean
   className?: string
   defaultExpanded?: boolean
+  convertDistance?: (km: number) => number
+  convertElevation?: (m: number) => number
+  distanceLabel?: string
+  elevationLabel?: string
 }
 
 function formatDistance(km: number): string {
@@ -43,6 +47,10 @@ export function ActivityList({
   loading = false,
   className,
   defaultExpanded = true,
+  convertDistance = (km) => km,
+  convertElevation = (m) => m,
+  distanceLabel = 'km',
+  elevationLabel = 'm',
 }: ActivityListProps) {
   const [expanded, setExpanded] = useState(defaultExpanded)
   const parentRef = useRef<HTMLDivElement>(null)
@@ -98,13 +106,13 @@ export function ActivityList({
   return (
     <div
       className={cn(
-        'bg-panel/90 panel-blur border border-panel-border rounded-sm',
+        'bg-panel/90 panel-blur border border-panel-border rounded-sm flex flex-col',
         className
       )}
     >
       <button
         onClick={() => setExpanded(!expanded)}
-        className="w-full flex items-center justify-between px-3 py-2 border-b border-panel-border hover:bg-foreground/5 transition-colors"
+        className="w-full flex items-center justify-between px-3 py-2 border-b border-panel-border hover:bg-foreground/5 transition-colors shrink-0"
       >
         <span className="text-xs-compact tracking-wider">
           [04]—activities
@@ -118,7 +126,7 @@ export function ActivityList({
       {expanded && (
         <div
           ref={parentRef}
-          className="max-h-48 lg:max-h-64 xl:max-h-80 overflow-y-auto scrollbar-thin"
+          className="flex-1 min-h-0 overflow-y-auto scrollbar-thin"
         >
           {activities.length === 0 ? (
             <div className="p-3 text-xs-compact text-panel-muted text-center">
@@ -172,7 +180,7 @@ export function ActivityList({
                           </span>
                           <span className="flex-1 ml-2 truncate">{activity.type || 'unknown'}</span>
                           <span className="tabular-nums ml-2">
-                            {formatDistance(activity.distance)} km
+                            {formatDistance(convertDistance(activity.distance))} {distanceLabel}
                           </span>
                         </div>
 
@@ -181,7 +189,7 @@ export function ActivityList({
                           <span>{formatDate(activity.date)}</span>
                           {activity.elevationGain > 0 && (
                             <span className="tabular-nums">
-                              +{Math.round(activity.elevationGain)}m
+                              +{Math.round(convertElevation(activity.elevationGain))}{elevationLabel}
                             </span>
                           )}
                         </div>

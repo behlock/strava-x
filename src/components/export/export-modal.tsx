@@ -12,6 +12,7 @@ import {
   PanOffset,
   ExportStatistics,
 } from './use-map-screenshot'
+import { useUnits } from '@/hooks/use-units'
 
 interface ExportModalProps {
   open: boolean
@@ -26,6 +27,7 @@ export function ExportModal({ open, onClose, mapRef, statistics, className }: Ex
   const currentTheme = theme === 'system' ? systemTheme : theme
   const isDark = currentTheme === 'dark'
 
+  const { unit } = useUnits()
   const [aspectRatio, setAspectRatio] = useState<AspectRatio>('1:1')
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
@@ -42,6 +44,7 @@ export function ExportModal({ open, onClose, mapRef, statistics, className }: Ex
     isDark,
     panOffset,
     statistics,
+    distanceUnit: unit,
   })
 
   // Feature detection

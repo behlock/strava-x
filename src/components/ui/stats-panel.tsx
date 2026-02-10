@@ -9,6 +9,10 @@ interface StatsPanelProps {
   loading?: boolean
   className?: string
   defaultExpanded?: boolean
+  convertDistance?: (km: number) => number
+  convertElevation?: (m: number) => number
+  distanceLabel?: string
+  elevationLabel?: string
 }
 
 // Format number with commas
@@ -24,6 +28,10 @@ export function StatsPanel({
   loading = false,
   className,
   defaultExpanded = true,
+  convertDistance = (km) => km,
+  convertElevation = (m) => m,
+  distanceLabel = 'km',
+  elevationLabel = 'm',
 }: StatsPanelProps) {
   const [expanded, setExpanded] = useState(defaultExpanded)
 
@@ -91,7 +99,7 @@ export function StatsPanel({
         <div className="flex justify-between items-baseline">
           <span className="text-xs-compact text-panel-muted">distance</span>
           <span className="text-lg-compact tabular-nums font-medium">
-            {formatNumber(statistics.totalDistance, 1)} km
+            {formatNumber(convertDistance(statistics.totalDistance), 1)} {distanceLabel}
           </span>
         </div>
 
@@ -99,7 +107,7 @@ export function StatsPanel({
         <div className="flex justify-between items-baseline">
           <span className="text-xs-compact text-panel-muted">elevation</span>
           <span className="text-lg-compact tabular-nums font-medium">
-            {formatNumber(statistics.totalElevation)} m
+            {formatNumber(convertElevation(statistics.totalElevation))} {elevationLabel}
           </span>
         </div>
 

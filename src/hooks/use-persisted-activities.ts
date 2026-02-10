@@ -13,7 +13,18 @@ export function usePersistedActivities() {
     loadActivities()
       .then((activities) => {
         if (activities.length > 0) {
-          setCachedActivities(activities)
+          // Filter out corrupted entries — must have id and valid feature geometry
+          const valid = activities.filter((a) => {
+            if (!a.id) return false
+            if (a.feature && (!a.feature.geometry || !a.feature.geometry.coordinates?.length)) {
+              console.warn('[use-persisted-activities] Filtering out activity with invalid feature:', a.id)
+              return false
+            }
+            return true
+          })
+          if (valid.length > 0) {
+            setCachedActivities(valid)
+          }
         }
       })
       .catch(console.error)
@@ -26,6 +37,7 @@ export function usePersistedActivities() {
       setCachedActivities(activities)
     } catch (e) {
       console.error('Failed to cache activities:', e)
+      throw e
     }
   }, [])
 

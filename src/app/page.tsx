@@ -20,6 +20,7 @@ import { useStatistics } from '@/hooks/use-statistics'
 import { usePersistedMapPosition } from '@/hooks/use-persisted-map-position'
 import { useActivityClusters } from '@/hooks/use-activity-clusters'
 import { usePersistedActivities } from '@/hooks/use-persisted-activities'
+import { useUnits } from '@/hooks/use-units'
 
 const MapboxHeatmap = dynamic(() => import('@/components/mapbox-heatmap'), {
   ssr: false,
@@ -45,13 +46,15 @@ const HelpModal = dynamic(
 const ACTIVITY_TYPES = ['cycling', 'hiking', 'running', 'walking']
 
 const Home = () => {
+  const { unit, toggleUnit, convertDistance, convertElevation, distanceLabel, elevationLabel } = useUnits()
+
   // Loading state
-  const [isLoading, setIsLoading] = useState<boolean>(false)
+  const [isUploading, setIsUploading] = useState<boolean>(false)
   const [uploadProgress, setUploadProgress] = useState<{ processed: number; total: number } | null>(null)
   const [uploadError, setUploadError] = useState<string | null>(null)
 
   // Persisted activities from IndexedDB
-  const { cachedActivities, saveActivities: persistActivities } = usePersistedActivities()
+  const { cachedActivities, isLoading: isRestoringCache, saveActivities: persistActivities } = usePersistedActivities()
 
   // Data state
   const [allActivities, setAllActivities] = useState<Activity[]>([])
@@ -170,7 +173,7 @@ const Home = () => {
 
   // Handle file upload - merges new activities with existing ones
   const handleFilesSelected = async (files: File[]) => {
-    setIsLoading(true)
+    setIsUploading(true)
     setUploadError(null)
     setUploadProgress({ processed: 0, total: files.length })
 
@@ -189,7 +192,11 @@ const Home = () => {
         )
 
         setAllActivities(mergedActivities)
-        persistActivities(mergedActivities)
+        try {
+          await persistActivities(mergedActivities)
+        } catch {
+          setUploadError('Activities loaded but failed to save to browser storage. They may not persist after refresh.')
+        }
         setSelectedActivityTypes(ACTIVITY_TYPES)
         setSelectedDate(100)
       }
@@ -197,7 +204,7 @@ const Home = () => {
       console.error('Error processing files:', error)
       setUploadError(error instanceof Error ? error.message : 'Failed to process files. Please try again.')
     } finally {
-      setIsLoading(false)
+      setIsUploading(false)
       setUploadProgress(null)
     }
   }
@@ -296,13 +303,13 @@ const Home = () => {
     }
   }, [clusters, selectedClusterId])
 
-  const hasActivities = allActivities.length > 0
+  const hasActivities = allActivities.length > 0 || isRestoringCache
 
   // Reusable panel components for both desktop and mobile
   const uploadZoneComponent = (
     <UploadZone
       onFilesSelected={handleFilesSelected}
-      isLoading={isLoading}
+      isLoading={isUploading}
       progress={uploadProgress}
       hasActivities={hasActivities}
       error={uploadError}
@@ -333,9 +340,6 @@ const Home = () => {
       selectedDate={selectedDate}
       onDateChange={handleDateChange}
       onTypeHover={setHoveredFilterType}
-      clusters={clusters}
-      selectedClusterId={selectedClusterId}
-      onClusterSelect={handleClusterSelect}
     />
   )
 
@@ -345,11 +349,25 @@ const Home = () => {
       highlightedActivityId={highlightedActivityId}
       onActivityHover={setHighlightedActivityId}
       onActivityClick={handleActivityClick}
-      loading={isLoading}
+      loading={isUploading}
+      className="flex-1 min-h-0"
+      convertDistance={convertDistance}
+      convertElevation={convertElevation}
+      distanceLabel={distanceLabel}
+      elevationLabel={elevationLabel}
     />
   )
 
-  const statsPanelComponent = <StatsPanel statistics={statistics} loading={isLoading} />
+  const statsPanelComponent = (
+    <StatsPanel
+      statistics={statistics}
+      loading={isUploading}
+      convertDistance={convertDistance}
+      convertElevation={convertElevation}
+      distanceLabel={distanceLabel}
+      elevationLabel={elevationLabel}
+    />
+  )
 
   return (
     <AppShell
@@ -359,6 +377,8 @@ const Home = () => {
           onExportClick={() => setExportOpen(true)}
           onLogoClick={handleLogoClick}
           hasActivities={hasActivities}
+          unit={unit}
+          onToggleUnit={toggleUnit}
         />
       }
       leftPanels={

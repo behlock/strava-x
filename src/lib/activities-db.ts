@@ -49,6 +49,7 @@ export async function saveActivities(activities: Activity[]): Promise<void> {
     }
     tx.onerror = () => {
       db.close()
+      console.error(`[activities-db] Failed to save ${activities.length} activities:`, tx.error)
       reject(tx.error)
     }
   })
@@ -81,7 +82,8 @@ export async function loadActivities(): Promise<Activity[]> {
         reject(request.error)
       }
     })
-  } catch {
+  } catch (error) {
+    console.error('[activities-db] Failed to load activities from IndexedDB:', error)
     return []
   }
 }
