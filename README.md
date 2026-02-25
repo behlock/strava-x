@@ -1,13 +1,14 @@
 # strava—x
 
-a personal map of everywhere you've been
 
-upload your strava data. see every route. one map
+![map](/assets/map.png?raw=true "map")
 
-runs locally in your browser
+strava—x is a client-side web app that visualizes your Strava activity data on an interactive map. There's no OAuth flow or direct Strava API connection — you export your data archive from Strava, then drag and drop the `.gpx` and `.fit` files into your browser.
 
-## setup
+From there you can:
 
-```bash
-npm i && npm run dev
-```
+- **Filter activities** by type and date range
+- **View stats** like total distance, elevation, and activity counts
+- **Export and share** your map as a nice polaroid like preview
+
+All processing happens entirely in the browser. No data is uploaded or leaves your machine. Activities are persisted locally via IndexedDB so they survive page reloads.
