@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useMemo } from 'react'
+import { useState, useRef, useMemo, useCallback, useEffect } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { Activity } from '@/models/activity'
 import { getActivityColor } from '@/hooks/use-statistics'
@@ -11,6 +11,7 @@ interface ActivityListProps {
   highlightedActivityId?: string | null
   onActivityHover?: (id: string | null) => void
   onActivityClick?: (activity: Activity) => void
+  onActivityNavigate?: (activity: Activity) => void
   loading?: boolean
   className?: string
   defaultExpanded?: boolean
@@ -44,6 +45,7 @@ export function ActivityList({
   highlightedActivityId,
   onActivityHover,
   onActivityClick,
+  onActivityNavigate,
   loading = false,
   className,
   defaultExpanded = true,
@@ -54,6 +56,7 @@ export function ActivityList({
 }: ActivityListProps) {
   const [expanded, setExpanded] = useState(defaultExpanded)
   const parentRef = useRef<HTMLDivElement>(null)
+  const selectedIndexRef = useRef(-1)
 
   // Sort activities by date in descending order (newest first)
   const sortedActivities = useMemo(() => {
@@ -64,12 +67,52 @@ export function ActivityList({
     })
   }, [activities])
 
+  // Reset keyboard selection when activities change
+  useEffect(() => {
+    selectedIndexRef.current = -1
+  }, [sortedActivities])
+
   const virtualizer = useVirtualizer({
     count: sortedActivities.length,
     getScrollElement: () => parentRef.current,
     estimateSize: () => ITEM_HEIGHT,
     overscan: 5,
   })
+
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (sortedActivities.length === 0) return
+
+    switch (e.key) {
+      case 'ArrowDown': {
+        e.preventDefault()
+        const next = Math.min(selectedIndexRef.current + 1, sortedActivities.length - 1)
+        selectedIndexRef.current = next
+        const downActivity = sortedActivities[next]
+        onActivityHover?.(downActivity.id)
+        onActivityNavigate?.(downActivity)
+        virtualizer.scrollToIndex(next, { align: 'auto' })
+        break
+      }
+      case 'ArrowUp': {
+        e.preventDefault()
+        const next = Math.max(selectedIndexRef.current - 1, 0)
+        selectedIndexRef.current = next
+        const upActivity = sortedActivities[next]
+        onActivityHover?.(upActivity.id)
+        onActivityNavigate?.(upActivity)
+        virtualizer.scrollToIndex(next, { align: 'auto' })
+        break
+      }
+      case 'Enter': {
+        e.preventDefault()
+        const idx = selectedIndexRef.current
+        if (idx >= 0 && idx < sortedActivities.length) {
+          onActivityClick?.(sortedActivities[idx])
+        }
+        break
+      }
+    }
+  }, [sortedActivities, onActivityHover, onActivityNavigate, onActivityClick, virtualizer])
 
   if (loading) {
     return (
@@ -126,7 +169,9 @@ export function ActivityList({
       {expanded && (
         <div
           ref={parentRef}
-          className="flex-1 min-h-0 overflow-y-auto scrollbar-thin"
+          className="flex-1 min-h-0 overflow-y-auto scrollbar-thin focus:outline-none"
+          tabIndex={0}
+          onKeyDown={handleKeyDown}
         >
           {activities.length === 0 ? (
             <div className="p-3 text-xs-compact text-panel-muted text-center">
@@ -162,7 +207,10 @@ export function ActivityList({
                         'relative h-full border-b border-panel-border cursor-pointer transition-colors',
                         isHighlighted ? 'bg-foreground/20' : 'hover:bg-foreground/5'
                       )}
-                      onMouseEnter={() => onActivityHover?.(activity.id)}
+                      onMouseEnter={() => {
+                        selectedIndexRef.current = virtualItem.index
+                        onActivityHover?.(activity.id)
+                      }}
                       onMouseLeave={() => onActivityHover?.(null)}
                       onClick={() => onActivityClick?.(activity)}
                     >

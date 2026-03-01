@@ -219,6 +219,15 @@ const Home = () => {
     }
   }
 
+  // Handle keyboard navigation - fly to activity midpoint (lightweight)
+  const handleActivityNavigate = useCallback((activity: Activity) => {
+    const coords = activity.feature?.geometry.coordinates
+    if (coords?.length) {
+      const mid = coords[Math.floor(coords.length / 2)] as [number, number]
+      mapRef.current?.flyTo({ latitude: mid[1], longitude: mid[0], zoom: 13 })
+    }
+  }, [])
+
   // Handle logo click - fly to user's location or latest activity
   const handleLogoClick = useCallback(() => {
     // Try geolocation first
@@ -312,6 +321,7 @@ const Home = () => {
       highlightedActivityId={highlightedActivityId}
       onActivityHover={setHighlightedActivityId}
       onActivityClick={handleActivityClick}
+      onActivityNavigate={handleActivityNavigate}
       loading={isUploading}
       className="flex-1 min-h-0"
       convertDistance={convertDistance}
