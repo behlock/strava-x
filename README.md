@@ -2,4 +2,4 @@
 
 *An interactive map for your Strava activity data*
 
-→ https://www.strava-x.com/ ←
+→ [strava-x.com](https://www.strava-x.com/) ←
