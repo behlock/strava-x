@@ -12,5 +12,7 @@ locally via IndexedDB so they survive page reloads.
 From there you can:
 
 a) Filter activities by type and date range
+
 b) View stats like total distance, elevation, and activity counts
+
 c) Export and share your map as a nice polaroid-like preview
