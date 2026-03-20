@@ -36,7 +36,10 @@ export function HelpModal({ open, onClose, className }: HelpModalProps) {
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-panel-border">
           <span className="text-sm-compact tracking-wider">[?]—about</span>
-          <button onClick={onClose} className="text-xs-compact text-panel-muted hover:text-foreground transition-colors">
+          <button
+            onClick={onClose}
+            className="text-xs-compact text-panel-muted hover:text-foreground transition-colors"
+          >
             [x]
           </button>
         </div>
@@ -45,7 +48,9 @@ export function HelpModal({ open, onClose, className }: HelpModalProps) {
         <div className="p-4 space-y-4">
           <div className="space-y-2">
             <h3 className="text-base-compact font-medium">strava—x</h3>
-            <p className="text-sm-compact text-panel-muted">visualize your strava activity data on an interactive map</p>
+            <p className="text-sm-compact text-panel-muted">
+              visualise your strava activity data on an interactive map
+            </p>
           </div>
 
           <div className="space-y-2">
@@ -58,7 +63,9 @@ export function HelpModal({ open, onClose, className }: HelpModalProps) {
           </div>
 
           <div className="pt-2 border-t border-panel-border space-y-2">
-            <p className="text-xs-compact text-panel-muted">your data stays local and is never uploaded to any server</p>
+            <p className="text-xs-compact text-panel-muted">
+              your data never leaves your machine
+            </p>
             <p className="text-xs-compact text-panel-muted">
               built by{' '}
               <a
@@ -67,7 +74,7 @@ export function HelpModal({ open, onClose, className }: HelpModalProps) {
                 rel="noreferrer"
                 className="underline hover:text-foreground transition-colors"
               >
-                walid behlock
+                walid
               </a>
             </p>
           </div>
