@@ -12,8 +12,6 @@ interface AppShellProps {
   children: ReactNode
   className?: string
   // Mobile-specific props
-  instructions?: ReactNode
-  uploadZone?: ReactNode
   statsPanel?: ReactNode
   filterPanel?: ReactNode
   activityList?: ReactNode
@@ -27,8 +25,6 @@ export function AppShell({
   children,
   className,
   // Mobile props
-  instructions,
-  uploadZone,
   statsPanel,
   filterPanel,
   activityList,
@@ -52,7 +48,7 @@ export function AppShell({
       {!isMobile && (
         <>
           {/* Left floating panels */}
-          <div className="absolute top-14 bottom-4 left-4 z-10 w-56 lg:w-64 xl:w-72 flex flex-col gap-3">
+          <div className="absolute top-[4.5rem] bottom-4 left-4 z-10 w-56 lg:w-64 xl:w-72 flex flex-col gap-3">
             {leftPanels}
           </div>
 
@@ -65,28 +61,14 @@ export function AppShell({
         </>
       )}
 
-      {/* Mobile layout */}
-      {isMobile && (
-        <>
-          {/* Instructions and upload zone float at top when no activities */}
-          {!hasActivities && (
-            <div className="absolute top-16 left-4 right-4 z-10 space-y-3">
-              {instructions}
-              {uploadZone}
-            </div>
-          )}
-
-          {/* Bottom sheet drawer when activities exist */}
-          {hasActivities && (
-            <MobileDrawer
-              statsPanel={statsPanel}
-              filterPanel={filterPanel}
-              activityList={activityList}
-              uploadZone={uploadZone}
-              hasActivities={hasActivities}
-            />
-          )}
-        </>
+      {/* Mobile layout: bottom sheet drawer when activities exist */}
+      {isMobile && hasActivities && (
+        <MobileDrawer
+          statsPanel={statsPanel}
+          filterPanel={filterPanel}
+          activityList={activityList}
+          hasActivities={hasActivities}
+        />
       )}
     </div>
   )

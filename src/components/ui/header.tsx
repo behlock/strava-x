@@ -1,29 +1,107 @@
 'use client'
 
+import { ReactNode } from 'react'
 import { useTheme } from 'next-themes'
+import { Moon, Sun, Download } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useMounted } from '@/hooks/use-mounted'
-import { DistanceUnit } from '@/hooks/use-units'
 
 interface HeaderProps {
   className?: string
-  onHelpClick?: () => void
   onExportClick?: () => void
   onLogoClick?: () => void
   hasActivities?: boolean
-  unit?: DistanceUnit
-  onToggleUnit?: () => void
+  stravaAvailable?: boolean
+  stravaConnected?: boolean
+  isStravaSyncing?: boolean
+  stravaError?: string | null
+  onStravaConnect?: () => void
+  onStravaDisconnect?: () => void
 }
 
-export function Header({ className, onHelpClick, onExportClick, onLogoClick, hasActivities, unit, onToggleUnit }: HeaderProps) {
+const CHIP_BASE =
+  'inline-flex items-center justify-center text-xs-compact tracking-wider hover:bg-foreground/5 transition-colors border border-transparent hover:border-panel-border rounded-sm whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed'
+const CHIP_TEXT = `${CHIP_BASE} min-h-[44px] px-3 md:min-h-0 md:h-8 md:px-2`
+const CHIP_ICON = `${CHIP_BASE} min-h-[44px] min-w-[44px] md:min-h-0 md:min-w-0 md:h-8 md:w-8`
+
+export function Header({
+  className,
+  onExportClick,
+  onLogoClick,
+  hasActivities,
+  stravaAvailable,
+  stravaConnected,
+  isStravaSyncing,
+  stravaError,
+  onStravaConnect,
+  onStravaDisconnect,
+}: HeaderProps) {
   const { theme, setTheme } = useTheme()
   const mounted = useMounted()
+  const isDark = mounted && theme === 'dark'
+  const toggleTheme = () => setTheme(theme === 'dark' ? 'light' : 'dark')
 
-  const toggleTheme = () => {
-    setTheme(theme === 'dark' ? 'light' : 'dark')
+  const stravaLabel = stravaError
+    ? '[!]—sync failed'
+    : isStravaSyncing
+    ? '[…]—syncing'
+    : '[↻]—sync strava'
+
+  const chips: ReactNode[] = []
+
+  if (stravaAvailable) {
+    if (stravaConnected) {
+      if (isStravaSyncing || stravaError) {
+        chips.push(
+          <span
+            key="strava-status"
+            className={cn(
+              'inline-flex items-center text-xs-compact tracking-wider px-2 h-8',
+              stravaError && 'text-red-500 dark:text-red-400'
+            )}
+          >
+            {stravaLabel}
+          </span>
+        )
+      }
+      chips.push(
+        <button
+          key="strava-disconnect"
+          onClick={onStravaDisconnect}
+          className={CHIP_TEXT}
+          aria-label="Disconnect Strava"
+        >
+          [x]—strava
+        </button>
+      )
+    } else {
+      chips.push(
+        <button key="strava-connect" onClick={onStravaConnect} className={CHIP_TEXT}>
+          [→]—connect strava
+        </button>
+      )
+    }
   }
 
-  const isDark = mounted && theme === 'dark'
+  if (hasActivities) {
+    chips.push(
+      <button key="export" onClick={onExportClick} aria-label="Export" className={CHIP_ICON}>
+        <Download className="w-4 h-4" />
+      </button>
+    )
+  }
+
+  chips.push(
+    <button
+      key="theme"
+      onClick={toggleTheme}
+      disabled={!mounted}
+      aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+      className={CHIP_ICON}
+    >
+      {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+    </button>
+  )
 
   return (
     <header
@@ -39,37 +117,7 @@ export function Header({ className, onHelpClick, onExportClick, onLogoClick, has
         strava—x
       </button>
 
-      <div className="flex items-center gap-1">
-        {mounted && onToggleUnit && (
-          <button
-            onClick={onToggleUnit}
-            className="min-h-[44px] px-3 py-2 md:px-2 md:py-1 md:min-h-0 text-xs-compact tracking-wider hover:bg-foreground/5 transition-colors border border-transparent hover:border-panel-border rounded-sm"
-          >
-            [{unit === 'km' ? 'mi' : 'km'}]
-          </button>
-        )}
-        <button
-          onClick={toggleTheme}
-          className="min-h-[44px] px-3 py-2 md:px-2 md:py-1 md:min-h-0 text-xs-compact tracking-wider hover:bg-foreground/5 transition-colors border border-transparent hover:border-panel-border rounded-sm"
-          disabled={!mounted}
-        >
-          [{isDark ? 'light' : 'dark'}]
-        </button>
-        {hasActivities && (
-          <button
-            onClick={onExportClick}
-            className="min-h-[44px] px-3 py-2 md:px-2 md:py-1 md:min-h-0 text-xs-compact tracking-wider hover:bg-foreground/5 transition-colors border border-transparent hover:border-panel-border rounded-sm"
-          >
-            [export]
-          </button>
-        )}
-        <button
-          onClick={onHelpClick}
-          className="min-h-[44px] px-3 py-2 md:px-2 md:py-1 md:min-h-0 text-xs-compact tracking-wider hover:bg-foreground/5 transition-colors border border-transparent hover:border-panel-border rounded-sm text-panel-muted"
-        >
-          [?]
-        </button>
-      </div>
+      <div className="flex items-center gap-1">{chips}</div>
     </header>
   )
 }

@@ -55,7 +55,7 @@ export function LocationSelector({
         className="w-full flex items-center justify-between px-3 py-2 border-b border-panel-border hover:bg-foreground/5 transition-colors"
       >
         <span className="text-xs-compact tracking-wider">
-          [03]—locations
+          locations
         </span>
         <span className="text-panel-muted text-xs-compact">
           {expanded ? '[-]' : '[+]'}

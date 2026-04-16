@@ -48,7 +48,7 @@ export function StatsPanel({
           className="w-full flex items-center justify-between px-3 py-2 border-b border-panel-border hover:bg-foreground/5 transition-colors"
         >
           <span className="text-xs-compact tracking-wider">
-            [05]—statistics
+            statistics
           </span>
           <span className="text-panel-muted text-xs-compact">
             {expanded ? '[-]' : '[+]'}
@@ -79,7 +79,7 @@ export function StatsPanel({
         className="w-full flex items-center justify-between px-3 py-2 border-b border-panel-border hover:bg-foreground/5 transition-colors"
       >
         <span className="text-xs-compact tracking-wider">
-          [05]—statistics
+          statistics
         </span>
         <span className="text-panel-muted text-xs-compact">
           {expanded ? '[-]' : '[+]'}

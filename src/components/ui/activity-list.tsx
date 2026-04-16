@@ -119,7 +119,7 @@ export function ActivityList({
       <div
         className={cn(
           'bg-panel/90 panel-blur border border-panel-border rounded-sm',
-          className
+          expanded ? className : 'flex-none'
         )}
       >
         <button
@@ -127,7 +127,7 @@ export function ActivityList({
           className="w-full flex items-center justify-between px-3 py-2 border-b border-panel-border hover:bg-foreground/5 transition-colors"
         >
           <span className="text-xs-compact tracking-wider">
-            [04]—activities
+            activities
           </span>
           <span className="text-panel-muted text-xs-compact">
             {expanded ? '[-]' : '[+]'}
@@ -150,7 +150,7 @@ export function ActivityList({
     <div
       className={cn(
         'bg-panel/90 panel-blur border border-panel-border rounded-sm flex flex-col',
-        className
+        expanded ? className : 'flex-none'
       )}
     >
       <button
@@ -158,7 +158,7 @@ export function ActivityList({
         className="w-full flex items-center justify-between px-3 py-2 border-b border-panel-border hover:bg-foreground/5 transition-colors shrink-0"
       >
         <span className="text-xs-compact tracking-wider">
-          [04]—activities
+          activities
         </span>
         <span className="text-panel-muted text-xs-compact flex items-center gap-2">
           <span className="tabular-nums">{activities.length.toLocaleString()} total</span>

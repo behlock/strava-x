@@ -6,21 +6,22 @@ import dynamic from 'next/dynamic'
 import {
   AppShell,
   Header,
-  Instructions,
-  UploadZone,
   FilterPanel,
   StatsPanel,
   ActivityList,
   MapSkeleton,
 } from '@/components/ui'
 
-import { combineFiles } from '@/lib/gps'
+import { fetchAllActivities } from '@/lib/strava'
 import { Activity, ActivityFeatureCollection } from '@/models/activity'
 import { useStatistics } from '@/hooks/use-statistics'
 import { usePersistedMapPosition } from '@/hooks/use-persisted-map-position'
 import { useActivityClusters } from '@/hooks/use-activity-clusters'
 import { usePersistedActivities } from '@/hooks/use-persisted-activities'
 import { useUnits } from '@/hooks/use-units'
+import { useStravaAuth } from '@/hooks/use-strava-auth'
+
+const STRAVA_AVAILABLE = !!process.env.NEXT_PUBLIC_STRAVA_CLIENT_ID
 
 const MapboxHeatmap = dynamic(() => import('@/components/mapbox-heatmap'), {
   ssr: false,
@@ -36,21 +37,13 @@ const ExportModal = dynamic(
   },
 )
 
-const HelpModal = dynamic(
-  () => import('@/components/ui/help-modal').then((mod) => ({ default: mod.HelpModal })),
-  {
-    ssr: false,
-  },
-)
-
 const ACTIVITY_TYPES = ['cycling', 'hiking', 'running', 'walking']
 
 const Home = () => {
-  const { unit, toggleUnit, convertDistance, convertElevation, distanceLabel, elevationLabel } = useUnits()
+  const { convertDistance, convertElevation, distanceLabel, elevationLabel } = useUnits()
 
   // Loading state
   const [isUploading, setIsUploading] = useState<boolean>(false)
-  const [uploadProgress, setUploadProgress] = useState<{ processed: number; total: number } | null>(null)
   const [uploadError, setUploadError] = useState<string | null>(null)
 
   // Persisted activities from IndexedDB
@@ -58,6 +51,9 @@ const Home = () => {
 
   // Data state
   const [allActivities, setAllActivities] = useState<Activity[]>([])
+
+  // Strava auth
+  const { isConnected: stravaConnected, justConnected: stravaJustConnected, connect: stravaConnect, disconnect: stravaDisconnect, getAccessToken } = useStravaAuth()
 
   // Load cached activities on mount
   useEffect(() => {
@@ -75,9 +71,6 @@ const Home = () => {
 
   // Filter hover state
   const [hoveredFilterType, setHoveredFilterType] = useState<string | null>(null)
-
-  // Help modal state
-  const [helpOpen, setHelpOpen] = useState(false)
 
   // Export modal state
   const [exportOpen, setExportOpen] = useState(false)
@@ -171,43 +164,59 @@ const Home = () => {
     }
   }, [displayedActivities])
 
-  // Handle file upload - merges new activities with existing ones
-  const handleFilesSelected = async (files: File[]) => {
+  // Sync activities from Strava
+  const handleStravaSync = useCallback(async () => {
     setIsUploading(true)
     setUploadError(null)
-    setUploadProgress({ processed: 0, total: files.length })
-
     try {
-      const parsedActivities = await combineFiles(files, (processed, total) => {
-        setUploadProgress({ processed, total })
-      })
-      if (parsedActivities.length === 0) {
-        setUploadError('No valid activity files found. Please select a folder containing .gpx or .fit files.')
-      } else {
-        // Merge new activities with existing ones (deduplicate by ID)
-        const existingIds = new Set(allActivities.map((a) => a.id))
-        const newActivities = parsedActivities.filter((a) => !existingIds.has(a.id))
-        const mergedActivities = [...allActivities, ...newActivities].sort(
+      const token = await getAccessToken()
+      if (!token) {
+        setUploadError('Strava session expired. Please reconnect.')
+        return
+      }
+      const fetched = await fetchAllActivities(token)
+      if (fetched.length === 0) {
+        setUploadError('No Strava activities found on this account.')
+        return
+      }
+      setAllActivities((prev) => {
+        const existingIds = new Set(prev.map((a) => a.id))
+        const fresh = fetched.filter((a) => !existingIds.has(a.id))
+        const merged = [...prev, ...fresh].sort(
           (a, b) => (b.date?.getTime() ?? 0) - (a.date?.getTime() ?? 0)
         )
-
-        setAllActivities(mergedActivities)
-        try {
-          await persistActivities(mergedActivities)
-        } catch {
-          setUploadError('Activities loaded but failed to save to browser storage. They may not persist after refresh.')
-        }
-        setSelectedActivityTypes(ACTIVITY_TYPES)
-        setSelectedDate(100)
+        persistActivities(merged).catch(() => {
+          setUploadError('Activities loaded but failed to save to browser storage.')
+        })
+        return merged
+      })
+      setSelectedActivityTypes(ACTIVITY_TYPES)
+      setSelectedDate(100)
+    } catch (err) {
+      console.error('Strava sync failed:', err)
+      const msg = err instanceof Error ? err.message : 'unknown'
+      if (msg === 'strava_unauthorized') {
+        setUploadError('Strava authorization expired. Please reconnect.')
+        stravaDisconnect()
+      } else if (msg === 'strava_rate_limited') {
+        setUploadError('Strava rate limit hit. Please try again in 15 minutes.')
+      } else {
+        setUploadError('Failed to sync from Strava. Please try again.')
       }
-    } catch (error) {
-      console.error('Error processing files:', error)
-      setUploadError(error instanceof Error ? error.message : 'Failed to process files. Please try again.')
     } finally {
       setIsUploading(false)
-      setUploadProgress(null)
     }
-  }
+  }, [getAccessToken, persistActivities, stravaDisconnect])
+
+  // Auto-sync once on mount whenever connected (covers both OAuth return and refresh)
+  const hasAutoSyncedRef = useRef(false)
+  useEffect(() => {
+    if (hasAutoSyncedRef.current) return
+    if (stravaConnected || stravaJustConnected) {
+      hasAutoSyncedRef.current = true
+      handleStravaSync()
+    }
+  }, [stravaConnected, stravaJustConnected, handleStravaSync])
 
   // Handle activity click - zoom to activity bounds
   const handleActivityClick = (activity: Activity) => {
@@ -277,19 +286,6 @@ const Home = () => {
 
   const hasActivities = allActivities.length > 0 || isRestoringCache
 
-  // Reusable panel components for both desktop and mobile
-  const uploadZoneComponent = (
-    <UploadZone
-      onFilesSelected={handleFilesSelected}
-      isLoading={isUploading}
-      progress={uploadProgress}
-      hasActivities={hasActivities}
-      error={uploadError}
-      onErrorDismiss={() => setUploadError(null)}
-      defaultExpanded={!hasActivities}
-    />
-  )
-
   const handleActivityTypesChange = useCallback((types: string[]) => {
     startTransition(() => {
       setSelectedActivityTypes(types)
@@ -346,30 +342,26 @@ const Home = () => {
     <AppShell
       header={
         <Header
-          onHelpClick={() => setHelpOpen(true)}
           onExportClick={() => setExportOpen(true)}
           onLogoClick={handleLogoClick}
           hasActivities={hasActivities}
-          unit={unit}
-          onToggleUnit={toggleUnit}
+          stravaAvailable={STRAVA_AVAILABLE}
+          stravaConnected={stravaConnected}
+          isStravaSyncing={isUploading}
+          stravaError={uploadError}
+          onStravaConnect={stravaConnect}
+          onStravaDisconnect={stravaDisconnect}
         />
       }
       leftPanels={
-        <>
-          <Instructions defaultExpanded={!hasActivities} />
-          {uploadZoneComponent}
-          {hasActivities && (
-            <>
-              {filterPanelComponent}
-              {activityListComponent}
-            </>
-          )}
-        </>
+        hasActivities ? (
+          <>
+            {filterPanelComponent}
+            {activityListComponent}
+          </>
+        ) : null
       }
       bottomRightPanel={hasActivities ? statsPanelComponent : null}
-      // Mobile-specific props
-      instructions={<Instructions defaultExpanded={!hasActivities} />}
-      uploadZone={uploadZoneComponent}
       statsPanel={statsPanelComponent}
       filterPanel={filterPanelComponent}
       activityList={activityListComponent}
@@ -388,7 +380,6 @@ const Home = () => {
         />
       )}
 
-      <HelpModal open={helpOpen} onClose={() => setHelpOpen(false)} />
       <ExportModal open={exportOpen} onClose={() => setExportOpen(false)} mapRef={mapRef} statistics={exportStatistics} />
     </AppShell>
   )

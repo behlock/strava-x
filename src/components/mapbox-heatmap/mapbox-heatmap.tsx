@@ -103,7 +103,7 @@ const MapboxHeatmap = forwardRef<MapboxHeatmapRef, MapboxHeatmapProps>(function 
   const isDark = currentTheme === 'dark'
 
   const mapStyle = isDark ? config.MAPBOX_MAP_STYLE_DARK : config.MAPBOX_MAP_STYLE_LIGHT
-  const lineColor = isDark ? '#F0EBE3' : '#000000'
+  const lineColor = isDark ? '#F5F5F5' : '#000000'
 
   const highlightedData = useMemo((): FeatureCollection<LineString> | null => {
     if (!highlightedActivityId || !activities.length) return null
