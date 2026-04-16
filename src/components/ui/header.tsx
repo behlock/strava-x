@@ -41,11 +41,11 @@ export function Header({
   const isDark = mounted && theme === 'dark'
   const toggleTheme = () => setTheme(theme === 'dark' ? 'light' : 'dark')
 
-  const stravaLabel = stravaError
-    ? '[!]—sync failed'
+  const stravaStatus = stravaError
+    ? { icon: '[!]', label: '—sync failed' }
     : isStravaSyncing
-    ? '[…]—syncing'
-    : '[↻]—sync strava'
+    ? { icon: '[…]', label: '—syncing' }
+    : { icon: '[↻]', label: '—sync strava' }
 
   const chips: ReactNode[] = []
 
@@ -59,8 +59,10 @@ export function Header({
               'inline-flex items-center text-xs-compact tracking-wider px-2 h-8',
               stravaError && 'text-red-500 dark:text-red-400'
             )}
+            aria-label={`Strava ${stravaError ? 'sync failed' : 'syncing'}`}
           >
-            {stravaLabel}
+            {stravaStatus.icon}
+            <span className="hidden md:inline">{stravaStatus.label}</span>
           </span>
         )
       }
@@ -71,13 +73,18 @@ export function Header({
           className={CHIP_TEXT}
           aria-label="Disconnect Strava"
         >
-          [x]—strava
+          [x]<span className="hidden md:inline">—strava</span>
         </button>
       )
     } else {
       chips.push(
-        <button key="strava-connect" onClick={onStravaConnect} className={CHIP_TEXT}>
-          [→]—connect strava
+        <button
+          key="strava-connect"
+          onClick={onStravaConnect}
+          className={CHIP_TEXT}
+          aria-label="Connect Strava"
+        >
+          [→]<span className="hidden md:inline">—connect strava</span>
         </button>
       )
     }
