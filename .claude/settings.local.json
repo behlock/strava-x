@@ -18,7 +18,9 @@
       "Bash(npx tsc:*)",
       "Bash(pip3 install:*)",
       "Bash(python3:*)",
-      "Bash(node:*)"
+      "Bash(node:*)",
+      "Bash(npx eslint *)",
+      "Bash(vercel deploy *)"
     ]
   }
 }

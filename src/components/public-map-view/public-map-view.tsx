@@ -26,12 +26,10 @@ interface PublishedPayload {
 
 const SUPPORTED_PAYLOAD_VERSION = 1
 
-const CHIP_TEXT =
-  'inline-flex items-center justify-center text-xs-compact tracking-wider hover:bg-foreground/5 transition-colors border border-transparent hover:border-panel-border rounded-sm whitespace-nowrap min-h-[44px] px-3 md:min-h-0 md:h-8 md:px-2'
 const CHIP_ICON =
   'inline-flex items-center justify-center text-xs-compact tracking-wider hover:bg-foreground/5 transition-colors border border-transparent hover:border-panel-border rounded-sm whitespace-nowrap min-h-[44px] min-w-[44px] md:min-h-0 md:min-w-0 md:h-8 md:w-8'
 
-function PublicHeader({ displayName, onLogoClick }: { displayName: string | null; onLogoClick: () => void }) {
+function PublicHeader({ displayName }: { displayName: string | null }) {
   const { theme, setTheme } = useTheme()
   const mounted = useMounted()
   const isDark = mounted && theme === 'dark'
@@ -49,9 +47,6 @@ function PublicHeader({ displayName, onLogoClick }: { displayName: string | null
         ) : null}
       </div>
       <div className="flex items-center gap-1">
-        <button onClick={onLogoClick} className={CHIP_TEXT} aria-label="Fly to latest activity">
-          [⤢]<span className="hidden md:inline">—latest</span>
-        </button>
         <button
           onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
           disabled={!mounted}
@@ -108,7 +103,7 @@ export function PublicMapView({ slug, blobUrl, displayName }: PublicMapViewProps
     <MapView
       activities={activities ?? []}
       loading={activities === null}
-      header={({ flyToLatestActivity }) => <PublicHeader displayName={displayName} onLogoClick={flyToLatestActivity} />}
+      header={<PublicHeader displayName={displayName} />}
     />
   )
 }
