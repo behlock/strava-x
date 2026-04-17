@@ -17,6 +17,7 @@ interface HeaderProps {
   stravaError?: string | null
   onStravaConnect?: () => void
   onStravaDisconnect?: () => void
+  onStravaAbortSync?: () => void
 }
 
 const CHIP_BASE =
@@ -35,6 +36,7 @@ export function Header({
   stravaError,
   onStravaConnect,
   onStravaDisconnect,
+  onStravaAbortSync,
 }: HeaderProps) {
   const { theme, setTheme } = useTheme()
   const mounted = useMounted()
@@ -44,48 +46,49 @@ export function Header({
   const stravaStatus = stravaError
     ? { icon: '[!]', label: '—sync failed' }
     : isStravaSyncing
-    ? { icon: '[…]', label: '—syncing' }
-    : { icon: '[↻]', label: '—sync strava' }
+      ? { icon: '[…]', label: '—syncing' }
+      : { icon: '[↻]', label: '—sync strava' }
 
   const chips: ReactNode[] = []
 
   if (stravaAvailable) {
     if (stravaConnected) {
-      if (isStravaSyncing || stravaError) {
+      if (isStravaSyncing) {
         chips.push(
-          <span
-            key="strava-status"
-            className={cn(
-              'inline-flex items-center text-xs-compact tracking-wider px-2 h-8',
-              stravaError && 'text-red-500 dark:text-red-400'
-            )}
-            aria-label={`Strava ${stravaError ? 'sync failed' : 'syncing'}`}
-          >
+          <button key="strava-status" onClick={onStravaAbortSync} className={CHIP_TEXT} aria-label="Cancel Strava sync">
             {stravaStatus.icon}
             <span className="hidden md:inline">{stravaStatus.label}</span>
-          </span>
+          </button>,
+        )
+      } else {
+        if (stravaError) {
+          chips.push(
+            <span
+              key="strava-status"
+              className="inline-flex items-center text-xs-compact tracking-wider px-2 h-8 text-red-500 dark:text-red-400"
+              aria-label="Strava sync failed"
+            >
+              {stravaStatus.icon}
+              <span className="hidden md:inline">{stravaStatus.label}</span>
+            </span>,
+          )
+        }
+        chips.push(
+          <button
+            key="strava-disconnect"
+            onClick={onStravaDisconnect}
+            className={CHIP_TEXT}
+            aria-label="Disconnect Strava"
+          >
+            [x]<span className="hidden md:inline">—strava</span>
+          </button>,
         )
       }
-      chips.push(
-        <button
-          key="strava-disconnect"
-          onClick={onStravaDisconnect}
-          className={CHIP_TEXT}
-          aria-label="Disconnect Strava"
-        >
-          [x]<span className="hidden md:inline">—strava</span>
-        </button>
-      )
     } else {
       chips.push(
-        <button
-          key="strava-connect"
-          onClick={onStravaConnect}
-          className={CHIP_TEXT}
-          aria-label="Connect Strava"
-        >
+        <button key="strava-connect" onClick={onStravaConnect} className={CHIP_TEXT} aria-label="Connect Strava">
           [→]<span className="hidden md:inline">—connect strava</span>
-        </button>
+        </button>,
       )
     }
   }
@@ -94,7 +97,7 @@ export function Header({
     chips.push(
       <button key="export" onClick={onExportClick} aria-label="Export" className={CHIP_ICON}>
         <Download className="w-4 h-4" />
-      </button>
+      </button>,
     )
   }
 
@@ -107,14 +110,14 @@ export function Header({
       className={CHIP_ICON}
     >
       {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-    </button>
+    </button>,
   )
 
   return (
     <header
       className={cn(
         'flex items-center justify-between px-4 py-3 bg-panel/90 panel-blur border-b border-panel-border',
-        className
+        className,
       )}
     >
       <button

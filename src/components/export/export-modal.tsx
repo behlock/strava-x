@@ -10,18 +10,16 @@ import {
   ASPECT_RATIO_OPTIONS,
   getAspectRatioConfig,
   PanOffset,
-  ExportStatistics,
 } from './use-map-screenshot'
 
 interface ExportModalProps {
   open: boolean
   onClose: () => void
   mapRef: React.RefObject<MapboxHeatmapRef | null>
-  statistics?: ExportStatistics
   className?: string
 }
 
-export function ExportModal({ open, onClose, mapRef, statistics, className }: ExportModalProps) {
+export function ExportModal({ open, onClose, mapRef, className }: ExportModalProps) {
   const { theme, systemTheme } = useTheme()
   const currentTheme = theme === 'system' ? systemTheme : theme
   const isDark = currentTheme === 'dark'
@@ -34,6 +32,9 @@ export function ExportModal({ open, onClose, mapRef, statistics, className }: Ex
   const [isDragging, setIsDragging] = useState(false)
   const dragStartRef = useRef<{ x: number; y: number; startOffset: PanOffset } | null>(null)
   const previewRef = useRef<HTMLDivElement>(null)
+  const modalRef = useRef<HTMLDivElement>(null)
+  const closeButtonRef = useRef<HTMLButtonElement>(null)
+  const previouslyFocusedRef = useRef<HTMLElement | null>(null)
 
   const { captureScreenshot, captureBlob, capturePreview, isCapturing } = useMapScreenshot({
     mapRef,
@@ -41,7 +42,6 @@ export function ExportModal({ open, onClose, mapRef, statistics, className }: Ex
     showBranding: true,
     isDark,
     panOffset,
-    statistics,
   })
 
   // Feature detection
@@ -58,19 +58,44 @@ export function ExportModal({ open, onClose, mapRef, statistics, className }: Ex
     generate()
   }, [open, capturePreview])
 
-  // Close on escape key
+  // Close on escape key + trap Tab focus inside the modal while open
   useEffect(() => {
+    if (!open) return
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         onClose()
+        return
+      }
+      if (e.key !== 'Tab' || !modalRef.current) return
+      const focusable = modalRef.current.querySelectorAll<HTMLElement>(
+        'button:not([disabled]), [href], input:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      )
+      if (focusable.length === 0) return
+      const first = focusable[0]
+      const last = focusable[focusable.length - 1]
+      const active = document.activeElement
+      if (e.shiftKey && active === first) {
+        e.preventDefault()
+        last.focus()
+      } else if (!e.shiftKey && active === last) {
+        e.preventDefault()
+        first.focus()
       }
     }
-
-    if (open) {
-      document.addEventListener('keydown', handleKeyDown)
-      return () => document.removeEventListener('keydown', handleKeyDown)
-    }
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
   }, [open, onClose])
+
+  // Manage focus: capture trigger on open, focus close button, restore on close
+  useEffect(() => {
+    if (open) {
+      previouslyFocusedRef.current = document.activeElement as HTMLElement | null
+      closeButtonRef.current?.focus()
+    } else if (previouslyFocusedRef.current) {
+      previouslyFocusedRef.current.focus()
+      previouslyFocusedRef.current = null
+    }
+  }, [open])
 
   // Reset pan offset when aspect ratio changes
   useEffect(() => {
@@ -78,24 +103,30 @@ export function ExportModal({ open, onClose, mapRef, statistics, className }: Ex
   }, [aspectRatio])
 
   // Drag handlers
-  const handleDragStart = useCallback((clientX: number, clientY: number) => {
-    setIsDragging(true)
-    dragStartRef.current = { x: clientX, y: clientY, startOffset: panOffset }
-  }, [panOffset])
+  const handleDragStart = useCallback(
+    (clientX: number, clientY: number) => {
+      setIsDragging(true)
+      dragStartRef.current = { x: clientX, y: clientY, startOffset: panOffset }
+    },
+    [panOffset],
+  )
 
-  const handleDragMove = useCallback((clientX: number, clientY: number) => {
-    if (!isDragging || !dragStartRef.current || !previewRef.current) return
+  const handleDragMove = useCallback(
+    (clientX: number, clientY: number) => {
+      if (!isDragging || !dragStartRef.current || !previewRef.current) return
 
-    const rect = previewRef.current.getBoundingClientRect()
-    const deltaX = (clientX - dragStartRef.current.x) / rect.width
-    const deltaY = (clientY - dragStartRef.current.y) / rect.height
+      const rect = previewRef.current.getBoundingClientRect()
+      const deltaX = (clientX - dragStartRef.current.x) / rect.width
+      const deltaY = (clientY - dragStartRef.current.y) / rect.height
 
-    const sensitivity = 2
-    const newX = Math.max(-1, Math.min(1, dragStartRef.current.startOffset.x - deltaX * sensitivity))
-    const newY = Math.max(-1, Math.min(1, dragStartRef.current.startOffset.y - deltaY * sensitivity))
+      const sensitivity = 2
+      const newX = Math.max(-1, Math.min(1, dragStartRef.current.startOffset.x - deltaX * sensitivity))
+      const newY = Math.max(-1, Math.min(1, dragStartRef.current.startOffset.y - deltaY * sensitivity))
 
-    setPanOffset({ x: newX, y: newY })
-  }, [isDragging])
+      setPanOffset({ x: newX, y: newY })
+    },
+    [isDragging],
+  )
 
   const handleDragEnd = useCallback(() => {
     setIsDragging(false)
@@ -103,31 +134,43 @@ export function ExportModal({ open, onClose, mapRef, statistics, className }: Ex
   }, [])
 
   // Mouse event handlers
-  const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    e.preventDefault()
-    handleDragStart(e.clientX, e.clientY)
-  }, [handleDragStart])
+  const handleMouseDown = useCallback(
+    (e: React.MouseEvent) => {
+      e.preventDefault()
+      handleDragStart(e.clientX, e.clientY)
+    },
+    [handleDragStart],
+  )
 
-  const handleMouseMove = useCallback((e: React.MouseEvent) => {
-    handleDragMove(e.clientX, e.clientY)
-  }, [handleDragMove])
+  const handleMouseMove = useCallback(
+    (e: React.MouseEvent) => {
+      handleDragMove(e.clientX, e.clientY)
+    },
+    [handleDragMove],
+  )
 
   const handleMouseUp = useCallback(() => {
     handleDragEnd()
   }, [handleDragEnd])
 
   // Touch event handlers
-  const handleTouchStart = useCallback((e: React.TouchEvent) => {
-    if (e.touches.length === 1) {
-      handleDragStart(e.touches[0].clientX, e.touches[0].clientY)
-    }
-  }, [handleDragStart])
+  const handleTouchStart = useCallback(
+    (e: React.TouchEvent) => {
+      if (e.touches.length === 1) {
+        handleDragStart(e.touches[0].clientX, e.touches[0].clientY)
+      }
+    },
+    [handleDragStart],
+  )
 
-  const handleTouchMove = useCallback((e: React.TouchEvent) => {
-    if (e.touches.length === 1) {
-      handleDragMove(e.touches[0].clientX, e.touches[0].clientY)
-    }
-  }, [handleDragMove])
+  const handleTouchMove = useCallback(
+    (e: React.TouchEvent) => {
+      if (e.touches.length === 1) {
+        handleDragMove(e.touches[0].clientX, e.touches[0].clientY)
+      }
+    },
+    [handleDragMove],
+  )
 
   const handleTouchEnd = useCallback(() => {
     handleDragEnd()
@@ -166,9 +209,7 @@ export function ExportModal({ open, onClose, mapRef, statistics, className }: Ex
     }
 
     try {
-      await navigator.clipboard.write([
-        new ClipboardItem({ 'image/png': blob }),
-      ])
+      await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     } catch (err) {
@@ -213,14 +254,27 @@ export function ExportModal({ open, onClose, mapRef, statistics, className }: Ex
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       {/* Backdrop */}
-      <div className="absolute inset-0 bg-background/80 panel-blur" onClick={onClose} />
+      <div className="absolute inset-0 bg-background/80 panel-blur" onClick={onClose} aria-hidden="true" />
 
       {/* Modal */}
-      <div className={cn('relative bg-panel border border-panel-border rounded-sm w-full max-w-lg mx-4', className)}>
+      <div
+        ref={modalRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="export-modal-title"
+        className={cn('relative bg-panel border border-panel-border rounded-sm w-full max-w-lg mx-4', className)}
+      >
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-panel-border">
-          <span className="text-sm-compact tracking-wider">[export]</span>
-          <button onClick={onClose} className="text-xs-compact text-panel-muted hover:text-foreground transition-colors">
+          <span id="export-modal-title" className="text-sm-compact tracking-wider">
+            [export]
+          </span>
+          <button
+            ref={closeButtonRef}
+            onClick={onClose}
+            aria-label="Close export dialog"
+            className="text-xs-compact text-panel-muted hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-foreground"
+          >
             [x]
           </button>
         </div>
@@ -231,10 +285,7 @@ export function ExportModal({ open, onClose, mapRef, statistics, className }: Ex
           <div className="relative bg-background border border-panel-border rounded-sm overflow-hidden">
             <div
               ref={previewRef}
-              className={cn(
-                "relative w-full select-none",
-                isDragging ? "cursor-grabbing" : "cursor-grab"
-              )}
+              className={cn('relative w-full select-none', isDragging ? 'cursor-grabbing' : 'cursor-grab')}
               style={{ paddingBottom: `${(1 / previewAspect) * 100}%` }}
               onMouseDown={handleMouseDown}
               onMouseMove={handleMouseMove}
@@ -270,7 +321,7 @@ export function ExportModal({ open, onClose, mapRef, statistics, className }: Ex
                       'px-2 py-1 text-xs-compact border rounded-sm transition-colors',
                       aspectRatio === ratio
                         ? 'border-foreground bg-foreground/10'
-                        : 'border-panel-border hover:border-foreground/50'
+                        : 'border-panel-border hover:border-foreground/50',
                     )}
                   >
                     {ratio}
@@ -280,9 +331,14 @@ export function ExportModal({ open, onClose, mapRef, statistics, className }: Ex
             </div>
           </div>
 
-          {/* Error feedback */}
+          {/* Status feedback (announced to screen readers) */}
+          <div role="status" aria-live="polite" className="sr-only">
+            {error ? error : copied ? 'Image copied to clipboard' : ''}
+          </div>
           {error && (
-            <p className="text-xs-compact text-red-500 text-center">{error}</p>
+            <p className="text-xs-compact text-red-500 text-center" aria-hidden="true">
+              {error}
+            </p>
           )}
 
           {/* Actions */}
