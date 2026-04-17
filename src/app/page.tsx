@@ -14,6 +14,7 @@ import { serializeActivities } from '@/lib/activities-serialize'
 import { usePersistedActivities } from '@/hooks/use-persisted-activities'
 import { useStravaAuth } from '@/hooks/use-strava-auth'
 import { usePublish } from '@/hooks/use-publish'
+import { useWelcomePanel } from '@/hooks/use-welcome-panel'
 
 const STRAVA_AVAILABLE = !!config.STRAVA_CLIENT_ID
 
@@ -22,6 +23,10 @@ const ExportModal = dynamic(() => import('@/components/export').then((mod) => ({
 })
 
 const PublishDialog = dynamic(() => import('@/components/publish').then((mod) => ({ default: mod.PublishDialog })), {
+  ssr: false,
+})
+
+const WelcomePanel = dynamic(() => import('@/components/welcome').then((mod) => ({ default: mod.WelcomePanel })), {
   ssr: false,
 })
 
@@ -67,6 +72,12 @@ const Home = () => {
   const [exportOpen, setExportOpen] = useState(false)
   const [publishOpen, setPublishOpen] = useState(false)
   const mapRef = useRef<MapboxHeatmapRef | null>(null)
+
+  const { open: welcomeOpen, dismiss: dismissWelcome } = useWelcomePanel({
+    stravaConnected,
+    hasCachedActivities: (cachedActivities?.length ?? 0) > 0,
+    isCacheLoading: isRestoringCache,
+  })
 
   // Publishing state
   const { currentSlug, isPublishing, checkSlug, publish, unpublish, refreshCurrentSlug, forgetCurrentSlug } =
@@ -258,6 +269,7 @@ const Home = () => {
             unpublish={unpublish}
             checkSlug={checkSlug}
           />
+          <WelcomePanel open={welcomeOpen} onDismiss={dismissWelcome} onConnect={stravaConnect} />
         </>
       }
     />
