@@ -45,3 +45,4 @@ node_modules
 
 # claude
 .claude
+.env*.local
