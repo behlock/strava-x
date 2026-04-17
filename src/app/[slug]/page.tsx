@@ -22,10 +22,10 @@ async function lookup(rawSlug: string) {
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { slug } = await params
   const row = await lookup(slug)
-  if (!row) return { title: 'Not found — strava—x' }
+  if (!row) return { title: 'Not found • strava—x' }
   const who = row.athlete_display_name ?? row.slug
   return {
-    title: `${who} — strava—x`,
+    title: `${who} • strava—x`,
     description: `${who}'s heatmap of ${row.activity_count} Strava activities.`,
   }
 }
