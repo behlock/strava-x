@@ -1,14 +1,11 @@
 'use client'
 
 import { Activity } from '@/models/activity'
+import { SerializedActivity, deserializeActivity, serializeActivity } from '@/lib/activities-serialize'
 
 const DB_NAME = 'strava-x'
 const DB_VERSION = 1
 const STORE_NAME = 'activities'
-
-interface SerializedActivity extends Omit<Activity, 'date'> {
-  date?: string // ISO string
-}
 
 function openDB(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -32,11 +29,7 @@ export async function saveActivities(activities: Activity[]): Promise<void> {
   const store = tx.objectStore(STORE_NAME)
 
   for (const activity of activities) {
-    const serialized: SerializedActivity = {
-      ...activity,
-      date: activity.date?.toISOString(),
-    }
-    store.put(serialized)
+    store.put(serializeActivity(activity))
   }
 
   return new Promise((resolve, reject) => {
@@ -63,10 +56,7 @@ export async function loadActivities(): Promise<Activity[]> {
       request.onsuccess = () => {
         db.close()
         const serialized: SerializedActivity[] = request.result
-        const activities = serialized.map((a) => ({
-          ...a,
-          date: a.date ? new Date(a.date) : undefined,
-        }))
+        const activities = serialized.map(deserializeActivity)
         // Sort by date
         activities.sort((a, b) => {
           if (a.date && b.date) return a.date.getTime() - b.date.getTime()

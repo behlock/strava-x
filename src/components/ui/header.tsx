@@ -2,14 +2,16 @@
 
 import { ReactNode } from 'react'
 import { useTheme } from 'next-themes'
-import { Moon, Sun, Download } from 'lucide-react'
+import { Moon, Sun, Download, Share2, LogOut } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useMounted } from '@/hooks/use-mounted'
+import { Tooltip } from './tooltip'
 
 interface HeaderProps {
   className?: string
   onExportClick?: () => void
   onLogoClick?: () => void
+  onPublishClick?: () => void
   hasActivities?: boolean
   stravaAvailable?: boolean
   stravaConnected?: boolean
@@ -29,6 +31,7 @@ export function Header({
   className,
   onExportClick,
   onLogoClick,
+  onPublishClick,
   hasActivities,
   stravaAvailable,
   stravaConnected,
@@ -51,67 +54,80 @@ export function Header({
 
   const chips: ReactNode[] = []
 
-  if (stravaAvailable) {
-    if (stravaConnected) {
-      if (isStravaSyncing) {
-        chips.push(
-          <button key="strava-status" onClick={onStravaAbortSync} className={CHIP_TEXT} aria-label="Cancel Strava sync">
-            {stravaStatus.icon}
-            <span className="hidden md:inline">{stravaStatus.label}</span>
-          </button>,
-        )
-      } else {
-        if (stravaError) {
-          chips.push(
-            <span
-              key="strava-status"
-              className="inline-flex items-center text-xs-compact tracking-wider px-2 h-8 text-red-500 dark:text-red-400"
-              aria-label="Strava sync failed"
-            >
-              {stravaStatus.icon}
-              <span className="hidden md:inline">{stravaStatus.label}</span>
-            </span>,
-          )
-        }
-        chips.push(
-          <button
-            key="strava-disconnect"
-            onClick={onStravaDisconnect}
-            className={CHIP_TEXT}
-            aria-label="Disconnect Strava"
-          >
-            [x]<span className="hidden md:inline">—strava</span>
-          </button>,
-        )
-      }
-    } else {
+  if (stravaAvailable && stravaConnected) {
+    if (isStravaSyncing) {
       chips.push(
-        <button key="strava-connect" onClick={onStravaConnect} className={CHIP_TEXT} aria-label="Connect Strava">
-          [→]<span className="hidden md:inline">—connect strava</span>
+        <button key="strava-status" onClick={onStravaAbortSync} className={CHIP_TEXT} aria-label="Cancel Strava sync">
+          {stravaStatus.icon}
+          <span className="hidden md:inline">{stravaStatus.label}</span>
         </button>,
+      )
+    } else if (stravaError) {
+      chips.push(
+        <span
+          key="strava-status"
+          className="inline-flex items-center text-xs-compact tracking-wider px-2 h-8 text-red-500 dark:text-red-400"
+          aria-label="Strava sync failed"
+        >
+          {stravaStatus.icon}
+          <span className="hidden md:inline">{stravaStatus.label}</span>
+        </span>,
       )
     }
   }
 
-  if (hasActivities) {
+  if (stravaAvailable && !stravaConnected) {
     chips.push(
-      <button key="export" onClick={onExportClick} aria-label="Export" className={CHIP_ICON}>
-        <Download className="w-4 h-4" />
+      <button key="strava-connect" onClick={onStravaConnect} className={CHIP_TEXT} aria-label="Connect Strava">
+        [→]<span className="hidden md:inline">—connect strava</span>
       </button>,
     )
   }
 
+  if (hasActivities && onPublishClick && stravaConnected) {
+    chips.push(
+      <Tooltip key="publish" text="publish map">
+        <button onClick={onPublishClick} aria-label="Publish map" className={CHIP_ICON}>
+          <Share2 className="w-4 h-4" />
+        </button>
+      </Tooltip>,
+    )
+  }
+
+  if (hasActivities) {
+    chips.push(
+      <Tooltip key="export" text="export image">
+        <button onClick={onExportClick} aria-label="Export" className={CHIP_ICON}>
+          <Download className="w-4 h-4" />
+        </button>
+      </Tooltip>,
+    )
+  }
+
   chips.push(
-    <button
-      key="theme"
-      onClick={toggleTheme}
-      disabled={!mounted}
-      aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
-      className={CHIP_ICON}
-    >
-      {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-    </button>,
+    <Tooltip key="theme" text={isDark ? 'light mode' : 'dark mode'} disabled={!mounted}>
+      <button
+        onClick={toggleTheme}
+        disabled={!mounted}
+        aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+        className={CHIP_ICON}
+      >
+        {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+      </button>
+    </Tooltip>,
   )
+
+  // Disconnect sits far-right so it's out of the primary flow — users are less
+  // likely to hit it by accident while reaching for sync/publish/export.
+  if (stravaAvailable && stravaConnected && !isStravaSyncing) {
+    chips.push(
+      <Tooltip key="strava-disconnect" text="disconnect strava" align="end">
+        <button onClick={onStravaDisconnect} className={CHIP_ICON} aria-label="Disconnect Strava">
+          <LogOut className="w-4 h-4" />
+        </button>
+      </Tooltip>,
+    )
+  }
 
   return (
     <header
