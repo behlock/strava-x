@@ -30,13 +30,14 @@ export function getClientId(): string {
   return config.STRAVA_CLIENT_ID
 }
 
-export function buildAuthUrl(redirectUri: string): string {
+export function buildAuthUrl(redirectUri: string, state: string): string {
   const params = new URLSearchParams({
     client_id: getClientId(),
     redirect_uri: redirectUri,
     response_type: 'code',
     approval_prompt: 'auto',
     scope: 'read,activity:read_all',
+    state,
   })
   return `${STRAVA_AUTH_URL}?${params.toString()}`
 }

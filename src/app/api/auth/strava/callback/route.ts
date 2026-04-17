@@ -5,9 +5,14 @@ export async function GET(req: NextRequest) {
   const code = searchParams.get('code')
   const error = searchParams.get('error')
   const scope = searchParams.get('scope') ?? ''
+  const state = searchParams.get('state') ?? ''
 
   if (error || !code) {
     return NextResponse.redirect(`${origin}/?strava_error=${encodeURIComponent(error ?? 'missing_code')}`)
+  }
+
+  if (!state) {
+    return NextResponse.redirect(`${origin}/?strava_error=missing_state`)
   }
 
   const clientId = process.env.NEXT_PUBLIC_STRAVA_CLIENT_ID
@@ -39,19 +44,31 @@ export async function GET(req: NextRequest) {
     return NextResponse.redirect(`${origin}/?strava_error=token_exchange_failed`)
   }
 
-  const token = await tokenRes.json() as {
-    access_token: string
-    refresh_token: string
-    expires_at: number
-    athlete?: { id: number }
+  const token = (await tokenRes.json()) as {
+    access_token?: unknown
+    refresh_token?: unknown
+    expires_at?: unknown
+    athlete?: { id?: unknown }
+  }
+
+  if (
+    typeof token.access_token !== 'string' ||
+    typeof token.refresh_token !== 'string' ||
+    typeof token.expires_at !== 'number'
+  ) {
+    console.error('[strava/callback] invalid token response shape', token)
+    return NextResponse.redirect(`${origin}/?strava_error=invalid_token_response`)
   }
 
   // Hand tokens back to the SPA via URL fragment (not sent to server on next navigation).
+  // The state round-trip lets the client verify this callback originated from its own
+  // connect() invocation, defeating OAuth CSRF.
   const fragment = new URLSearchParams({
     access_token: token.access_token,
     refresh_token: token.refresh_token,
     expires_at: String(token.expires_at),
-    athlete_id: token.athlete?.id ? String(token.athlete.id) : '',
+    athlete_id: typeof token.athlete?.id === 'number' ? String(token.athlete.id) : '',
+    state,
   }).toString()
 
   return NextResponse.redirect(`${origin}/#strava_auth=${fragment}`)

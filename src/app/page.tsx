@@ -97,21 +97,25 @@ const Home = () => {
     return { min: new Date(min), max: new Date(max) }
   }, [allActivities])
 
+  // Single source of truth for the date-slider cutoff timestamp. Null only when
+  // there's no activity data yet (so we don't have a range to interpolate into).
+  const cutoffTime = useMemo(() => {
+    if (!dateRange) return null
+    return dateRange.min.getTime() + ((dateRange.max.getTime() - dateRange.min.getTime()) * selectedDate) / 100
+  }, [dateRange, selectedDate])
+
   // Derive filtered activities directly - no state synchronization needed
   const activities = useMemo(() => {
     if (allActivities.length === 0) return []
 
     const typeSet = new Set(selectedActivityTypes)
-    const cutoffTime = dateRange
-      ? dateRange.min.getTime() + ((dateRange.max.getTime() - dateRange.min.getTime()) * selectedDate) / 100
-      : null
 
     return allActivities.filter((activity) => {
       if (!typeSet.has(activity.type as string)) return false
       if (cutoffTime !== null && activity.date && activity.date.getTime() > cutoffTime) return false
       return true
     })
-  }, [allActivities, selectedActivityTypes, selectedDate, dateRange])
+  }, [allActivities, selectedActivityTypes, cutoffTime])
 
   // Statistics
   const statistics = useStatistics(activities)
@@ -128,16 +132,13 @@ const Home = () => {
   // toggling a type doesn't make its own count flicker to zero.
   const activityCounts = useMemo(() => {
     const counts: Record<string, number> = {}
-    const cutoffTime = dateRange
-      ? dateRange.min.getTime() + ((dateRange.max.getTime() - dateRange.min.getTime()) * selectedDate) / 100
-      : null
     for (const activity of allActivities) {
       if (cutoffTime !== null && activity.date && activity.date.getTime() > cutoffTime) continue
       const type = activity.type || 'unknown'
       counts[type] = (counts[type] || 0) + 1
     }
     return counts
-  }, [allActivities, dateRange, selectedDate])
+  }, [allActivities, cutoffTime])
 
   // Filter activities by hovered type (for preview in activity list)
   const displayedActivities = useMemo(() => {
@@ -166,12 +167,16 @@ const Home = () => {
     }
   }, [allActivities])
 
-  // Date cutoff as timestamp for the map's Mapbox filter expression
-  const dateCutoff = useMemo(() => {
-    if (!dateRange || selectedDate >= 100) return null
-    const timeRange = dateRange.max.getTime() - dateRange.min.getTime()
-    return dateRange.min.getTime() + (timeRange * selectedDate) / 100
-  }, [dateRange, selectedDate])
+  // Date cutoff for Mapbox's filter expression — null when slider is at max so
+  // the map doesn't apply a filter at all (tiny perf win on the GPU).
+  const dateCutoff = selectedDate >= 100 ? null : cutoffTime
+
+  // Mirror of allActivities accessible from async callbacks without closure-staleness
+  // or the need to abuse setState updaters for side-effects.
+  const allActivitiesRef = useRef<Activity[]>(allActivities)
+  useEffect(() => {
+    allActivitiesRef.current = allActivities
+  }, [allActivities])
 
   // Sync activities from Strava
   const syncAbortRef = useRef<AbortController | null>(null)
@@ -181,6 +186,9 @@ const Home = () => {
     syncAbortRef.current = controller
     setIsUploading(true)
     setUploadError(null)
+    // Local accumulator seeded from current state — lets us compute the merged
+    // set synchronously inside onBatch without reading state via setState().
+    let merged: Activity[] = allActivitiesRef.current
     try {
       const token = await getAccessToken()
       if (!token) {
@@ -191,13 +199,12 @@ const Home = () => {
         signal: controller.signal,
         onBatch: (batch) => {
           // Progressive: push each page of 200 activities into state immediately
-          // so the map renders while remaining pages are still fetching
-          setAllActivities((prev) => {
-            const existingIds = new Set(prev.map((a) => a.id))
-            const fresh = batch.filter((a) => !existingIds.has(a.id))
-            if (fresh.length === 0) return prev
-            return [...prev, ...fresh].sort((a, b) => (b.date?.getTime() ?? 0) - (a.date?.getTime() ?? 0))
-          })
+          // so the map renders while remaining pages are still fetching.
+          const existingIds = new Set(merged.map((a) => a.id))
+          const fresh = batch.filter((a) => !existingIds.has(a.id))
+          if (fresh.length === 0) return
+          merged = [...merged, ...fresh].sort((a, b) => (b.date?.getTime() ?? 0) - (a.date?.getTime() ?? 0))
+          setAllActivities(merged)
         },
       })
       if (controller.signal.aborted) return
@@ -205,12 +212,8 @@ const Home = () => {
         setUploadError('No Strava activities found on this account.')
         return
       }
-      // Persist final merged set to IndexedDB
-      setAllActivities((prev) => {
-        persistActivities(prev).catch(() => {
-          setUploadError('Activities loaded but failed to save to browser storage.')
-        })
-        return prev
+      persistActivities(merged).catch(() => {
+        setUploadError('Activities loaded but failed to save to browser storage.')
       })
       setSelectedActivityTypes(ACTIVITY_TYPES)
       setSelectedDate(100)
@@ -241,17 +244,20 @@ const Home = () => {
     syncAbortRef.current = null
     setIsUploading(false)
     // Persist whatever we fetched so far so a refresh doesn't lose the partial set.
-    setAllActivities((prev) => {
-      if (prev.length > 0) {
-        persistActivities(prev).catch(() => {})
-      }
-      return prev
-    })
+    const current = allActivitiesRef.current
+    if (current.length > 0) {
+      persistActivities(current).catch(() => {})
+    }
   }, [persistActivities])
+
+  // Auto-sync once on mount whenever connected (covers both OAuth return and refresh)
+  const hasAutoSyncedRef = useRef(false)
 
   const handleStravaDisconnect = useCallback(() => {
     syncAbortRef.current?.abort()
     syncAbortRef.current = null
+    // Let auto-sync fire again if the user reconnects without reloading.
+    hasAutoSyncedRef.current = false
     stravaDisconnect()
     setAllActivities([])
     setSelectedActivityTypes(ACTIVITY_TYPES)
@@ -262,8 +268,6 @@ const Home = () => {
     clearPersistedActivities()
   }, [stravaDisconnect, clearPersistedActivities])
 
-  // Auto-sync once on mount whenever connected (covers both OAuth return and refresh)
-  const hasAutoSyncedRef = useRef(false)
   useEffect(() => {
     if (hasAutoSyncedRef.current) return
     if (stravaConnected || stravaJustConnected) {
@@ -329,8 +333,17 @@ const Home = () => {
   }, [])
 
   // Handle logo click - fly to user's location or latest activity
+  const flyToLatestActivity = useCallback(() => {
+    const latestActivity = allActivities
+      .filter((a) => a.date && a.feature?.geometry?.coordinates?.length)
+      .sort((a, b) => (b.date?.getTime() ?? 0) - (a.date?.getTime() ?? 0))[0]
+    if (latestActivity?.feature?.geometry.coordinates.length) {
+      const [longitude, latitude] = latestActivity.feature.geometry.coordinates[0]
+      mapRef.current?.flyTo({ latitude, longitude, zoom: 12 })
+    }
+  }, [allActivities])
+
   const handleLogoClick = useCallback(() => {
-    // Try geolocation first
     if (typeof navigator !== 'undefined' && navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (position) => {
@@ -340,33 +353,13 @@ const Home = () => {
             zoom: 12,
           })
         },
-        () => {
-          // Geolocation failed, try latest activity
-          const sortedActivities = [...allActivities]
-            .filter((a) => a.date && a.feature?.geometry?.coordinates?.length)
-            .sort((a, b) => (b.date?.getTime() ?? 0) - (a.date?.getTime() ?? 0))
-
-          const latestActivity = sortedActivities[0]
-          if (latestActivity?.feature?.geometry.coordinates.length) {
-            const [longitude, latitude] = latestActivity.feature.geometry.coordinates[0]
-            mapRef.current?.flyTo({ latitude, longitude, zoom: 12 })
-          }
-        },
+        flyToLatestActivity,
         { enableHighAccuracy: false, timeout: 5000, maximumAge: 300000 },
       )
     } else {
-      // No geolocation, use latest activity
-      const sortedActivities = [...allActivities]
-        .filter((a) => a.date && a.feature?.geometry?.coordinates?.length)
-        .sort((a, b) => (b.date?.getTime() ?? 0) - (a.date?.getTime() ?? 0))
-
-      const latestActivity = sortedActivities[0]
-      if (latestActivity?.feature?.geometry.coordinates.length) {
-        const [longitude, latitude] = latestActivity.feature.geometry.coordinates[0]
-        mapRef.current?.flyTo({ latitude, longitude, zoom: 12 })
-      }
+      flyToLatestActivity()
     }
-  }, [allActivities])
+  }, [flyToLatestActivity])
 
   const hasActivities = allActivities.length > 0 || isRestoringCache
 

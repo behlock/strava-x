@@ -1,9 +1,10 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { buildAuthUrl, refreshAccessToken, type StravaTokens } from '@/lib/strava'
 
 const STORAGE_KEY = 'strava-x:tokens'
+const OAUTH_STATE_KEY = 'strava-x:oauth_state'
 const REFRESH_SKEW_SECONDS = 60
 
 function readTokens(): StravaTokens | null {
@@ -26,8 +27,14 @@ function writeTokens(tokens: StravaTokens | null) {
   }
 }
 
+function generateState(): string {
+  // crypto.randomUUID is available in all browsers that support Next 16's output.
+  return crypto.randomUUID()
+}
+
 // Reads `#strava_auth=...` fragment left by the OAuth callback, stores the
-// tokens, and scrubs the URL. Returns the tokens if a handoff happened.
+// tokens, and scrubs the URL. Returns the tokens only if the `state` round-trip
+// matches what we stashed before redirecting — this is the CSRF check.
 function consumeHashTokens(): StravaTokens | null {
   if (typeof window === 'undefined') return null
   const hash = window.location.hash
@@ -38,9 +45,17 @@ function consumeHashTokens(): StravaTokens | null {
   const refresh_token = params.get('refresh_token')
   const expires_at = Number(params.get('expires_at'))
   const athleteIdRaw = params.get('athlete_id')
+  const state = params.get('state')
 
   // Scrub the fragment immediately so tokens don't linger in window.location.
   history.replaceState(null, '', window.location.pathname + window.location.search)
+
+  const expectedState = window.sessionStorage.getItem(OAUTH_STATE_KEY)
+  window.sessionStorage.removeItem(OAUTH_STATE_KEY)
+  if (!state || !expectedState || state !== expectedState) {
+    console.warn('[use-strava-auth] OAuth state mismatch — ignoring callback')
+    return null
+  }
 
   if (!access_token || !refresh_token || !expires_at) return null
   return {
@@ -62,6 +77,9 @@ export interface UseStravaAuth {
 export function useStravaAuth(): UseStravaAuth {
   const [tokens, setTokens] = useState<StravaTokens | null>(null)
   const [justConnected, setJustConnected] = useState(false)
+  // Dedupes concurrent refresh calls — Strava rotates the refresh_token on each
+  // successful refresh, so firing two in parallel invalidates the second one.
+  const refreshInFlightRef = useRef<Promise<StravaTokens> | null>(null)
 
   useEffect(() => {
     const fromHash = consumeHashTokens()
@@ -76,8 +94,10 @@ export function useStravaAuth(): UseStravaAuth {
 
   const connect = useCallback(() => {
     if (typeof window === 'undefined') return
+    const state = generateState()
+    window.sessionStorage.setItem(OAUTH_STATE_KEY, state)
     const redirectUri = `${window.location.origin}/api/auth/strava/callback`
-    window.location.href = buildAuthUrl(redirectUri)
+    window.location.href = buildAuthUrl(redirectUri, state)
   }, [])
 
   const disconnect = useCallback(() => {
@@ -95,11 +115,21 @@ export function useStravaAuth(): UseStravaAuth {
       return current.access_token
     }
 
+    if (!refreshInFlightRef.current) {
+      refreshInFlightRef.current = refreshAccessToken(current.refresh_token)
+        .then((refreshed) => {
+          const next: StravaTokens = { ...current, ...refreshed }
+          writeTokens(next)
+          setTokens(next)
+          return next
+        })
+        .finally(() => {
+          refreshInFlightRef.current = null
+        })
+    }
+
     try {
-      const refreshed = await refreshAccessToken(current.refresh_token)
-      const next: StravaTokens = { ...current, ...refreshed }
-      writeTokens(next)
-      setTokens(next)
+      const next = await refreshInFlightRef.current
       return next.access_token
     } catch {
       writeTokens(null)
