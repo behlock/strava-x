@@ -1,6 +1,6 @@
 # strava-x
 
-Visualize your Strava activities on an interactive heatmap.
+Visualize your Strava activities on an interactive map.
 
 ## Setup
 

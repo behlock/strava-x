@@ -54,8 +54,7 @@ export function WelcomePanel({ open, onDismiss, onConnect }: WelcomePanelProps) 
           <div className="space-y-2">
             <p className="text-sm-compact">welcome to strava—x</p>
             <p className="text-xs-compact text-panel-muted">
-              a heatmap of your Strava activities. connect your account, or take a look at someone else&apos;s map
-              first.
+              a map of your Strava activities. connect your account, or take a look at someone else&apos;s map first
             </p>
           </div>
 

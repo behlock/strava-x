@@ -26,7 +26,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const who = row.athlete_display_name ?? row.slug
   return {
     title: `${who} • strava—x`,
-    description: `${who}'s heatmap of ${row.activity_count} Strava activities.`,
+    description: `${who}'s map of ${row.activity_count} Strava activities`,
   }
 }
 

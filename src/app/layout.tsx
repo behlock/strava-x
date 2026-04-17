@@ -7,29 +7,29 @@ import ThemeProvider from '@/components/theme-provider'
 
 export const metadata: Metadata = {
   title: 'strava—x',
-  description: 'Visualize your Strava activities on an interactive heatmap.',
-  keywords: ['Walid Behlock', 'Strava', 'heatmap', 'activity map', 'GPX', 'FIT'],
+  description: 'Visualize your Strava activities on an interactive map',
+  keywords: ['Walid Behlock', 'Strava', 'map', 'activity map', 'GPX', 'FIT'],
   authors: [{ name: 'Walid Behlock' }],
   metadataBase: new URL('https://strava-x.com'),
   openGraph: {
     type: 'website',
     url: 'https://strava-x.com',
     title: 'strava—x',
-    description: 'Visualize your Strava activities on an interactive heatmap.',
+    description: 'Visualize your Strava activities on an interactive map',
     siteName: 'strava—x',
     images: [
       {
         url: '/og-image.png',
         width: 1200,
         height: 630,
-        alt: 'strava—x — activity heatmap preview',
+        alt: 'strava—x — activity map preview',
       },
     ],
   },
   twitter: {
     card: 'summary_large_image',
     title: 'strava—x',
-    description: 'Visualize your Strava activities on an interactive heatmap.',
+    description: 'Visualize your Strava activities on an interactive map',
     images: ['/og-image.png'],
   },
   icons: {
