@@ -1,5 +1,3 @@
-![map](/assets/map.gif?raw=true 'map')
-
 # strava-x
 
 Visualize your Strava activities on an interactive heatmap.
@@ -15,9 +13,9 @@ Fill in the values in `.env.local`:
 
 | Variable                             | Required | Description                                                      |
 | ------------------------------------ | -------- | ---------------------------------------------------------------- |
-| `NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN`    | Yes      | [Mapbox access token](https://account.mapbox.com/access-tokens/) |
 | `NEXT_PUBLIC_STRAVA_CLIENT_ID`       | Yes      | Strava app client ID                                             |
 | `STRAVA_CLIENT_SECRET`               | Yes      | Strava app client secret (server-only)                           |
+| `NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN`    | Yes      | [Mapbox access token](https://account.mapbox.com/access-tokens/) |
 | `NEXT_PUBLIC_MAPBOX_MAP_STYLE_DARK`  | No       | Custom Mapbox dark style URL                                     |
 | `NEXT_PUBLIC_MAPBOX_MAP_STYLE_LIGHT` | No       | Custom Mapbox light style URL                                    |
 
