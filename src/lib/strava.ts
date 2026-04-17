@@ -1,4 +1,5 @@
 import type { Activity, ActivityFeature } from '@/models/activity'
+import { config } from '@/lib/config'
 
 const STRAVA_AUTH_URL = 'https://www.strava.com/oauth/authorize'
 const STRAVA_API = 'https://www.strava.com/api/v3'
@@ -25,18 +26,18 @@ interface StravaSummaryActivity {
 }
 
 export function getClientId(): string {
-  const id = process.env.NEXT_PUBLIC_STRAVA_CLIENT_ID
-  if (!id) throw new Error('NEXT_PUBLIC_STRAVA_CLIENT_ID is not set')
-  return id
+  if (!config.STRAVA_CLIENT_ID) throw new Error('NEXT_PUBLIC_STRAVA_CLIENT_ID is not set')
+  return config.STRAVA_CLIENT_ID
 }
 
-export function buildAuthUrl(redirectUri: string): string {
+export function buildAuthUrl(redirectUri: string, state: string): string {
   const params = new URLSearchParams({
     client_id: getClientId(),
     redirect_uri: redirectUri,
     response_type: 'code',
     approval_prompt: 'auto',
     scope: 'read,activity:read_all',
+    state,
   })
   return `${STRAVA_AUTH_URL}?${params.toString()}`
 }
@@ -123,35 +124,79 @@ export function summaryToActivity(s: StravaSummaryActivity): Activity {
 
 interface FetchOptions {
   onProgress?: (fetched: number) => void
+  onBatch?: (batch: Activity[]) => void
   signal?: AbortSignal
+}
+
+const MAX_RETRIES = 3
+const BASE_BACKOFF_MS = 1000
+
+function sleep(ms: number, signal?: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) return reject(new DOMException('Aborted', 'AbortError'))
+    const timer = setTimeout(resolve, ms)
+    signal?.addEventListener(
+      'abort',
+      () => {
+        clearTimeout(timer)
+        reject(new DOMException('Aborted', 'AbortError'))
+      },
+      { once: true },
+    )
+  })
+}
+
+async function fetchWithRetry(url: string, accessToken: string, signal: AbortSignal | undefined): Promise<Response> {
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    const res = await fetch(url, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+      signal,
+    })
+    if (res.status === 401) throw new Error('strava_unauthorized')
+    if (res.ok) return res
+
+    const isRateLimited = res.status === 429
+    const isServerError = res.status >= 500 && res.status < 600
+    if (!isRateLimited && !isServerError) throw new Error(`strava_fetch_failed_${res.status}`)
+    if (attempt === MAX_RETRIES) {
+      throw new Error(isRateLimited ? 'strava_rate_limited' : `strava_fetch_failed_${res.status}`)
+    }
+
+    // Honor Retry-After header on 429 when present, otherwise exponential backoff.
+    const retryAfter = Number(res.headers.get('Retry-After'))
+    const delay =
+      isRateLimited && Number.isFinite(retryAfter) && retryAfter > 0
+        ? retryAfter * 1000
+        : BASE_BACKOFF_MS * 2 ** attempt
+    await sleep(delay, signal)
+  }
+  // Unreachable
+  throw new Error('strava_fetch_failed')
 }
 
 export async function fetchAllActivities(
   accessToken: string,
-  { onProgress, signal }: FetchOptions = {},
+  { onProgress, onBatch, signal }: FetchOptions = {},
 ): Promise<Activity[]> {
   const perPage = 200
   const activities: Activity[] = []
   let page = 1
   while (true) {
     const url = `${STRAVA_API}/athlete/activities?per_page=${perPage}&page=${page}`
-    const res = await fetch(url, {
-      headers: { Authorization: `Bearer ${accessToken}` },
-      signal,
-    })
-    if (res.status === 401) throw new Error('strava_unauthorized')
-    if (res.status === 429) throw new Error('strava_rate_limited')
-    if (!res.ok) throw new Error(`strava_fetch_failed_${res.status}`)
+    const res = await fetchWithRetry(url, accessToken, signal)
 
-    const batch = (await res.json()) as StravaSummaryActivity[]
-    if (!Array.isArray(batch) || batch.length === 0) break
+    const raw = (await res.json()) as StravaSummaryActivity[]
+    if (!Array.isArray(raw) || raw.length === 0) break
 
-    for (const summary of batch) {
-      activities.push(summaryToActivity(summary))
+    const batch: Activity[] = []
+    for (const summary of raw) {
+      batch.push(summaryToActivity(summary))
     }
+    activities.push(...batch)
+    onBatch?.(batch)
     onProgress?.(activities.length)
 
-    if (batch.length < perPage) break
+    if (raw.length < perPage) break
     page++
   }
   return activities

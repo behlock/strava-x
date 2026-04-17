@@ -39,10 +39,12 @@ export function FilterPanel({
   }
 
   const formatDate = (date: Date) => {
-    return date.toLocaleDateString('en-US', {
-      month: 'short',
-      year: '2-digit',
-    }).toLowerCase()
+    return date
+      .toLocaleDateString('en-US', {
+        month: 'short',
+        year: '2-digit',
+      })
+      .toLowerCase()
   }
 
   const getCurrentDate = () => {
@@ -55,67 +57,64 @@ export function FilterPanel({
   const currentDate = getCurrentDate()
 
   return (
-    <div
-      className={cn(
-        'bg-panel/90 panel-blur border border-panel-border rounded-sm',
-        className
-      )}
-    >
+    <div className={cn('bg-panel/90 panel-blur border border-panel-border rounded-sm', className)}>
       <button
         onClick={() => setExpanded(!expanded)}
         className="w-full flex items-center justify-between px-3 py-2 border-b border-panel-border hover:bg-foreground/5 transition-colors"
       >
-        <span className="text-xs-compact tracking-wider">
-          filters
-        </span>
-        <span className="text-panel-muted text-xs-compact">
-          {expanded ? '[-]' : '[+]'}
-        </span>
+        <span className="text-xs-compact tracking-wider">filters</span>
+        <span className="text-panel-muted text-xs-compact">{expanded ? '[-]' : '[+]'}</span>
       </button>
 
-      {expanded && <div className="p-3 space-y-3">
-        {/* Activity type filters */}
-        <div className="space-y-0.5">
-          <div className="flex gap-2 text-xs-compact text-panel-muted mb-1">
-            <button
-              onClick={() => onActivityTypesChange([...activityTypes])}
-              className="hover:text-foreground transition-colors"
-            >
-              [all]
-            </button>
-            <button
-              onClick={() => onActivityTypesChange([])}
-              className="hover:text-foreground transition-colors"
-            >
-              [none]
-            </button>
-          </div>
-          {[...activityTypes].sort((a, b) => (activityCounts[b] || 0) - (activityCounts[a] || 0)).map((type) => (
-            <Checkbox
-              key={type}
-              checked={selectedActivityTypes.includes(type)}
-              onChange={(checked) => handleTypeToggle(type, checked)}
-              label={type}
-              count={activityCounts[type]}
-              onHover={(hovered) => onTypeHover?.(hovered ? type : null)}
-            />
-          ))}
-        </div>
-
-        {/* Timeline filter */}
-        {dateRange && (
-          <div className="pt-2 border-t border-panel-border">
-            <div className="flex justify-between text-xs-compact text-panel-muted mb-2">
-              <span>{formatDate(dateRange.min)}</span>
-              <span>{currentDate ? formatDate(currentDate) : '—'}</span>
+      {expanded && (
+        <div className="p-3 space-y-3">
+          {/* Activity type filters */}
+          <div className="space-y-0.5">
+            <div className="flex gap-2 text-xs-compact text-panel-muted mb-1">
+              <button
+                onClick={() => onActivityTypesChange([...activityTypes])}
+                className="hover:text-foreground transition-colors"
+              >
+                [all]
+              </button>
+              <button onClick={() => onActivityTypesChange([])} className="hover:text-foreground transition-colors">
+                [none]
+              </button>
             </div>
-            <input
-              type="range"
-              min={0}
-              max={100}
-              value={selectedDate}
-              onChange={(e) => onDateChange(Number(e.target.value))}
-              className="w-full h-2 md:h-1 bg-panel-border rounded-sm appearance-none cursor-pointer
+            {[...activityTypes]
+              .sort((a, b) => (activityCounts[b] || 0) - (activityCounts[a] || 0))
+              .map((type) => (
+                <Checkbox
+                  key={type}
+                  checked={selectedActivityTypes.includes(type)}
+                  onChange={(checked) => handleTypeToggle(type, checked)}
+                  label={type}
+                  count={activityCounts[type]}
+                  onHover={(hovered) => onTypeHover?.(hovered ? type : null)}
+                />
+              ))}
+          </div>
+
+          {/* Timeline filter */}
+          {dateRange && (
+            <div className="pt-2 border-t border-panel-border">
+              <div className="flex justify-between text-xs-compact text-panel-muted mb-2">
+                <span>{formatDate(dateRange.min)}</span>
+                <span>{currentDate ? formatDate(currentDate) : '—'}</span>
+              </div>
+              <input
+                type="range"
+                min={0}
+                max={100}
+                value={selectedDate}
+                onChange={(e) => onDateChange(Number(e.target.value))}
+                aria-label="Activity date cutoff"
+                aria-valuetext={
+                  currentDate
+                    ? `Showing activities up to ${currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}`
+                    : `${selectedDate}%`
+                }
+                className="w-full h-2 md:h-1 bg-panel-border rounded-sm appearance-none cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-foreground
                 [&::-webkit-slider-thumb]:appearance-none
                 [&::-webkit-slider-thumb]:w-6
                 [&::-webkit-slider-thumb]:h-6
@@ -132,10 +131,11 @@ export function FilterPanel({
                 [&::-moz-range-thumb]:rounded-sm
                 [&::-moz-range-thumb]:cursor-pointer
                 [&::-moz-range-thumb]:border-0"
-            />
-          </div>
-        )}
-      </div>}
+              />
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }

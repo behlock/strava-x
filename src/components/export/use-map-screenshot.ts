@@ -5,14 +5,6 @@ import type { MapboxHeatmapRef } from '@/components/mapbox-heatmap'
 
 export type AspectRatio = '1:1' | '16:9' | '4:5'
 
-export interface ExportStatistics {
-  totalActivities: number
-  totalDistance: number // in km
-  totalElevation: number // in meters
-  breakdown: { type: string; count: number; distance: number; color: string }[]
-  locationName?: string
-}
-
 interface AspectRatioConfig {
   width: number
   height: number
@@ -35,7 +27,6 @@ export interface PanOffset {
 
 const PADDING = 48
 const HEADER_HEIGHT = 80
-const FOOTER_HEIGHT = 120
 const BORDER_WIDTH = 3
 
 // Ensure font is loaded before rendering branding
@@ -54,7 +45,6 @@ interface UseMapScreenshotOptions {
   showBranding: boolean
   isDark: boolean
   panOffset?: PanOffset
-  statistics?: ExportStatistics
 }
 
 interface UseMapScreenshotResult {
@@ -70,209 +60,143 @@ export function useMapScreenshot({
   showBranding,
   isDark,
   panOffset = { x: 0, y: 0 },
-  statistics,
 }: UseMapScreenshotOptions): UseMapScreenshotResult {
   const [isCapturing, setIsCapturing] = useState(false)
 
-  const captureToCanvas = useCallback(async (scale: number): Promise<HTMLCanvasElement | null> => {
-    const canvas = mapRef.current?.getCanvas()
-    if (!canvas) return null
+  const captureToCanvas = useCallback(
+    async (scale: number): Promise<HTMLCanvasElement | null> => {
+      const canvas = mapRef.current?.getCanvas()
+      if (!canvas) return null
 
-    const config = ASPECT_RATIOS[aspectRatio]
-    const targetWidth = Math.round(config.width * scale)
-    const targetHeight = Math.round(config.height * scale)
+      const config = ASPECT_RATIOS[aspectRatio]
+      const targetWidth = Math.round(config.width * scale)
+      const targetHeight = Math.round(config.height * scale)
 
-    // Create composite canvas with error handling for memory constraints
-    const compositeCanvas = document.createElement('canvas')
-    try {
-      compositeCanvas.width = targetWidth
-      compositeCanvas.height = targetHeight
-    } catch {
-      console.error('Failed to create canvas - dimensions may be too large')
-      return null
-    }
+      // Create composite canvas with error handling for memory constraints
+      const compositeCanvas = document.createElement('canvas')
+      try {
+        compositeCanvas.width = targetWidth
+        compositeCanvas.height = targetHeight
+      } catch {
+        console.error('Failed to create canvas - dimensions may be too large')
+        return null
+      }
 
-    const ctx = compositeCanvas.getContext('2d')
-    if (!ctx) return null
+      const ctx = compositeCanvas.getContext('2d')
+      if (!ctx) return null
 
-    // Background color (outer background)
-    const bgColor = isDark ? '#0a0a0a' : '#FAFAFA'
-    ctx.fillStyle = bgColor
-    ctx.fillRect(0, 0, targetWidth, targetHeight)
-
-    // Calculate dimensions
-    const padding = PADDING * scale
-    const headerHeight = showBranding ? HEADER_HEIGHT * scale : 0
-    const footerHeight = showBranding && statistics ? FOOTER_HEIGHT * scale : 0
-    const borderWidth = BORDER_WIDTH * scale
-
-    // Card dimensions (the polaroid frame)
-    const cardX = padding
-    const cardY = padding
-    const cardWidth = targetWidth - padding * 2
-    const cardHeight = targetHeight - padding * 2
-
-    // Draw card border
-    const borderColor = isDark ? '#F5F5F5' : '#2D2D2D'
-    const mutedColor = isDark ? '#666666' : '#888888'
-    ctx.strokeStyle = borderColor
-    ctx.lineWidth = borderWidth
-    ctx.strokeRect(cardX + borderWidth / 2, cardY + borderWidth / 2, cardWidth - borderWidth, cardHeight - borderWidth)
-
-    await ensureFontLoaded()
-    const textColor = isDark ? '#F5F5F5' : '#2D2D2D'
-
-    // Draw header
-    if (showBranding) {
+      // Background color (outer background)
+      const bgColor = isDark ? '#0a0a0a' : '#FAFAFA'
       ctx.fillStyle = bgColor
-      ctx.fillRect(cardX + borderWidth, cardY + borderWidth, cardWidth - borderWidth * 2, headerHeight)
+      ctx.fillRect(0, 0, targetWidth, targetHeight)
 
-      ctx.fillStyle = textColor
-      const headerFontSize = Math.round(24 * scale)
-      ctx.font = `${headerFontSize}px "${BRANDING_FONT}", monospace`
-      ctx.textBaseline = 'middle'
+      // Calculate dimensions
+      const padding = PADDING * scale
+      const headerHeight = showBranding ? HEADER_HEIGHT * scale : 0
+      const borderWidth = BORDER_WIDTH * scale
 
-      const headerTextY = cardY + borderWidth + headerHeight / 2
+      // Card dimensions (the polaroid frame)
+      const cardX = padding
+      const cardY = padding
+      const cardWidth = targetWidth - padding * 2
+      const cardHeight = targetHeight - padding * 2
 
-      // Draw "strava-x.com" on the left
-      ctx.textAlign = 'left'
-      ctx.fillText('strava-x.com', cardX + borderWidth + padding / 2, headerTextY)
-
-      // Draw location name on the right (if available)
-      if (statistics?.locationName) {
-        ctx.textAlign = 'right'
-        ctx.fillStyle = mutedColor
-        const locationFontSize = Math.round(18 * scale)
-        ctx.font = `${locationFontSize}px "${BRANDING_FONT}", monospace`
-        ctx.fillText(statistics.locationName, cardX + cardWidth - borderWidth - padding / 2, headerTextY)
-      }
-
-      // Draw separator line under header
+      // Draw card border
+      const borderColor = isDark ? '#F5F5F5' : '#2D2D2D'
       ctx.strokeStyle = borderColor
-      ctx.lineWidth = borderWidth / 2
-      ctx.beginPath()
-      ctx.moveTo(cardX + borderWidth, cardY + borderWidth + headerHeight)
-      ctx.lineTo(cardX + cardWidth - borderWidth, cardY + borderWidth + headerHeight)
-      ctx.stroke()
-    }
+      ctx.lineWidth = borderWidth
+      ctx.strokeRect(
+        cardX + borderWidth / 2,
+        cardY + borderWidth / 2,
+        cardWidth - borderWidth,
+        cardHeight - borderWidth,
+      )
 
-    // Draw footer with statistics
-    if (showBranding && statistics) {
-      const footerY = cardY + cardHeight - borderWidth - footerHeight
+      await ensureFontLoaded()
+      const textColor = isDark ? '#F5F5F5' : '#2D2D2D'
 
-      // Draw separator line above footer
-      ctx.strokeStyle = borderColor
-      ctx.lineWidth = borderWidth / 2
-      ctx.beginPath()
-      ctx.moveTo(cardX + borderWidth, footerY)
-      ctx.lineTo(cardX + cardWidth - borderWidth, footerY)
-      ctx.stroke()
+      // Draw header
+      if (showBranding) {
+        ctx.fillStyle = bgColor
+        ctx.fillRect(cardX + borderWidth, cardY + borderWidth, cardWidth - borderWidth * 2, headerHeight)
 
-      // Footer background
-      ctx.fillStyle = bgColor
-      ctx.fillRect(cardX + borderWidth, footerY, cardWidth - borderWidth * 2, footerHeight)
-
-      const footerPadding = padding / 2
-      const statStartX = cardX + borderWidth + footerPadding
-      const statWidth = (cardWidth - borderWidth * 2 - footerPadding * 2) / 3
-
-      // Helper to format distance
-      const formatDistance = (km: number): string => {
-        if (km >= 1000) return `${(km / 1000).toFixed(1)}k`
-        if (km >= 100) return km.toFixed(0)
-        return km.toFixed(1)
-      }
-
-      // Helper to format elevation
-      const formatElevation = (m: number): string => {
-        if (m >= 1000) return `${(m / 1000).toFixed(1)}k`
-        return m.toFixed(0)
-      }
-
-      // Draw stats
-      const labelFontSize = Math.round(12 * scale)
-      const valueFontSize = Math.round(28 * scale)
-      const labelY = footerY + footerHeight * 0.35
-      const valueY = footerY + footerHeight * 0.72
-
-      const distance = statistics.totalDistance
-      const elevation = statistics.totalElevation
-
-      const stats = [
-        { label: 'activities', value: statistics.totalActivities.toLocaleString() },
-        { label: 'kilometers', value: formatDistance(distance) },
-        { label: 'elevation (m)', value: formatElevation(elevation) },
-      ]
-
-      stats.forEach((stat, i) => {
-        const centerX = statStartX + statWidth * i + statWidth / 2
-
-        // Label
-        ctx.fillStyle = mutedColor
-        ctx.font = `${labelFontSize}px "${BRANDING_FONT}", monospace`
-        ctx.textAlign = 'center'
-        ctx.textBaseline = 'middle'
-        ctx.fillText(stat.label, centerX, labelY)
-
-        // Value
         ctx.fillStyle = textColor
-        ctx.font = `${valueFontSize}px "${BRANDING_FONT}", monospace`
-        ctx.fillText(stat.value, centerX, valueY)
-      })
-    }
+        const headerFontSize = Math.round(24 * scale)
+        ctx.font = `${headerFontSize}px "${BRANDING_FONT}", monospace`
+        ctx.textBaseline = 'middle'
 
-    // Calculate map area (inside the card, between header and footer)
-    const mapAreaX = cardX + borderWidth
-    const mapAreaY = cardY + borderWidth + headerHeight
-    const mapAreaWidth = cardWidth - borderWidth * 2
-    const mapAreaHeight = cardHeight - borderWidth * 2 - headerHeight - footerHeight
+        const headerTextY = cardY + borderWidth + headerHeight / 2
 
-    // Calculate crop from source canvas (center crop with pan offset)
-    // Scale down to 60% to allow more panning range in both directions
-    const panZoom = 0.6
-    const targetAspect = mapAreaWidth / mapAreaHeight
+        // Draw "strava-x.com" on the left
+        ctx.textAlign = 'left'
+        ctx.fillText('strava-x.com', cardX + borderWidth + padding / 2, headerTextY)
 
-    // Calculate the crop size maintaining target aspect ratio, scaled down for pan room
-    let sourceWidth: number
-    let sourceHeight: number
+        // Draw separator line under header
+        ctx.strokeStyle = borderColor
+        ctx.lineWidth = borderWidth / 2
+        ctx.beginPath()
+        ctx.moveTo(cardX + borderWidth, cardY + borderWidth + headerHeight)
+        ctx.lineTo(cardX + cardWidth - borderWidth, cardY + borderWidth + headerHeight)
+        ctx.stroke()
+      }
 
-    if (canvas.width / canvas.height > targetAspect) {
-      // Source is wider than target
-      sourceHeight = canvas.height * panZoom
-      sourceWidth = sourceHeight * targetAspect
-    } else {
-      // Source is taller than target
-      sourceWidth = canvas.width * panZoom
-      sourceHeight = sourceWidth / targetAspect
-    }
+      // Calculate map area (inside the card, below the header)
+      const mapAreaX = cardX + borderWidth
+      const mapAreaY = cardY + borderWidth + headerHeight
+      const mapAreaWidth = cardWidth - borderWidth * 2
+      const mapAreaHeight = cardHeight - borderWidth * 2 - headerHeight
 
-    // Calculate max pan range and apply offset
-    const maxPanX = (canvas.width - sourceWidth) / 2
-    const maxPanY = (canvas.height - sourceHeight) / 2
-    const sourceX = maxPanX + panOffset.x * maxPanX
-    const sourceY = maxPanY + panOffset.y * maxPanY
+      // Calculate crop from source canvas (center crop with pan offset)
+      // Scale down to 60% to allow more panning range in both directions
+      const panZoom = 0.6
+      const targetAspect = mapAreaWidth / mapAreaHeight
 
-    // Draw map onto composite canvas
-    ctx.drawImage(
-      canvas,
-      sourceX,
-      sourceY,
-      sourceWidth,
-      sourceHeight,
-      mapAreaX,
-      mapAreaY,
-      mapAreaWidth,
-      mapAreaHeight
-    )
+      // Calculate the crop size maintaining target aspect ratio, scaled down for pan room
+      let sourceWidth: number
+      let sourceHeight: number
 
-    return compositeCanvas
-  }, [mapRef, aspectRatio, showBranding, isDark, panOffset, statistics])
+      if (canvas.width / canvas.height > targetAspect) {
+        // Source is wider than target
+        sourceHeight = canvas.height * panZoom
+        sourceWidth = sourceHeight * targetAspect
+      } else {
+        // Source is taller than target
+        sourceWidth = canvas.width * panZoom
+        sourceHeight = sourceWidth / targetAspect
+      }
 
-  const capture = useCallback(async (scale: number): Promise<string | null> => {
-    const canvas = await captureToCanvas(scale)
-    if (!canvas) return null
-    return canvas.toDataURL('image/png')
-  }, [captureToCanvas])
+      // Calculate max pan range and apply offset
+      const maxPanX = (canvas.width - sourceWidth) / 2
+      const maxPanY = (canvas.height - sourceHeight) / 2
+      const sourceX = maxPanX + panOffset.x * maxPanX
+      const sourceY = maxPanY + panOffset.y * maxPanY
+
+      // Draw map onto composite canvas
+      ctx.drawImage(
+        canvas,
+        sourceX,
+        sourceY,
+        sourceWidth,
+        sourceHeight,
+        mapAreaX,
+        mapAreaY,
+        mapAreaWidth,
+        mapAreaHeight,
+      )
+
+      return compositeCanvas
+    },
+    [mapRef, aspectRatio, showBranding, isDark, panOffset],
+  )
+
+  const capture = useCallback(
+    async (scale: number): Promise<string | null> => {
+      const canvas = await captureToCanvas(scale)
+      if (!canvas) return null
+      return canvas.toDataURL('image/png')
+    },
+    [captureToCanvas],
+  )
 
   const captureScreenshot = useCallback(async (): Promise<string | null> => {
     setIsCapturing(true)

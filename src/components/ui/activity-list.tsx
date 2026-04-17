@@ -30,11 +30,13 @@ function formatDistance(km: number): string {
 
 function formatDate(date: Date | undefined): string {
   if (!date) return '—'
-  return date.toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  }).toLowerCase()
+  return date
+    .toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    })
+    .toLowerCase()
 }
 
 // Row height: 56px on mobile (py-4 = 16px*2 + content), 40px on desktop (py-2 = 8px*2 + content)
@@ -79,59 +81,58 @@ export function ActivityList({
     overscan: 5,
   })
 
-  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if (sortedActivities.length === 0) return
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (sortedActivities.length === 0) return
 
-    switch (e.key) {
-      case 'ArrowDown': {
-        e.preventDefault()
-        const next = Math.min(selectedIndexRef.current + 1, sortedActivities.length - 1)
-        selectedIndexRef.current = next
-        const downActivity = sortedActivities[next]
-        onActivityHover?.(downActivity.id)
-        onActivityNavigate?.(downActivity)
-        virtualizer.scrollToIndex(next, { align: 'auto' })
-        break
-      }
-      case 'ArrowUp': {
-        e.preventDefault()
-        const next = Math.max(selectedIndexRef.current - 1, 0)
-        selectedIndexRef.current = next
-        const upActivity = sortedActivities[next]
-        onActivityHover?.(upActivity.id)
-        onActivityNavigate?.(upActivity)
-        virtualizer.scrollToIndex(next, { align: 'auto' })
-        break
-      }
-      case 'Enter': {
-        e.preventDefault()
-        const idx = selectedIndexRef.current
-        if (idx >= 0 && idx < sortedActivities.length) {
-          onActivityClick?.(sortedActivities[idx])
+      switch (e.key) {
+        case 'ArrowDown': {
+          e.preventDefault()
+          const next = Math.min(selectedIndexRef.current + 1, sortedActivities.length - 1)
+          selectedIndexRef.current = next
+          const downActivity = sortedActivities[next]
+          onActivityHover?.(downActivity.id)
+          onActivityNavigate?.(downActivity)
+          virtualizer.scrollToIndex(next, { align: 'auto' })
+          break
         }
-        break
+        case 'ArrowUp': {
+          e.preventDefault()
+          const next = Math.max(selectedIndexRef.current - 1, 0)
+          selectedIndexRef.current = next
+          const upActivity = sortedActivities[next]
+          onActivityHover?.(upActivity.id)
+          onActivityNavigate?.(upActivity)
+          virtualizer.scrollToIndex(next, { align: 'auto' })
+          break
+        }
+        case 'Enter': {
+          e.preventDefault()
+          const idx = selectedIndexRef.current
+          if (idx >= 0 && idx < sortedActivities.length) {
+            onActivityClick?.(sortedActivities[idx])
+          }
+          break
+        }
       }
-    }
-  }, [sortedActivities, onActivityHover, onActivityNavigate, onActivityClick, virtualizer])
+    },
+    [sortedActivities, onActivityHover, onActivityNavigate, onActivityClick, virtualizer],
+  )
 
   if (loading) {
     return (
       <div
         className={cn(
           'bg-panel/90 panel-blur border border-panel-border rounded-sm',
-          expanded ? className : 'flex-none'
+          expanded ? className : 'flex-none',
         )}
       >
         <button
           onClick={() => setExpanded(!expanded)}
           className="w-full flex items-center justify-between px-3 py-2 border-b border-panel-border hover:bg-foreground/5 transition-colors"
         >
-          <span className="text-xs-compact tracking-wider">
-            activities
-          </span>
-          <span className="text-panel-muted text-xs-compact">
-            {expanded ? '[-]' : '[+]'}
-          </span>
+          <span className="text-xs-compact tracking-wider">activities</span>
+          <span className="text-panel-muted text-xs-compact">{expanded ? '[-]' : '[+]'}</span>
         </button>
         {expanded && (
           <div className="p-3">
@@ -150,16 +151,14 @@ export function ActivityList({
     <div
       className={cn(
         'bg-panel/90 panel-blur border border-panel-border rounded-sm flex flex-col',
-        expanded ? className : 'flex-none'
+        expanded ? className : 'flex-none',
       )}
     >
       <button
         onClick={() => setExpanded(!expanded)}
         className="w-full flex items-center justify-between px-3 py-2 border-b border-panel-border hover:bg-foreground/5 transition-colors shrink-0"
       >
-        <span className="text-xs-compact tracking-wider">
-          activities
-        </span>
+        <span className="text-xs-compact tracking-wider">activities</span>
         <span className="text-panel-muted text-xs-compact flex items-center gap-2">
           <span className="tabular-nums">{activities.length.toLocaleString()} total</span>
           <span>{expanded ? '[-]' : '[+]'}</span>
@@ -169,14 +168,14 @@ export function ActivityList({
       {expanded && (
         <div
           ref={parentRef}
-          className="flex-1 min-h-0 overflow-y-auto scrollbar-thin focus:outline-none"
+          className="flex-1 min-h-0 overflow-y-auto scrollbar-thin focus:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-foreground/60"
           tabIndex={0}
+          role="listbox"
+          aria-label="Activities"
           onKeyDown={handleKeyDown}
         >
           {activities.length === 0 ? (
-            <div className="p-3 text-xs-compact text-panel-muted text-center">
-              no activities
-            </div>
+            <div className="p-3 text-xs-compact text-panel-muted text-center">no activities</div>
           ) : (
             <div
               style={{
@@ -205,7 +204,7 @@ export function ActivityList({
                     <div
                       className={cn(
                         'relative h-full border-b border-panel-border cursor-pointer transition-colors',
-                        isHighlighted ? 'bg-foreground/20' : 'hover:bg-foreground/5'
+                        isHighlighted ? 'bg-foreground/20' : 'hover:bg-foreground/5',
                       )}
                       onMouseEnter={() => {
                         selectedIndexRef.current = virtualItem.index
@@ -215,10 +214,7 @@ export function ActivityList({
                       onClick={() => onActivityClick?.(activity)}
                     >
                       {/* Color indicator bar */}
-                      <div
-                        className="absolute left-0 top-0 bottom-0 w-0.5"
-                        style={{ backgroundColor: color }}
-                      />
+                      <div className="absolute left-0 top-0 bottom-0 w-0.5" style={{ backgroundColor: color }} />
 
                       <div className="pl-3 pr-3 py-4 md:py-2">
                         {/* Main row */}
@@ -237,7 +233,8 @@ export function ActivityList({
                           <span>{formatDate(activity.date)}</span>
                           {activity.elevationGain > 0 && (
                             <span className="tabular-nums">
-                              +{Math.round(convertElevation(activity.elevationGain))}{elevationLabel}
+                              +{Math.round(convertElevation(activity.elevationGain))}
+                              {elevationLabel}
                             </span>
                           )}
                         </div>

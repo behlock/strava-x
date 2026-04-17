@@ -31,15 +31,12 @@ export async function saveActivities(activities: Activity[]): Promise<void> {
   const tx = db.transaction(STORE_NAME, 'readwrite')
   const store = tx.objectStore(STORE_NAME)
 
-  // Clear existing and add new
-  store.clear()
-
   for (const activity of activities) {
     const serialized: SerializedActivity = {
       ...activity,
       date: activity.date?.toISOString(),
     }
-    store.add(serialized)
+    store.put(serialized)
   }
 
   return new Promise((resolve, reject) => {

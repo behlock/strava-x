@@ -17,4 +17,4 @@ export interface Activity {
   elevationGain: number // in meters
 }
 
-export type ActivityFeatureCollection = FeatureCollection<LineString, { id: string }>
+export type ActivityFeatureCollection = FeatureCollection<LineString, { id: string; type: string; dateTs: number }>
