@@ -1,9 +1,11 @@
 'use client'
 
-import { ReactNode, useCallback, useRef, useState } from 'react'
+import { ReactNode, useCallback, useEffect, useRef, useState } from 'react'
 import { cn } from '@/lib/utils'
 
 type Section = 'stats' | 'filters' | 'activities'
+
+const COLLAPSED_HEIGHT = 56
 
 interface MobileDrawerProps {
   statsPanel?: ReactNode
@@ -11,6 +13,7 @@ interface MobileDrawerProps {
   activityList?: ReactNode
   hasActivities?: boolean
   className?: string
+  onHeightChange?: (height: number) => void
 }
 
 interface CollapsibleSectionProps {
@@ -28,19 +31,10 @@ function CollapsibleSection({ title, isOpen, onToggle, children }: CollapsibleSe
         className="w-full flex items-center justify-between px-4 py-3 hover:bg-foreground/5 transition-colors"
       >
         <span className="text-sm-compact tracking-wider">[{title}]</span>
-        <span className="text-panel-muted text-xs-compact">
-          {isOpen ? '[-]' : '[+]'}
-        </span>
+        <span className="text-panel-muted text-xs-compact">{isOpen ? '[-]' : '[+]'}</span>
       </button>
-      <div
-        className={cn(
-          'overflow-hidden transition-all duration-200',
-          isOpen ? 'max-h-[40vh]' : 'max-h-0'
-        )}
-      >
-        <div className="px-4 pb-4 overflow-y-auto max-h-[40vh]">
-          {children}
-        </div>
+      <div className={cn('overflow-hidden transition-all duration-200', isOpen ? 'max-h-[40vh]' : 'max-h-0')}>
+        <div className="px-4 pb-4 overflow-y-auto max-h-[40vh]">{children}</div>
       </div>
     </div>
   )
@@ -52,6 +46,7 @@ export function MobileDrawer({
   activityList,
   hasActivities = false,
   className,
+  onHeightChange,
 }: MobileDrawerProps) {
   const [isExpanded, setIsExpanded] = useState(false)
   const [openSection, setOpenSection] = useState<Section | null>('filters')
@@ -66,12 +61,15 @@ export function MobileDrawer({
     setDragOffset(0)
   }, [])
 
-  const handleTouchMove = useCallback((e: React.TouchEvent) => {
-    if (!isDragging) return
-    const currentY = e.touches[0].clientY
-    const diff = currentY - startYRef.current
-    setDragOffset(Math.max(-100, Math.min(100, diff)))
-  }, [isDragging])
+  const handleTouchMove = useCallback(
+    (e: React.TouchEvent) => {
+      if (!isDragging) return
+      const currentY = e.touches[0].clientY
+      const diff = currentY - startYRef.current
+      setDragOffset(Math.max(-100, Math.min(100, diff)))
+    },
+    [isDragging],
+  )
 
   const handleTouchEnd = useCallback(() => {
     setIsDragging(false)
@@ -99,15 +97,33 @@ export function MobileDrawer({
     }
   }
 
+  // During drag:
+  // - expanded + dragging down → translate drawer down so it slides off-screen
+  // - collapsed + dragging up → grow the drawer upward (anchored to bottom)
+  //   so it doesn't detach from the viewport edge.
   const getTransform = () => {
     if (isDragging && isExpanded) {
       return `translateY(${Math.max(0, dragOffset)}px)`
     }
-    if (isDragging && !isExpanded) {
-      return `translateY(${Math.min(0, dragOffset)}px)`
-    }
     return 'translateY(0)'
   }
+
+  const getInlineMaxHeight = (): string | undefined => {
+    if (isDragging && !isExpanded) {
+      return `${COLLAPSED_HEIGHT + Math.max(0, -dragOffset)}px`
+    }
+    return undefined
+  }
+
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el || !onHeightChange) return
+    const observer = new ResizeObserver(() => {
+      onHeightChange(el.getBoundingClientRect().height)
+    })
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [onHeightChange])
 
   if (!hasActivities) {
     return null
@@ -117,13 +133,15 @@ export function MobileDrawer({
     <div
       ref={containerRef}
       className={cn(
-        'fixed bottom-0 left-0 right-0 z-20 bg-panel/95 panel-blur border-t border-panel-border rounded-t-lg transition-all duration-300 ease-out',
+        'fixed bottom-0 left-0 right-0 z-20 bg-panel/95 panel-blur border-t border-panel-border rounded-t-lg',
+        !isDragging && 'transition-all duration-300 ease-out',
         isExpanded ? 'max-h-[80vh]' : 'max-h-[56px]',
-        className
+        className,
       )}
       style={{
         transform: getTransform(),
-        paddingBottom: 'env(safe-area-inset-bottom, 0px)'
+        maxHeight: getInlineMaxHeight(),
+        paddingBottom: 'env(safe-area-inset-bottom, 0px)',
       }}
     >
       {/* Drag handle */}
@@ -135,18 +153,11 @@ export function MobileDrawer({
         onClick={handleDragHandleClick}
       >
         <div className="w-10 h-1 bg-panel-border rounded-full" />
-        {!isExpanded && (
-          <span className="text-xs-compact text-panel-muted mt-1">swipe up for controls</span>
-        )}
+        {!isExpanded && <span className="text-xs-compact text-panel-muted mt-1">swipe up for controls</span>}
       </div>
 
       {/* Collapsible sections */}
-      <div
-        className={cn(
-          'overflow-hidden transition-all duration-300',
-          isExpanded ? 'max-h-[70vh]' : 'max-h-0'
-        )}
-      >
+      <div className={cn('overflow-hidden transition-all duration-300', isExpanded ? 'max-h-[70vh]' : 'max-h-0')}>
         <CollapsibleSection
           title="filters"
           isOpen={openSection === 'filters'}
@@ -163,11 +174,7 @@ export function MobileDrawer({
           {activityList}
         </CollapsibleSection>
 
-        <CollapsibleSection
-          title="stats"
-          isOpen={openSection === 'stats'}
-          onToggle={() => toggleSection('stats')}
-        >
+        <CollapsibleSection title="stats" isOpen={openSection === 'stats'} onToggle={() => toggleSection('stats')}>
           {statsPanel}
         </CollapsibleSection>
       </div>

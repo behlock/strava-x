@@ -16,6 +16,7 @@ interface AppShellProps {
   filterPanel?: ReactNode
   activityList?: ReactNode
   hasActivities?: boolean
+  onDrawerHeightChange?: (height: number) => void
 }
 
 export function AppShell({
@@ -29,20 +30,17 @@ export function AppShell({
   filterPanel,
   activityList,
   hasActivities = false,
+  onDrawerHeightChange,
 }: AppShellProps) {
   const isMobile = useIsMobile()
 
   return (
     <div className={cn('relative h-screen w-screen overflow-hidden', className)}>
       {/* Full-screen map as background */}
-      <div className="absolute inset-0">
-        {children}
-      </div>
+      <div className="absolute inset-0">{children}</div>
 
       {/* Header - fixed at top */}
-      <div className="absolute top-0 left-0 right-0 z-10">
-        {header}
-      </div>
+      <div className="absolute top-0 left-0 right-0 z-10">{header}</div>
 
       {/* Desktop layout */}
       {!isMobile && (
@@ -54,9 +52,7 @@ export function AppShell({
 
           {/* Bottom right statistics panel */}
           {bottomRightPanel && (
-            <div className="absolute bottom-4 right-4 z-10 w-64 lg:w-72 xl:w-80">
-              {bottomRightPanel}
-            </div>
+            <div className="absolute bottom-4 right-4 z-10 w-64 lg:w-72 xl:w-80">{bottomRightPanel}</div>
           )}
         </>
       )}
@@ -68,6 +64,7 @@ export function AppShell({
           filterPanel={filterPanel}
           activityList={activityList}
           hasActivities={hasActivities}
+          onHeightChange={onDrawerHeightChange}
         />
       )}
     </div>

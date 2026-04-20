@@ -8,6 +8,7 @@ import { Activity, ActivityFeatureCollection } from '@/models/activity'
 import { useStatistics } from '@/hooks/use-statistics'
 import { usePersistedMapPosition } from '@/hooks/use-persisted-map-position'
 import { useUnits } from '@/hooks/use-units'
+import { useIsMobile } from '@/hooks/use-media-query'
 
 const MapboxHeatmap = dynamic(() => import('@/components/mapbox-heatmap'), {
   ssr: false,
@@ -64,6 +65,25 @@ export function MapView({
   const [selectedDate, setSelectedDate] = useState<number>(100)
   const [highlightedActivityId, setHighlightedActivityId] = useState<string | null>(null)
   const [hoveredFilterType, setHoveredFilterType] = useState<string | null>(null)
+
+  const isMobile = useIsMobile()
+  const drawerHeightRef = useRef(0)
+
+  const handleDrawerHeightChange = useCallback((height: number) => {
+    drawerHeightRef.current = height
+  }, [])
+
+  const computePadding = useCallback(() => {
+    if (!isMobile) {
+      return { top: 80, bottom: 80, left: 100, right: 80 }
+    }
+    return {
+      top: 80,
+      bottom: Math.round(drawerHeightRef.current) + 20,
+      left: 40,
+      right: 40,
+    }
+  }, [isMobile])
 
   const mapRef = useRef<MapboxHeatmapRef | null>(null)
 
@@ -150,12 +170,17 @@ export function MapView({
 
   const dateCutoff = selectedDate >= 100 ? null : cutoffTime
 
-  const handleActivityClick = useCallback((activity: Activity) => {
-    setHighlightedActivityId(activity.id)
-    if (activity.feature?.geometry.coordinates) {
-      mapRef.current?.fitToBounds(activity.feature.geometry.coordinates as [number, number][])
-    }
-  }, [])
+  const handleActivityClick = useCallback(
+    (activity: Activity) => {
+      setHighlightedActivityId(activity.id)
+      if (activity.feature?.geometry.coordinates) {
+        mapRef.current?.fitToBounds(activity.feature.geometry.coordinates as [number, number][], {
+          padding: computePadding(),
+        })
+      }
+    },
+    [computePadding],
+  )
 
   const hoverPanTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const activitiesRef = useRef<Activity[]>(activities)
@@ -163,20 +188,23 @@ export function MapView({
     activitiesRef.current = activities
   }, [activities])
 
-  const handleActivityHover = useCallback((id: string | null) => {
-    setHighlightedActivityId(id)
-    if (hoverPanTimeoutRef.current) {
-      clearTimeout(hoverPanTimeoutRef.current)
-      hoverPanTimeoutRef.current = null
-    }
-    if (!id) return
-    hoverPanTimeoutRef.current = setTimeout(() => {
-      const coords = activitiesRef.current.find((a) => a.id === id)?.feature?.geometry.coordinates
-      if (coords?.length) {
-        mapRef.current?.ensureInView(coords as [number, number][])
+  const handleActivityHover = useCallback(
+    (id: string | null) => {
+      setHighlightedActivityId(id)
+      if (hoverPanTimeoutRef.current) {
+        clearTimeout(hoverPanTimeoutRef.current)
+        hoverPanTimeoutRef.current = null
       }
-    }, 150)
-  }, [])
+      if (!id) return
+      hoverPanTimeoutRef.current = setTimeout(() => {
+        const coords = activitiesRef.current.find((a) => a.id === id)?.feature?.geometry.coordinates
+        if (coords?.length) {
+          mapRef.current?.ensureInView(coords as [number, number][], { padding: computePadding() })
+        }
+      }, 150)
+    },
+    [computePadding],
+  )
 
   useEffect(() => {
     return () => {
@@ -279,6 +307,7 @@ export function MapView({
       filterPanel={filterPanelComponent}
       activityList={activityListComponent}
       hasActivities={hasActivities}
+      onDrawerHeightChange={handleDrawerHeightChange}
     >
       {isMapPositionLoading ? (
         <MapSkeleton />

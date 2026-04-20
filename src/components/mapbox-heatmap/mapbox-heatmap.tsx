@@ -23,10 +23,12 @@ import { useMounted } from '@/hooks/use-mounted'
 
 export interface MapboxHeatmapRef {
   getCanvas: () => HTMLCanvasElement | null
-  fitToBounds: (coordinates: [number, number][]) => void
+  fitToBounds: (coordinates: [number, number][], options?: { padding?: mapboxgl.PaddingOptions }) => void
   flyTo: (position: { latitude: number; longitude: number; zoom?: number }) => void
-  ensureInView: (coordinates: [number, number][]) => void
+  ensureInView: (coordinates: [number, number][], options?: { padding?: mapboxgl.PaddingOptions }) => void
 }
+
+const DEFAULT_PADDING: mapboxgl.PaddingOptions = { top: 80, bottom: 80, left: 100, right: 80 }
 
 export interface MapPosition {
   latitude: number
@@ -77,10 +79,9 @@ const MapboxHeatmap = forwardRef<MapboxHeatmapRef, MapboxHeatmapProps>(function 
 
   useImperativeHandle(ref, () => ({
     getCanvas: () => mapRef.current?.getCanvas() ?? null,
-    fitToBounds: (coordinates: [number, number][]) => {
+    fitToBounds: (coordinates: [number, number][], options?: { padding?: mapboxgl.PaddingOptions }) => {
       if (!mapRef.current || coordinates.length === 0) return
 
-      // Calculate bounds from coordinates
       let minLng = Infinity,
         maxLng = -Infinity
       let minLat = Infinity,
@@ -93,17 +94,15 @@ const MapboxHeatmap = forwardRef<MapboxHeatmapRef, MapboxHeatmapProps>(function 
         maxLat = Math.max(maxLat, lat)
       }
 
-      // Asymmetric padding: more on left for sidebar, generous on all sides
-      // to ensure the entire path is visible and well-framed
       mapRef.current.fitBounds(
         [
           [minLng, minLat],
           [maxLng, maxLat],
         ],
         {
-          padding: { top: 80, bottom: 80, left: 100, right: 80 },
+          padding: options?.padding ?? DEFAULT_PADDING,
           duration: 500,
-          maxZoom: 16, // Prevent over-zooming on small paths
+          maxZoom: 16,
         },
       )
     },
@@ -115,7 +114,7 @@ const MapboxHeatmap = forwardRef<MapboxHeatmapRef, MapboxHeatmapProps>(function 
         duration: 1000,
       })
     },
-    ensureInView: (coordinates: [number, number][]) => {
+    ensureInView: (coordinates: [number, number][], options?: { padding?: mapboxgl.PaddingOptions }) => {
       if (!mapRef.current || coordinates.length === 0) return
 
       let minLng = Infinity,
@@ -142,7 +141,7 @@ const MapboxHeatmap = forwardRef<MapboxHeatmapRef, MapboxHeatmapProps>(function 
           [maxLng, maxLat],
         ],
         {
-          padding: { top: 80, bottom: 80, left: 100, right: 80 },
+          padding: options?.padding ?? DEFAULT_PADDING,
           duration: 500,
           maxZoom: 16,
         },
