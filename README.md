@@ -1,6 +1,6 @@
 # strava-x
 
-Visualize your Strava activities on an interactive map.
+Visualise your Strava activities on an interactive map
 
 ## Setup
 
