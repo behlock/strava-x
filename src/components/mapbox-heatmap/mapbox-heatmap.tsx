@@ -242,7 +242,7 @@ const MapboxHeatmap = forwardRef<MapboxHeatmapRef, MapboxHeatmapProps>(function 
                 '#00D4FF',
                 '#FF0080',
               ],
-              'line-width': 4,
+              'line-width': 1.5,
               'line-opacity': 1,
             }}
             layout={{
