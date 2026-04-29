@@ -3,10 +3,11 @@
 import { ReactNode, useCallback, useEffect, useMemo, useRef, useState, startTransition } from 'react'
 import dynamic from 'next/dynamic'
 
-import { AppShell, FilterPanel, StatsPanel, ActivityList, MapSkeleton } from '@/components/ui'
+import { AppShell, FilterPanel, StatsPanel, ActivityList, LocationSelector, MapSkeleton } from '@/components/ui'
 import { Activity, ActivityFeatureCollection } from '@/models/activity'
 import { useStatistics } from '@/hooks/use-statistics'
 import { usePersistedMapPosition, MapPositionMode } from '@/hooks/use-persisted-map-position'
+import { useActivityClusters } from '@/hooks/use-activity-clusters'
 import { useUnits } from '@/hooks/use-units'
 import { useIsMobile } from '@/hooks/use-media-query'
 
@@ -253,6 +254,36 @@ export function MapView({
 
   const hasActivities = allActivities.length > 0
 
+  const clusters = useActivityClusters(activities)
+  const [selectedClusterId, setSelectedClusterId] = useState<string | null>(null)
+
+  // Keep the selection valid as filters change. If the previously selected
+  // id is no longer in the cluster set (filter dropped it), snap back to the
+  // busiest remaining cluster.
+  useEffect(() => {
+    if (clusters.length === 0) {
+      if (selectedClusterId !== null) setSelectedClusterId(null)
+      return
+    }
+    if (selectedClusterId === null || !clusters.some((c) => c.id === selectedClusterId)) {
+      setSelectedClusterId(clusters[0].id)
+    }
+  }, [clusters, selectedClusterId])
+
+  const handleClusterSelect = useCallback(
+    (id: string) => {
+      const target = clusters.find((c) => c.id === id)
+      if (!target) return
+      setSelectedClusterId(id)
+      const corners: [number, number][] = [
+        [target.bounds.minLng, target.bounds.minLat],
+        [target.bounds.maxLng, target.bounds.maxLat],
+      ]
+      mapRef.current?.fitToBounds(corners, { padding: computePadding() })
+    },
+    [clusters, computePadding],
+  )
+
   const handles: MapViewHandles = useMemo(() => ({ mapRef, flyToLatestActivity }), [flyToLatestActivity])
 
   const filterPanelComponent = (
@@ -295,6 +326,15 @@ export function MapView({
     />
   )
 
+  const locationSelectorComponent =
+    clusters.length > 0 ? (
+      <LocationSelector
+        clusters={clusters}
+        selectedClusterId={selectedClusterId}
+        onClusterSelect={handleClusterSelect}
+      />
+    ) : null
+
   const resolvedHeader = typeof header === 'function' ? header(handles) : header
   const resolvedOverlays = typeof overlays === 'function' ? overlays(handles) : overlays
 
@@ -305,6 +345,7 @@ export function MapView({
         hasActivities ? (
           <>
             {filterPanelComponent}
+            {locationSelectorComponent}
             {activityListComponent}
           </>
         ) : (
@@ -314,6 +355,7 @@ export function MapView({
       bottomRightPanel={hasActivities ? statsPanelComponent : null}
       statsPanel={statsPanelComponent}
       filterPanel={filterPanelComponent}
+      locationsPanel={locationSelectorComponent}
       activityList={activityListComponent}
       hasActivities={hasActivities}
       onDrawerHeightChange={handleDrawerHeightChange}

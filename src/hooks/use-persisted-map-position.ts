@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { Activity } from '@/models/activity'
-import { findBusiestArea } from '@/lib/busiest-area'
+import { clusterActivities } from '@/lib/clusters'
 
 export type PositionSource = 'saved' | 'busiest' | 'activity' | 'default'
 export type MapPositionMode = 'own' | 'public'
@@ -73,7 +73,23 @@ export function usePersistedMapPosition(
     setHasCheckedStorage(true)
   }, [isOwnMode])
 
-  const busiestArea = useMemo(() => findBusiestArea(activities), [activities])
+  const busiestArea = useMemo(() => {
+    const top = clusterActivities(activities)[0]
+    if (!top) return null
+    const { minLat, maxLat, minLng, maxLng } = top.bounds
+    // Pad slightly so points don't sit on the very edge of the viewport.
+    const lngSpan = Math.max(maxLng - minLng, 0.05)
+    const latSpan = Math.max(maxLat - minLat, 0.05)
+    const padLng = lngSpan * 0.1
+    const padLat = latSpan * 0.1
+    return {
+      bounds: [
+        [minLng - padLng, minLat - padLat],
+        [maxLng + padLng, maxLat + padLat],
+      ] as [[number, number], [number, number]],
+      center: top.centroid,
+    }
+  }, [activities])
 
   const latestActivityPosition = useMemo((): MapPosition | null => {
     if (activities.length === 0) return null

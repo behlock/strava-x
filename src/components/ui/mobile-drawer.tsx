@@ -3,13 +3,14 @@
 import { ReactNode, useCallback, useEffect, useRef, useState } from 'react'
 import { cn } from '@/lib/utils'
 
-type Section = 'stats' | 'filters' | 'activities'
+type Section = 'stats' | 'filters' | 'locations' | 'activities'
 
 const COLLAPSED_HEIGHT = 56
 
 interface MobileDrawerProps {
   statsPanel?: ReactNode
   filterPanel?: ReactNode
+  locationsPanel?: ReactNode
   activityList?: ReactNode
   hasActivities?: boolean
   className?: string
@@ -43,6 +44,7 @@ function CollapsibleSection({ title, isOpen, onToggle, children }: CollapsibleSe
 export function MobileDrawer({
   statsPanel,
   filterPanel,
+  locationsPanel,
   activityList,
   hasActivities = false,
   className,
@@ -165,6 +167,16 @@ export function MobileDrawer({
         >
           {filterPanel}
         </CollapsibleSection>
+
+        {locationsPanel ? (
+          <CollapsibleSection
+            title="locations"
+            isOpen={openSection === 'locations'}
+            onToggle={() => toggleSection('locations')}
+          >
+            {locationsPanel}
+          </CollapsibleSection>
+        ) : null}
 
         <CollapsibleSection
           title="list"

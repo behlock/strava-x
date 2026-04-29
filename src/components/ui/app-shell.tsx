@@ -14,6 +14,7 @@ interface AppShellProps {
   // Mobile-specific props
   statsPanel?: ReactNode
   filterPanel?: ReactNode
+  locationsPanel?: ReactNode
   activityList?: ReactNode
   hasActivities?: boolean
   onDrawerHeightChange?: (height: number) => void
@@ -28,6 +29,7 @@ export function AppShell({
   // Mobile props
   statsPanel,
   filterPanel,
+  locationsPanel,
   activityList,
   hasActivities = false,
   onDrawerHeightChange,
@@ -62,6 +64,7 @@ export function AppShell({
         <MobileDrawer
           statsPanel={statsPanel}
           filterPanel={filterPanel}
+          locationsPanel={locationsPanel}
           activityList={activityList}
           hasActivities={hasActivities}
           onHeightChange={onDrawerHeightChange}
