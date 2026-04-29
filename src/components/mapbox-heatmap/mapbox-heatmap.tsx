@@ -43,15 +43,25 @@ interface MapboxHeatmapProps {
   dateCutoff?: number | null // unix ms timestamp; null = no filter
   hoverType?: string | null
   initialPosition?: MapPosition
+  /**
+   * Optional [[w, s], [e, n]] bounds to fit on first map load. When provided,
+   * the map renders at `initialPosition` (so the canvas isn't blank) then
+   * snaps to these bounds once Mapbox finishes loading. Subsequent renders
+   * don't re-fit.
+   */
+  initialBounds?: [[number, number], [number, number]] | null
   onPositionChange?: (position: MapPosition) => void
 }
 
 const MapboxHeatmap = forwardRef<MapboxHeatmapRef, MapboxHeatmapProps>(function MapboxHeatmap(
-  { data, highlightedActivityId, typeFilter, dateCutoff, hoverType, initialPosition, onPositionChange },
+  { data, highlightedActivityId, typeFilter, dateCutoff, hoverType, initialPosition, initialBounds, onPositionChange },
   ref,
 ) {
   const mapRef = useRef<MapRef>(null)
   const containerRef = useRef<HTMLDivElement>(null)
+  const hasFramedRef = useRef(false)
+  const initialBoundsRef = useRef(initialBounds)
+  initialBoundsRef.current = initialBounds
 
   // Resize map only when the container actually changes size (not every frame)
   useEffect(() => {
@@ -76,6 +86,18 @@ const MapboxHeatmap = forwardRef<MapboxHeatmapRef, MapboxHeatmapProps>(function 
     },
     [onPositionChange],
   )
+
+  const handleLoad = useCallback(() => {
+    if (hasFramedRef.current) return
+    const bounds = initialBoundsRef.current
+    if (!bounds || !mapRef.current) return
+    hasFramedRef.current = true
+    mapRef.current.fitBounds(bounds, {
+      padding: DEFAULT_PADDING,
+      maxZoom: 12,
+      duration: 0,
+    })
+  }, [])
 
   useImperativeHandle(ref, () => ({
     getCanvas: () => mapRef.current?.getCanvas() ?? null,
@@ -208,6 +230,7 @@ const MapboxHeatmap = forwardRef<MapboxHeatmapRef, MapboxHeatmapProps>(function 
         mapStyle={mapStyle}
         preserveDrawingBuffer={true}
         onMoveEnd={handleMoveEnd}
+        onLoad={handleLoad}
       >
         <Source id="all-activities" type="geojson" data={data}>
           <Layer

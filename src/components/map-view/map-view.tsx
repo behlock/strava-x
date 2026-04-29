@@ -6,7 +6,7 @@ import dynamic from 'next/dynamic'
 import { AppShell, FilterPanel, StatsPanel, ActivityList, MapSkeleton } from '@/components/ui'
 import { Activity, ActivityFeatureCollection } from '@/models/activity'
 import { useStatistics } from '@/hooks/use-statistics'
-import { usePersistedMapPosition } from '@/hooks/use-persisted-map-position'
+import { usePersistedMapPosition, MapPositionMode } from '@/hooks/use-persisted-map-position'
 import { useUnits } from '@/hooks/use-units'
 import { useIsMobile } from '@/hooks/use-media-query'
 
@@ -49,6 +49,13 @@ interface MapViewProps {
    * canvas — MapView will populate it with the same handle it uses internally.
    */
   externalMapRef?: React.RefObject<MapboxHeatmapRef | null>
+  /**
+   * "own" — viewing your own map. Persists pan/zoom to localStorage and
+   * defaults to the saved view on revisits.
+   * "public" — viewing someone else's published map. Never reads or writes
+   * the localStorage cache; always defaults to the busiest activity cluster.
+   */
+  mode?: MapPositionMode
 }
 
 export function MapView({
@@ -58,6 +65,7 @@ export function MapView({
   overlays,
   emptyState,
   externalMapRef,
+  mode = 'own',
 }: MapViewProps) {
   const { convertDistance, convertElevation, distanceLabel, elevationLabel } = useUnits()
 
@@ -130,9 +138,10 @@ export function MapView({
 
   const {
     position: initialMapPosition,
+    initialBounds,
     savePosition,
     isLoading: isMapPositionLoading,
-  } = usePersistedMapPosition(allActivities)
+  } = usePersistedMapPosition(allActivities, mode)
 
   const activityCounts = useMemo(() => {
     const counts: Record<string, number> = {}
@@ -320,6 +329,7 @@ export function MapView({
           dateCutoff={dateCutoff}
           hoverType={hoveredFilterType}
           initialPosition={initialMapPosition}
+          initialBounds={initialBounds}
           onPositionChange={savePosition}
         />
       )}

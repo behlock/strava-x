@@ -206,27 +206,25 @@ const Home = () => {
 
   const headerRenderer = useCallback(
     ({ flyToLatestActivity }: { flyToLatestActivity: () => void }) => {
-      const handleLogoClick = () => {
-        if (typeof navigator !== 'undefined' && navigator.geolocation) {
-          navigator.geolocation.getCurrentPosition(
-            (position) => {
-              mapRef.current?.flyTo({
-                latitude: position.coords.latitude,
-                longitude: position.coords.longitude,
-                zoom: 12,
-              })
-            },
-            flyToLatestActivity,
-            { enableHighAccuracy: false, timeout: 5000, maximumAge: 300000 },
-          )
-        } else {
-          flyToLatestActivity()
-        }
+      const handleLocateClick = () => {
+        if (typeof navigator === 'undefined' || !navigator.geolocation) return
+        navigator.geolocation.getCurrentPosition(
+          (position) => {
+            mapRef.current?.flyTo({
+              latitude: position.coords.latitude,
+              longitude: position.coords.longitude,
+              zoom: 12,
+            })
+          },
+          () => {},
+          { enableHighAccuracy: false, timeout: 5000, maximumAge: 300000 },
+        )
       }
       return (
         <Header
           onExportClick={() => setExportOpen(true)}
-          onLogoClick={handleLogoClick}
+          onLogoClick={flyToLatestActivity}
+          onLocateClick={handleLocateClick}
           onPublishClick={() => setPublishOpen(true)}
           hasActivities={hasActivities}
           stravaAvailable={STRAVA_AVAILABLE}

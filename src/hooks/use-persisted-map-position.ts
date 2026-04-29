@@ -2,8 +2,10 @@
 
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { Activity } from '@/models/activity'
+import { findBusiestArea } from '@/lib/busiest-area'
 
-export type PositionSource = 'saved' | 'geolocation' | 'activity' | 'default'
+export type PositionSource = 'saved' | 'busiest' | 'activity' | 'default'
+export type MapPositionMode = 'own' | 'public'
 
 export interface MapPosition {
   latitude: number
@@ -11,8 +13,11 @@ export interface MapPosition {
   zoom: number
 }
 
+export type MapBounds = [[number, number], [number, number]]
+
 interface UsePersistedMapPositionResult {
   position: MapPosition
+  initialBounds: MapBounds | null
   isLoading: boolean
   source: PositionSource
   savePosition: (position: MapPosition) => void
@@ -24,8 +29,8 @@ const DEFAULT_POSITION: MapPosition = {
   longitude: -0.1278,
   zoom: 15,
 }
-const GEOLOCATION_TIMEOUT = 5000
-const GEOLOCATION_MAX_AGE = 5 * 60 * 1000 // 5 minutes
+const BUSIEST_FALLBACK_ZOOM = 11
+const ACTIVITY_FALLBACK_ZOOM = 12
 const DEBOUNCE_MS = 500
 
 function readFromStorage(): MapPosition | null {
@@ -47,106 +52,70 @@ function readFromStorage(): MapPosition | null {
   return null
 }
 
-export function usePersistedMapPosition(activities: Activity[]): UsePersistedMapPositionResult {
-  // Start with null, will be populated after mount
-  const [savedPosition, setSavedPosition] = useState<MapPosition | null>(null)
-  const [geolocationPosition, setGeolocationPosition] = useState<MapPosition | null>(null)
-  const [geolocationError, setGeolocationError] = useState<boolean>(false)
-  const [isLoading, setIsLoading] = useState<boolean>(true)
-  const [hasCheckedStorage, setHasCheckedStorage] = useState<boolean>(false)
+export function usePersistedMapPosition(
+  activities: Activity[],
+  mode: MapPositionMode = 'own',
+): UsePersistedMapPositionResult {
+  const isOwnMode = mode === 'own'
 
-  // Debounce timer and pending position refs
+  const [savedPosition, setSavedPosition] = useState<MapPosition | null>(null)
+  const [hasCheckedStorage, setHasCheckedStorage] = useState<boolean>(!isOwnMode)
+
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const pendingPositionRef = useRef<MapPosition | null>(null)
 
-  // Read from localStorage after mount (client-side only)
+  // Read from localStorage on mount — only in own mode. Public maps never
+  // read or write the local cache (it belongs to the viewer's own map).
   useEffect(() => {
+    if (!isOwnMode) return
     const stored = readFromStorage()
-    if (stored) {
-      setSavedPosition(stored)
-      setIsLoading(false)
-    }
+    if (stored) setSavedPosition(stored)
     setHasCheckedStorage(true)
-  }, [])
+  }, [isOwnMode])
 
-  // Get position from latest activity
+  const busiestArea = useMemo(() => findBusiestArea(activities), [activities])
+
   const latestActivityPosition = useMemo((): MapPosition | null => {
     if (activities.length === 0) return null
 
-    const sortedActivities = [...activities]
-      .filter((a) => a.date && a.feature?.geometry?.coordinates?.length && a.feature.geometry.coordinates.length > 0)
-      .sort((a, b) => {
-        if (!a.date || !b.date) return 0
-        return b.date.getTime() - a.date.getTime()
-      })
-
-    const latestActivity = sortedActivities[0]
-    if (!latestActivity?.feature?.geometry.coordinates.length) return null
-
-    const [longitude, latitude] = latestActivity.feature.geometry.coordinates[0]
-    return {
-      latitude,
-      longitude,
-      zoom: 12,
+    let latest: Activity | null = null
+    let latestTs = -Infinity
+    for (const a of activities) {
+      if (!a.date) continue
+      if (!a.feature?.geometry?.coordinates?.length) continue
+      const ts = a.date.getTime()
+      if (ts > latestTs) {
+        latestTs = ts
+        latest = a
+      }
     }
+    if (!latest?.feature?.geometry.coordinates.length) return null
+
+    const [longitude, latitude] = latest.feature.geometry.coordinates[0]
+    return { latitude, longitude, zoom: ACTIVITY_FALLBACK_ZOOM }
   }, [activities])
 
-  // Request geolocation only if no saved position and we've checked storage
-  useEffect(() => {
-    // Wait until we've checked storage
-    if (!hasCheckedStorage) return
+  const savePosition = useCallback(
+    (position: MapPosition) => {
+      if (!isOwnMode) return
+      pendingPositionRef.current = position
 
-    // Skip geolocation if we have a saved position
-    if (savedPosition) {
-      setIsLoading(false)
-      return
-    }
-
-    if (typeof navigator === 'undefined' || !navigator.geolocation) {
-      setGeolocationError(true)
-      setIsLoading(false)
-      return
-    }
-
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        setGeolocationPosition({
-          latitude: position.coords.latitude,
-          longitude: position.coords.longitude,
-          zoom: 12,
-        })
-        setIsLoading(false)
-      },
-      () => {
-        setGeolocationError(true)
-        setIsLoading(false)
-      },
-      {
-        enableHighAccuracy: false,
-        timeout: GEOLOCATION_TIMEOUT,
-        maximumAge: GEOLOCATION_MAX_AGE,
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current)
       }
-    )
-  }, [hasCheckedStorage, savedPosition])
 
-  // Debounced save function
-  const savePosition = useCallback((position: MapPosition) => {
-    pendingPositionRef.current = position
-
-    if (debounceTimerRef.current) {
-      clearTimeout(debounceTimerRef.current)
-    }
-
-    debounceTimerRef.current = setTimeout(() => {
-      try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(position))
-        setSavedPosition(position)
-        pendingPositionRef.current = null
-      } catch (e) {
-        console.error('Failed to save map position:', e)
-      }
-    }, DEBOUNCE_MS)
-  }, [])
+      debounceTimerRef.current = setTimeout(() => {
+        try {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(position))
+          setSavedPosition(position)
+          pendingPositionRef.current = null
+        } catch (e) {
+          console.error('Failed to save map position:', e)
+        }
+      }, DEBOUNCE_MS)
+    },
+    [isOwnMode],
+  )
 
   // Flush pending save and cleanup on unmount
   useEffect(() => {
@@ -154,7 +123,6 @@ export function usePersistedMapPosition(activities: Activity[]): UsePersistedMap
       if (debounceTimerRef.current) {
         clearTimeout(debounceTimerRef.current)
       }
-      // Save any pending position before unmount
       if (pendingPositionRef.current) {
         try {
           localStorage.setItem(STORAGE_KEY, JSON.stringify(pendingPositionRef.current))
@@ -165,66 +133,63 @@ export function usePersistedMapPosition(activities: Activity[]): UsePersistedMap
     }
   }, [])
 
-  // Determine final position based on priority chain
   const result = useMemo((): UsePersistedMapPositionResult => {
-    // Still checking storage
-    if (!hasCheckedStorage) {
+    if (isOwnMode && !hasCheckedStorage) {
       return {
         position: DEFAULT_POSITION,
+        initialBounds: null,
         isLoading: true,
         source: 'default',
         savePosition,
       }
     }
 
-    // Priority 1: Saved position from localStorage
-    if (savedPosition) {
+    // Priority 1 (own mode only): saved pan/zoom from localStorage.
+    if (isOwnMode && savedPosition) {
       return {
         position: savedPosition,
+        initialBounds: null,
         isLoading: false,
         source: 'saved',
         savePosition,
       }
     }
 
-    // Still loading geolocation
-    if (isLoading) {
+    // Priority 2: busiest activity cluster.
+    if (busiestArea) {
       return {
-        position: DEFAULT_POSITION,
-        isLoading: true,
-        source: 'default',
-        savePosition,
-      }
-    }
-
-    // Priority 2: User's browser geolocation
-    if (geolocationPosition) {
-      return {
-        position: geolocationPosition,
+        position: {
+          latitude: busiestArea.center.latitude,
+          longitude: busiestArea.center.longitude,
+          zoom: BUSIEST_FALLBACK_ZOOM,
+        },
+        initialBounds: busiestArea.bounds,
         isLoading: false,
-        source: 'geolocation',
+        source: 'busiest',
         savePosition,
       }
     }
 
-    // Priority 3: Latest activity's starting coordinates
-    if (geolocationError && latestActivityPosition) {
+    // Priority 3: latest activity start point.
+    if (latestActivityPosition) {
       return {
         position: latestActivityPosition,
+        initialBounds: null,
         isLoading: false,
         source: 'activity',
         savePosition,
       }
     }
 
-    // Priority 4: Default location (London)
+    // Priority 4: hardcoded default.
     return {
       position: DEFAULT_POSITION,
+      initialBounds: null,
       isLoading: false,
       source: 'default',
       savePosition,
     }
-  }, [hasCheckedStorage, savedPosition, geolocationPosition, geolocationError, latestActivityPosition, isLoading, savePosition])
+  }, [isOwnMode, hasCheckedStorage, savedPosition, busiestArea, latestActivityPosition, savePosition])
 
   return result
 }

@@ -2,7 +2,7 @@
 
 import { ReactNode } from 'react'
 import { useTheme } from 'next-themes'
-import { Moon, Sun, Download, Share2, LogOut } from 'lucide-react'
+import { Moon, Sun, Download, Share2, LogOut, Locate } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useMounted } from '@/hooks/use-mounted'
 import { Tooltip } from './tooltip'
@@ -11,6 +11,7 @@ interface HeaderProps {
   className?: string
   onExportClick?: () => void
   onLogoClick?: () => void
+  onLocateClick?: () => void
   onPublishClick?: () => void
   hasActivities?: boolean
   stravaAvailable?: boolean
@@ -31,6 +32,7 @@ export function Header({
   className,
   onExportClick,
   onLogoClick,
+  onLocateClick,
   onPublishClick,
   hasActivities,
   stravaAvailable,
@@ -53,6 +55,36 @@ export function Header({
       : { icon: '[↻]', label: '—sync strava' }
 
   const chips: ReactNode[] = []
+
+  if (onLocateClick) {
+    chips.push(
+      <Tooltip key="locate" text="my location">
+        <button onClick={onLocateClick} aria-label="Recenter on my location" className={CHIP_ICON}>
+          <Locate className="w-4 h-4" />
+        </button>
+      </Tooltip>,
+    )
+  }
+
+  if (hasActivities) {
+    chips.push(
+      <Tooltip key="export" text="export">
+        <button onClick={onExportClick} aria-label="Export" className={CHIP_ICON}>
+          <Download className="w-4 h-4" />
+        </button>
+      </Tooltip>,
+    )
+  }
+
+  if (hasActivities && onPublishClick && stravaConnected) {
+    chips.push(
+      <Tooltip key="publish" text="publish">
+        <button onClick={onPublishClick} aria-label="Publish map" className={CHIP_ICON}>
+          <Share2 className="w-4 h-4" />
+        </button>
+      </Tooltip>,
+    )
+  }
 
   if (stravaAvailable && stravaConnected) {
     if (isStravaSyncing) {
@@ -84,26 +116,6 @@ export function Header({
     )
   }
 
-  if (hasActivities && onPublishClick && stravaConnected) {
-    chips.push(
-      <Tooltip key="publish" text="publish map">
-        <button onClick={onPublishClick} aria-label="Publish map" className={CHIP_ICON}>
-          <Share2 className="w-4 h-4" />
-        </button>
-      </Tooltip>,
-    )
-  }
-
-  if (hasActivities) {
-    chips.push(
-      <Tooltip key="export" text="export image">
-        <button onClick={onExportClick} aria-label="Export" className={CHIP_ICON}>
-          <Download className="w-4 h-4" />
-        </button>
-      </Tooltip>,
-    )
-  }
-
   chips.push(
     <Tooltip key="theme" text={isDark ? 'light mode' : 'dark mode'} disabled={!mounted}>
       <button
@@ -121,7 +133,7 @@ export function Header({
   // likely to hit it by accident while reaching for sync/publish/export.
   if (stravaAvailable && stravaConnected && !isStravaSyncing) {
     chips.push(
-      <Tooltip key="strava-disconnect" text="disconnect strava" align="end">
+      <Tooltip key="strava-disconnect" text="disconnect" align="end">
         <button onClick={onStravaDisconnect} className={CHIP_ICON} aria-label="Disconnect Strava">
           <LogOut className="w-4 h-4" />
         </button>

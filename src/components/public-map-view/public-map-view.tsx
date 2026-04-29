@@ -1,11 +1,11 @@
 'use client'
 
 import Link from 'next/link'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTheme } from 'next-themes'
-import { Moon, Sun } from 'lucide-react'
+import { Moon, Sun, Locate } from 'lucide-react'
 
-import { MapView } from '@/components/map-view'
+import { MapView, type MapboxHeatmapRef } from '@/components/map-view'
 import { cn } from '@/lib/utils'
 import { useMounted } from '@/hooks/use-mounted'
 import { Activity } from '@/models/activity'
@@ -29,7 +29,7 @@ const SUPPORTED_PAYLOAD_VERSION = 1
 const CHIP_ICON =
   'inline-flex items-center justify-center text-xs-compact tracking-wider hover:bg-foreground/5 transition-colors border border-transparent hover:border-panel-border rounded-sm whitespace-nowrap min-h-[44px] min-w-[44px] md:min-h-0 md:min-w-0 md:h-8 md:w-8'
 
-function PublicHeader({ displayName }: { displayName: string | null }) {
+function PublicHeader({ displayName, onLocateClick }: { displayName: string | null; onLocateClick?: () => void }) {
   const { theme, setTheme } = useTheme()
   const mounted = useMounted()
   const isDark = mounted && theme === 'dark'
@@ -47,6 +47,11 @@ function PublicHeader({ displayName }: { displayName: string | null }) {
         ) : null}
       </div>
       <div className="flex items-center gap-1">
+        {onLocateClick ? (
+          <button onClick={onLocateClick} aria-label="Recenter on my location" className={CHIP_ICON}>
+            <Locate className="w-4 h-4" />
+          </button>
+        ) : null}
         <button
           onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
           disabled={!mounted}
@@ -63,6 +68,7 @@ function PublicHeader({ displayName }: { displayName: string | null }) {
 export function PublicMapView({ slug, blobUrl, displayName }: PublicMapViewProps) {
   const [activities, setActivities] = useState<Activity[] | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const mapRef = useRef<MapboxHeatmapRef | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -88,6 +94,21 @@ export function PublicMapView({ slug, blobUrl, displayName }: PublicMapViewProps
     }
   }, [blobUrl])
 
+  const handleLocateClick = () => {
+    if (typeof navigator === 'undefined' || !navigator.geolocation) return
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        mapRef.current?.flyTo({
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+          zoom: 12,
+        })
+      },
+      () => {},
+      { enableHighAccuracy: false, timeout: 5000, maximumAge: 300000 },
+    )
+  }
+
   if (error) {
     return (
       <main className="min-h-screen flex items-center justify-center bg-panel px-6">
@@ -103,7 +124,9 @@ export function PublicMapView({ slug, blobUrl, displayName }: PublicMapViewProps
     <MapView
       activities={activities ?? []}
       loading={activities === null}
-      header={<PublicHeader displayName={displayName} />}
+      header={<PublicHeader displayName={displayName} onLocateClick={handleLocateClick} />}
+      mode="public"
+      externalMapRef={mapRef}
     />
   )
 }
