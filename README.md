@@ -1,6 +1,8 @@
 # strava-x
 
-Visualise your Strava activities on an interactive map
+Visualise your Strava activities on an interactive map.
+
+Check out my map at https://www.strava-x.com/walid
 
 ## Setup
 
