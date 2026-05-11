@@ -1,15 +1,6 @@
 import type { Activity, ActivityFeature } from '@/models/activity'
-import { config } from '@/lib/config'
 
-const STRAVA_AUTH_URL = 'https://www.strava.com/oauth/authorize'
 const STRAVA_API = 'https://www.strava.com/api/v3'
-
-export interface StravaTokens {
-  access_token: string
-  refresh_token: string
-  expires_at: number // unix seconds
-  athlete_id?: number
-}
 
 interface StravaSummaryActivity {
   id: number
@@ -23,23 +14,6 @@ interface StravaSummaryActivity {
     id?: string
     summary_polyline?: string | null
   }
-}
-
-export function getClientId(): string {
-  if (!config.STRAVA_CLIENT_ID) throw new Error('NEXT_PUBLIC_STRAVA_CLIENT_ID is not set')
-  return config.STRAVA_CLIENT_ID
-}
-
-export function buildAuthUrl(redirectUri: string, state: string): string {
-  const params = new URLSearchParams({
-    client_id: getClientId(),
-    redirect_uri: redirectUri,
-    response_type: 'code',
-    approval_prompt: 'auto',
-    scope: 'read,activity:read_all',
-    state,
-  })
-  return `${STRAVA_AUTH_URL}?${params.toString()}`
 }
 
 // Map Strava sport_type to our four categories. Unknown types fall through to
@@ -200,14 +174,4 @@ export async function fetchAllActivities(
     page++
   }
   return activities
-}
-
-export async function refreshAccessToken(refreshToken: string): Promise<StravaTokens> {
-  const res = await fetch('/api/auth/strava/refresh', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ refresh_token: refreshToken }),
-  })
-  if (!res.ok) throw new Error('refresh_failed')
-  return res.json()
 }

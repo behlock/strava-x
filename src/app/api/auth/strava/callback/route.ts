@@ -1,30 +1,57 @@
 import { NextRequest, NextResponse } from 'next/server'
 
+import {
+  getAppUrl,
+  isProduction,
+  STRAVA_CONNECTED_COOKIE,
+  STRAVA_OAUTH_STATE_COOKIE,
+  STRAVA_REFRESH_COOKIE,
+} from '@/lib/server-config'
+
+export const runtime = 'nodejs'
+
+// Strava refresh tokens don't carry an explicit expiry — pin a year.
+const REFRESH_COOKIE_MAX_AGE = 60 * 60 * 24 * 365
+
+function clearStateCookie(res: NextResponse) {
+  res.cookies.set(STRAVA_OAUTH_STATE_COOKIE, '', { path: '/api/auth/strava', maxAge: 0 })
+}
+
+function failRedirect(origin: string, code: string) {
+  const res = NextResponse.redirect(`${origin}/?strava_error=${encodeURIComponent(code)}`)
+  clearStateCookie(res)
+  return res
+}
+
 export async function GET(req: NextRequest) {
-  const { searchParams, origin } = new URL(req.url)
+  const origin = getAppUrl(req)
+  const { searchParams } = new URL(req.url)
   const code = searchParams.get('code')
   const error = searchParams.get('error')
   const scope = searchParams.get('scope') ?? ''
   const state = searchParams.get('state') ?? ''
 
   if (error || !code) {
-    return NextResponse.redirect(`${origin}/?strava_error=${encodeURIComponent(error ?? 'missing_code')}`)
+    return failRedirect(origin, error ?? 'missing_code')
   }
 
-  if (!state) {
-    return NextResponse.redirect(`${origin}/?strava_error=missing_state`)
+  // Server-side CSRF: the state from Strava must match what we stashed in the
+  // cookie before bouncing the user there.
+  const expectedState = req.cookies.get(STRAVA_OAUTH_STATE_COOKIE)?.value ?? ''
+  if (!state || !expectedState || state !== expectedState) {
+    return failRedirect(origin, 'invalid_state')
   }
 
   const clientId = process.env.NEXT_PUBLIC_STRAVA_CLIENT_ID
   const clientSecret = process.env.STRAVA_CLIENT_SECRET
   if (!clientId || !clientSecret) {
-    return NextResponse.redirect(`${origin}/?strava_error=server_not_configured`)
+    return failRedirect(origin, 'server_not_configured')
   }
 
   const requiredScopes = ['read', 'activity:read_all']
   const granted = scope.split(',')
   if (!requiredScopes.every((s) => granted.includes(s))) {
-    return NextResponse.redirect(`${origin}/?strava_error=missing_scope`)
+    return failRedirect(origin, 'missing_scope')
   }
 
   const tokenRes = await fetch('https://www.strava.com/oauth/token', {
@@ -39,9 +66,9 @@ export async function GET(req: NextRequest) {
   })
 
   if (!tokenRes.ok) {
-    const body = await tokenRes.text()
+    const body = await tokenRes.text().catch(() => '')
     console.error('[strava/callback] token exchange failed', tokenRes.status, body)
-    return NextResponse.redirect(`${origin}/?strava_error=token_exchange_failed`)
+    return failRedirect(origin, 'token_exchange_failed')
   }
 
   const token = (await tokenRes.json()) as {
@@ -56,20 +83,30 @@ export async function GET(req: NextRequest) {
     typeof token.refresh_token !== 'string' ||
     typeof token.expires_at !== 'number'
   ) {
-    console.error('[strava/callback] invalid token response shape', token)
-    return NextResponse.redirect(`${origin}/?strava_error=invalid_token_response`)
+    console.error('[strava/callback] invalid token response shape')
+    return failRedirect(origin, 'invalid_token_response')
   }
 
-  // Hand tokens back to the SPA via URL fragment (not sent to server on next navigation).
-  // The state round-trip lets the client verify this callback originated from its own
-  // connect() invocation, defeating OAuth CSRF.
-  const fragment = new URLSearchParams({
-    access_token: token.access_token,
-    refresh_token: token.refresh_token,
-    expires_at: String(token.expires_at),
-    athlete_id: typeof token.athlete?.id === 'number' ? String(token.athlete.id) : '',
-    state,
-  }).toString()
-
-  return NextResponse.redirect(`${origin}/#strava_auth=${fragment}`)
+  // The refresh_token lives in an httpOnly cookie — JS (including any XSS)
+  // cannot read it. The client mints a short-lived access token by POSTing
+  // to /api/auth/strava/refresh, which reads this cookie. No tokens land in
+  // the URL fragment, history, or referer headers.
+  const res = NextResponse.redirect(`${origin}/?just_connected=1`)
+  res.cookies.set(STRAVA_REFRESH_COOKIE, token.refresh_token, {
+    httpOnly: true,
+    secure: isProduction(),
+    sameSite: 'lax',
+    path: '/',
+    maxAge: REFRESH_COOKIE_MAX_AGE,
+  })
+  // Non-httpOnly flag the client reads to know "a session exists" without
+  // ever touching the refresh token. Value carries no secret.
+  res.cookies.set(STRAVA_CONNECTED_COOKIE, '1', {
+    secure: isProduction(),
+    sameSite: 'lax',
+    path: '/',
+    maxAge: REFRESH_COOKIE_MAX_AGE,
+  })
+  clearStateCookie(res)
+  return res
 }
