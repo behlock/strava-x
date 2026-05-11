@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { timingSafeEqual } from 'crypto'
 
 import {
   getAppUrl,
@@ -7,6 +8,13 @@ import {
   STRAVA_OAUTH_STATE_COOKIE,
   STRAVA_REFRESH_COOKIE,
 } from '@/lib/server-config'
+
+// Constant-time string equality. timingSafeEqual throws when buffer lengths
+// differ, so the length guard runs first.
+function safeEqual(a: string, b: string): boolean {
+  if (a.length === 0 || b.length === 0 || a.length !== b.length) return false
+  return timingSafeEqual(Buffer.from(a), Buffer.from(b))
+}
 
 export const runtime = 'nodejs'
 
@@ -38,7 +46,7 @@ export async function GET(req: NextRequest) {
   // Server-side CSRF: the state from Strava must match what we stashed in the
   // cookie before bouncing the user there.
   const expectedState = req.cookies.get(STRAVA_OAUTH_STATE_COOKIE)?.value ?? ''
-  if (!state || !expectedState || state !== expectedState) {
+  if (!safeEqual(state, expectedState)) {
     return failRedirect(origin, 'invalid_state')
   }
 

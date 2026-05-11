@@ -19,7 +19,10 @@ interface AccessToken {
 
 function hasConnectedCookie(): boolean {
   if (typeof document === 'undefined') return false
-  return document.cookie.split(';').some((c) => c.trim().startsWith(`${CONNECTED_COOKIE_NAME}=`))
+  // Match the explicit value '1' rather than the bare name= prefix so an empty
+  // cookie (shouldn't happen — logout uses Max-Age=0 — but defensive) isn't
+  // mistaken for an active session.
+  return document.cookie.split(';').some((c) => c.trim() === `${CONNECTED_COOKIE_NAME}=1`)
 }
 
 function clearLegacyStorage() {
@@ -61,7 +64,7 @@ export function useStravaAuth(): UseStravaAuth {
   const [isConnected, setIsConnected] = useState(false)
   const [justConnected, setJustConnected] = useState(false)
   // Access token lives in JS memory only — not localStorage. On reload it's
-  // remimted via the httpOnly refresh cookie. Bound to the refreshSkew window.
+  // reminted via the httpOnly refresh cookie. Bound to the refreshSkew window.
   const tokenRef = useRef<AccessToken | null>(null)
   const refreshInFlightRef = useRef<Promise<AccessToken | null> | null>(null)
 

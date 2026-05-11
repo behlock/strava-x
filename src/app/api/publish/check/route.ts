@@ -8,7 +8,8 @@ import { clientKey, rateLimit, tooManyRequests } from '@/lib/rate-limit'
 export const runtime = 'nodejs'
 
 const MAX_ACCESS_TOKEN_LENGTH = 200
-const MAX_SLUG_LENGTH = 100 // intentionally larger than validateSlug's regex so invalid inputs still get cheap validation errors instead of being rejected early
+// Generous upper bound — validateSlug enforces the real regex.
+const MAX_SLUG_LENGTH = 100
 
 interface CheckBody {
   slug?: unknown
