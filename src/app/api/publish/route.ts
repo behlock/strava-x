@@ -4,17 +4,20 @@ import { put, del } from '@vercel/blob'
 import { validateSlug } from '@/lib/slug'
 import { verifyStravaToken, StravaAuthError } from '@/lib/strava-verify'
 import { deleteByAthleteId, findByAthleteId, findBySlug, upsertPublishedMap } from '@/lib/db'
+import { clientKey, rateLimit, tooManyRequests } from '@/lib/rate-limit'
 import type { SerializedActivity } from '@/lib/activities-serialize'
 
 export const runtime = 'nodejs'
 
 const PAYLOAD_HARD_LIMIT_BYTES = 25 * 1024 * 1024
 const PAYLOAD_VERSION = 1
-const BLOB_CACHE_MAX_AGE_SECONDS = 60 * 60 // 1h — blob URLs are stored in DB, so republish updates propagate via the DB row, not the blob URL.
+// Five minutes balances CDN benefit against unpublish recency — after a user
+// unpublishes, stale content on the edge clears within this window.
+const BLOB_CACHE_MAX_AGE_SECONDS = 5 * 60
+const MAX_ACCESS_TOKEN_LENGTH = 200
+const MAX_DISPLAY_NAME_LENGTH = 100
+const MAX_ACTIVITIES = 50_000
 
-// Athlete-scoped pathnames so concurrent publishes of the same slug by
-// different athletes don't collide on the blob store. Any rollback or
-// slug-change cleanup touches only the athlete's own blob.
 function blobPathnameFor(athleteId: number, slug: string): string {
   return `published/${athleteId}/${slug}.json`
 }
@@ -31,6 +34,9 @@ interface PublishBody {
 }
 
 export async function POST(req: NextRequest) {
+  const rl = rateLimit(clientKey(req, 'publish-post'), { windowMs: 60_000, max: 10 })
+  if (!rl.ok) return tooManyRequests(rl.retryAfterSeconds ?? 60)
+
   let body: PublishBody
   try {
     body = (await req.json()) as PublishBody
@@ -45,9 +51,12 @@ export async function POST(req: NextRequest) {
   if (!slugResult.ok) return badRequest(slugResult.error === 'reserved' ? 'slug_reserved' : 'invalid_slug')
   const slug = slugResult.slug
 
-  if (typeof accessToken !== 'string' || accessToken.length === 0) return badRequest('missing_access_token')
+  if (typeof accessToken !== 'string' || accessToken.length === 0 || accessToken.length > MAX_ACCESS_TOKEN_LENGTH) {
+    return badRequest('missing_access_token')
+  }
   if (!Array.isArray(activities)) return badRequest('invalid_activities')
   if (activities.length === 0) return badRequest('no_activities')
+  if (activities.length > MAX_ACTIVITIES) return badRequest('too_many_activities', 413)
 
   // Verify the caller actually owns the athlete they're about to publish as.
   let athlete
@@ -66,12 +75,17 @@ export async function POST(req: NextRequest) {
     return badRequest('slug_taken', 409)
   }
 
+  // Caller-supplied displayName is bounded so it can't bloat the blob payload
+  // or break Open Graph scrapers. JSX escaping handles XSS at render time.
+  const normalizedDisplayName =
+    typeof displayName === 'string' ? displayName.trim().slice(0, MAX_DISPLAY_NAME_LENGTH) || null : null
+
   // Build the payload. JSON.stringify once — we need the string anyway for the
   // blob upload, and re-stringifying to size-check would double the work.
   const payload = {
     version: PAYLOAD_VERSION,
     publishedAt: new Date().toISOString(),
-    displayName: (typeof displayName === 'string' ? displayName : athlete.displayName) ?? null,
+    displayName: normalizedDisplayName ?? athlete.displayName ?? null,
     activities: activities as SerializedActivity[],
   }
   const json = JSON.stringify(payload)
@@ -121,9 +135,6 @@ export async function POST(req: NextRequest) {
     try {
       await del(pathname)
     } catch {}
-    // The most common cause of an upsert failure here is the slug getting
-    // claimed by a different athlete between our findBySlug check and the
-    // insert. Re-check so the user sees the specific error.
     const raced = await findBySlug(slug).catch(() => null)
     if (raced && raced.athlete_id !== athlete.athleteId) {
       return badRequest('slug_taken', 409)
@@ -132,9 +143,6 @@ export async function POST(req: NextRequest) {
   }
 
   if (oldPathname) {
-    // Slug or pathname format changed — drop the old blob. Best-effort; a
-    // stale blob is cheap compared to surfacing an error to the user after
-    // a successful publish.
     try {
       await del(oldPathname)
     } catch (e) {
@@ -156,6 +164,9 @@ interface UnpublishBody {
 }
 
 export async function DELETE(req: NextRequest) {
+  const rl = rateLimit(clientKey(req, 'publish-delete'), { windowMs: 60_000, max: 10 })
+  if (!rl.ok) return tooManyRequests(rl.retryAfterSeconds ?? 60)
+
   let body: UnpublishBody
   try {
     body = (await req.json()) as UnpublishBody
@@ -163,7 +174,9 @@ export async function DELETE(req: NextRequest) {
     return badRequest('invalid_json')
   }
   const { accessToken } = body
-  if (typeof accessToken !== 'string' || accessToken.length === 0) return badRequest('missing_access_token')
+  if (typeof accessToken !== 'string' || accessToken.length === 0 || accessToken.length > MAX_ACCESS_TOKEN_LENGTH) {
+    return badRequest('missing_access_token')
+  }
 
   let athlete
   try {

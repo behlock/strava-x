@@ -47,7 +47,13 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     <html lang="en" suppressHydrationWarning>
       <body className="h-full">
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
-          <Script src={config.STATS_TRACKING_URL} />
+          {config.STATS_TRACKING_URL ? (
+            // crossOrigin="anonymous" prevents the request from carrying
+            // credentials, so a compromise of the analytics origin can't
+            // exfiltrate cookies. Long-term: pin a Subresource Integrity hash
+            // once the script content is stable.
+            <Script src={config.STATS_TRACKING_URL} crossOrigin="anonymous" />
+          ) : null}
           {children}
         </ThemeProvider>
       </body>

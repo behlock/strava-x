@@ -29,20 +29,15 @@ function setGeocodeCache(cache: Record<string, string>): void {
   }
 }
 
+// Reverse geocoding goes through our own /api/geocode/reverse proxy rather
+// than hitting Nominatim directly. The proxy hides the user's IP from
+// OpenStreetMap and lets the CDN cache repeat lookups.
 async function fetchCityName(lat: number, lng: number): Promise<string | null> {
   try {
-    const response = await fetch(
-      `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&zoom=10`,
-      {
-        headers: {
-          'User-Agent': 'strava-x/1.0',
-        },
-      },
-    )
+    const response = await fetch(`/api/geocode/reverse?lat=${lat}&lng=${lng}`)
     if (!response.ok) return null
-    const data = await response.json()
-    const address = data.address
-    return address?.city || address?.town || address?.village || address?.county || address?.state || null
+    const data = (await response.json()) as { name?: string | null }
+    return data.name ?? null
   } catch {
     return null
   }
