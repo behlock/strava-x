@@ -1,12 +1,16 @@
 import type { NextRequest } from 'next/server'
 
-// Resolves the app's canonical origin in this order: explicit env var,
-// Vercel-provided VERCEL_URL, then the incoming request's origin. Used so
-// that OAuth redirects and CORS-y URLs aren't derived from a (potentially
-// spoofed) Host header in deployments behind a proxy.
+// Resolves the app's canonical origin. Prefers an explicit env var, then on
+// production Vercel deployments the project's stable production domain (so
+// Strava's single-registered-callback-domain rule is honored even when the
+// user lands on a per-deployment *.vercel.app URL), then the per-deployment
+// VERCEL_URL, then the incoming request's origin.
 export function getAppUrl(req?: NextRequest): string {
   const envUrl = process.env.NEXT_PUBLIC_APP_URL
   if (envUrl) return envUrl.replace(/\/$/, '')
+  if (process.env.VERCEL_ENV === 'production' && process.env.VERCEL_PROJECT_PRODUCTION_URL) {
+    return `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+  }
   const vercelUrl = process.env.VERCEL_URL
   if (vercelUrl) return `https://${vercelUrl}`
   if (req) return new URL(req.url).origin
