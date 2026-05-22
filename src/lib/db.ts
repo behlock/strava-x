@@ -28,16 +28,25 @@ export interface PublishedMapRow {
   updated_at: string
 }
 
+// Neon's serverless driver returns BIGINT as a JS string to preserve precision.
+// Strava athlete IDs comfortably fit in Number, and the rest of the codebase
+// (verifyStravaToken, route comparisons) treats them as numbers — so coerce on
+// read to keep the PublishedMapRow type honest.
+function normalizeRow(row: PublishedMapRow | undefined): PublishedMapRow | null {
+  if (!row) return null
+  return { ...row, athlete_id: Number(row.athlete_id) }
+}
+
 export async function findBySlug(slug: string): Promise<PublishedMapRow | null> {
   const sql = getSql()
   const rows = (await sql`SELECT * FROM published_maps WHERE slug = ${slug} LIMIT 1`) as PublishedMapRow[]
-  return rows[0] ?? null
+  return normalizeRow(rows[0])
 }
 
 export async function findByAthleteId(athleteId: number): Promise<PublishedMapRow | null> {
   const sql = getSql()
   const rows = (await sql`SELECT * FROM published_maps WHERE athlete_id = ${athleteId} LIMIT 1`) as PublishedMapRow[]
-  return rows[0] ?? null
+  return normalizeRow(rows[0])
 }
 
 export async function upsertPublishedMap(row: {
