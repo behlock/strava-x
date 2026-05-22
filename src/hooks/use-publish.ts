@@ -56,6 +56,15 @@ function writeCurrentSlug(slug: string | null) {
   }
 }
 
+// Activity payloads can exceed Vercel's ~4.5 MB serverless request body limit
+// uncompressed. CompressionStream is available in all modern browsers; if it
+// isn't, we fall back to plain JSON (and may 413 — but on supported browsers
+// gzip cuts the payload by ~5x for this data shape).
+async function gzipString(text: string): Promise<Blob> {
+  const stream = new Blob([text]).stream().pipeThrough(new CompressionStream('gzip'))
+  return await new Response(stream).blob()
+}
+
 export function usePublish({ getAccessToken, getActivities }: UsePublishOptions) {
   const [currentSlug, setCurrentSlug] = useState<string | null>(null)
   const [isPublishing, setIsPublishing] = useState(false)
@@ -102,14 +111,17 @@ export function usePublish({ getAccessToken, getActivities }: UsePublishOptions)
 
       setIsPublishing(true)
       try {
+        const json = JSON.stringify({
+          slug: local.slug,
+          accessToken: token,
+          activities: serializeActivities(activities),
+        })
+        const supportsGzip = typeof CompressionStream !== 'undefined'
+        const body: BodyInit = supportsGzip ? await gzipString(json) : json
         const res = await fetch('/api/publish', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            slug: local.slug,
-            accessToken: token,
-            activities: serializeActivities(activities),
-          }),
+          headers: { 'Content-Type': supportsGzip ? 'application/gzip' : 'application/json' },
+          body,
         })
 
         if (!res.ok) {

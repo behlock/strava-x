@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { put, del } from '@vercel/blob'
+import { gunzipSync } from 'zlib'
 
 import { validateSlug } from '@/lib/slug'
 import { verifyStravaToken, StravaAuthError } from '@/lib/strava-verify'
@@ -33,16 +34,31 @@ interface PublishBody {
   displayName?: unknown
 }
 
+// Vercel's serverless platform caps inbound bodies (~4.5 MB), so the activity
+// payload — which can comfortably exceed that — is gzipped client-side. We
+// also enforce a decompressed-size cap to bound zip-bomb risk before parsing.
+async function readPublishBody(req: NextRequest): Promise<PublishBody | { error: string; status: number }> {
+  const contentType = (req.headers.get('content-type') ?? '').toLowerCase()
+  try {
+    if (contentType.includes('gzip')) {
+      const compressed = Buffer.from(await req.arrayBuffer())
+      const decompressed = gunzipSync(compressed, { maxOutputLength: PAYLOAD_HARD_LIMIT_BYTES })
+      return JSON.parse(decompressed.toString('utf8')) as PublishBody
+    }
+    return (await req.json()) as PublishBody
+  } catch (e) {
+    if (e instanceof RangeError) return { error: 'payload_too_large', status: 413 }
+    return { error: 'invalid_json', status: 400 }
+  }
+}
+
 export async function POST(req: NextRequest) {
   const rl = rateLimit(clientKey(req, 'publish-post'), { windowMs: 60_000, max: 10 })
   if (!rl.ok) return tooManyRequests(rl.retryAfterSeconds ?? 60)
 
-  let body: PublishBody
-  try {
-    body = (await req.json()) as PublishBody
-  } catch {
-    return badRequest('invalid_json')
-  }
+  const parsed = await readPublishBody(req)
+  if ('error' in parsed) return badRequest(parsed.error, parsed.status)
+  const body = parsed
 
   const { slug: rawSlug, accessToken, activities, displayName } = body
 
