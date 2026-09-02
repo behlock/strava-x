@@ -1,53 +1,57 @@
 'use client'
 
-import { ReactNode, useCallback, useEffect, useRef, useState } from 'react'
+import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
+
 import { cn } from '@/lib/utils'
 
-type Section = 'stats' | 'filters' | 'locations' | 'activities'
+type Section = 'filters' | 'locations' | 'activities' | 'stats'
 
 const COLLAPSED_HEIGHT = 56
+const SWIPE_THRESHOLD = 50
 
 interface MobileDrawerProps {
-  statsPanel?: ReactNode
-  filterPanel?: ReactNode
-  locationsPanel?: ReactNode
-  activityList?: ReactNode
-  hasActivities?: boolean
-  className?: string
-  onHeightChange?: (height: number) => void
+  filterPanel: ReactNode
+  locationsPanel: ReactNode
+  activityList: ReactNode
+  statsPanel: ReactNode
+  onHeightChange: (height: number) => void
 }
 
-interface CollapsibleSectionProps {
+function CollapsibleSection({
+  title,
+  isOpen,
+  onToggle,
+  children,
+}: {
   title: string
   isOpen: boolean
   onToggle: () => void
   children: ReactNode
-}
-
-function CollapsibleSection({ title, isOpen, onToggle, children }: CollapsibleSectionProps) {
+}) {
   return (
     <div className="border-b border-panel-border last:border-b-0">
       <button
+        type="button"
         onClick={onToggle}
-        className="w-full flex items-center justify-between px-4 py-3 hover:bg-foreground/5 transition-colors"
+        aria-expanded={isOpen}
+        className="flex w-full items-center justify-between px-4 py-3 transition-colors hover:bg-foreground/5"
       >
         <span className="text-sm-compact tracking-wider">[{title}]</span>
-        <span className="text-panel-muted text-xs-compact">{isOpen ? '[-]' : '[+]'}</span>
+        <span className="text-xs-compact text-panel-muted">{isOpen ? '[-]' : '[+]'}</span>
       </button>
       <div className={cn('overflow-hidden transition-all duration-200', isOpen ? 'max-h-[40vh]' : 'max-h-0')}>
-        <div className="px-4 pb-4 overflow-y-auto max-h-[40vh]">{children}</div>
+        <div className="max-h-[40vh] overflow-y-auto px-4 pb-4">{children}</div>
       </div>
     </div>
   )
 }
 
+/** Bottom sheet holding the panels on small screens. Swipe or tap the handle to expand. */
 export function MobileDrawer({
-  statsPanel,
   filterPanel,
   locationsPanel,
   activityList,
-  hasActivities = false,
-  className,
+  statsPanel,
   onHeightChange,
 }: MobileDrawerProps) {
   const [isExpanded, setIsExpanded] = useState(false)
@@ -66,8 +70,7 @@ export function MobileDrawer({
   const handleTouchMove = useCallback(
     (e: React.TouchEvent) => {
       if (!isDragging) return
-      const currentY = e.touches[0].clientY
-      const diff = currentY - startYRef.current
+      const diff = e.touches[0].clientY - startYRef.current
       setDragOffset(Math.max(-100, Math.min(100, diff)))
     },
     [isDragging],
@@ -75,90 +78,57 @@ export function MobileDrawer({
 
   const handleTouchEnd = useCallback(() => {
     setIsDragging(false)
-    if (isExpanded && dragOffset > 50) {
-      setIsExpanded(false)
-    }
-    if (!isExpanded && dragOffset < -50) {
-      setIsExpanded(true)
-    }
+    if (isExpanded && dragOffset > SWIPE_THRESHOLD) setIsExpanded(false)
+    if (!isExpanded && dragOffset < -SWIPE_THRESHOLD) setIsExpanded(true)
     setDragOffset(0)
   }, [isExpanded, dragOffset])
-
-  const handleDragHandleClick = useCallback(() => {
-    if (!isDragging) {
-      setIsExpanded(!isExpanded)
-    }
-  }, [isDragging, isExpanded])
 
   const toggleSection = (section: Section) => {
     if (!isExpanded) {
       setIsExpanded(true)
       setOpenSection(section)
     } else {
-      setOpenSection(openSection === section ? null : section)
+      setOpenSection((current) => (current === section ? null : section))
     }
   }
 
-  // During drag:
-  // - expanded + dragging down → translate drawer down so it slides off-screen
-  // - collapsed + dragging up → grow the drawer upward (anchored to bottom)
-  //   so it doesn't detach from the viewport edge.
-  const getTransform = () => {
-    if (isDragging && isExpanded) {
-      return `translateY(${Math.max(0, dragOffset)}px)`
-    }
-    return 'translateY(0)'
-  }
-
-  const getInlineMaxHeight = (): string | undefined => {
-    if (isDragging && !isExpanded) {
-      return `${COLLAPSED_HEIGHT + Math.max(0, -dragOffset)}px`
-    }
-    return undefined
-  }
-
+  // Let the map pad its viewport so the drawer never covers what it frames.
   useEffect(() => {
     const el = containerRef.current
-    if (!el || !onHeightChange) return
-    const observer = new ResizeObserver(() => {
-      onHeightChange(el.getBoundingClientRect().height)
-    })
+    if (!el) return
+    const observer = new ResizeObserver(() => onHeightChange(el.getBoundingClientRect().height))
     observer.observe(el)
     return () => observer.disconnect()
   }, [onHeightChange])
 
-  if (!hasActivities) {
-    return null
-  }
+  // While dragging: an expanded drawer slides down with the finger; a
+  // collapsed one grows upward (anchored to the bottom edge).
+  const transform = isDragging && isExpanded ? `translateY(${Math.max(0, dragOffset)}px)` : 'translateY(0)'
+  const maxHeight = isDragging && !isExpanded ? `${COLLAPSED_HEIGHT + Math.max(0, -dragOffset)}px` : undefined
 
   return (
     <div
       ref={containerRef}
       className={cn(
-        'fixed bottom-0 left-0 right-0 z-20 bg-panel/95 panel-blur border-t border-panel-border rounded-t-lg',
+        'fixed right-0 bottom-0 left-0 z-20 rounded-t-lg border-t border-panel-border bg-panel/95 backdrop-blur-md',
         !isDragging && 'transition-all duration-300 ease-out',
-        isExpanded ? 'max-h-[80vh]' : 'max-h-[56px]',
-        className,
+        isExpanded ? 'max-h-[80vh]' : 'max-h-14',
       )}
-      style={{
-        transform: getTransform(),
-        maxHeight: getInlineMaxHeight(),
-        paddingBottom: 'env(safe-area-inset-bottom, 0px)',
-      }}
+      style={{ transform, maxHeight, paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
     >
-      {/* Drag handle */}
       <div
-        className="flex flex-col items-center py-2 cursor-grab active:cursor-grabbing touch-none"
+        className="flex cursor-grab touch-none flex-col items-center py-2 active:cursor-grabbing"
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
-        onClick={handleDragHandleClick}
+        onClick={() => {
+          if (!isDragging) setIsExpanded((value) => !value)
+        }}
       >
-        <div className="w-10 h-1 bg-panel-border rounded-full" />
-        {!isExpanded && <span className="text-xs-compact text-panel-muted mt-1">swipe up for controls</span>}
+        <div className="h-1 w-10 rounded-full bg-panel-border" />
+        {!isExpanded && <span className="mt-1 text-xs-compact text-panel-muted">swipe up for controls</span>}
       </div>
 
-      {/* Collapsible sections */}
       <div className={cn('overflow-hidden transition-all duration-300', isExpanded ? 'max-h-[70vh]' : 'max-h-0')}>
         <CollapsibleSection
           title="filters"
@@ -167,8 +137,7 @@ export function MobileDrawer({
         >
           {filterPanel}
         </CollapsibleSection>
-
-        {locationsPanel ? (
+        {locationsPanel && (
           <CollapsibleSection
             title="locations"
             isOpen={openSection === 'locations'}
@@ -176,8 +145,7 @@ export function MobileDrawer({
           >
             {locationsPanel}
           </CollapsibleSection>
-        ) : null}
-
+        )}
         <CollapsibleSection
           title="list"
           isOpen={openSection === 'activities'}
@@ -185,7 +153,6 @@ export function MobileDrawer({
         >
           {activityList}
         </CollapsibleSection>
-
         <CollapsibleSection title="stats" isOpen={openSection === 'stats'} onToggle={() => toggleSection('stats')}>
           {statsPanel}
         </CollapsibleSection>

@@ -1,211 +1,122 @@
 'use client'
 
-import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
-import { Activity } from '@/models/activity'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
+
+import type { Activity } from '@/models/activity'
+import { DEFAULT_MAP_POSITION, type MapBounds, type MapPosition } from '@/models/map'
+import { latestActivityStart } from '@/lib/activities'
 import { clusterActivities } from '@/lib/clusters'
+import { useLocalStorageItem, writeLocalStorage } from '@/hooks/use-local-storage'
 
 export type PositionSource = 'saved' | 'busiest' | 'activity' | 'default'
 export type MapPositionMode = 'own' | 'public'
 
-export interface MapPosition {
-  latitude: number
-  longitude: number
-  zoom: number
-}
-
-export type MapBounds = [[number, number], [number, number]]
-
 interface UsePersistedMapPositionResult {
   position: MapPosition
   initialBounds: MapBounds | null
-  isLoading: boolean
   source: PositionSource
   savePosition: (position: MapPosition) => void
 }
 
 const STORAGE_KEY = 'strava-x-map-position'
-const DEFAULT_POSITION: MapPosition = {
-  latitude: 51.5074,
-  longitude: -0.1278,
-  zoom: 15,
-}
 const BUSIEST_FALLBACK_ZOOM = 11
 const ACTIVITY_FALLBACK_ZOOM = 12
-const DEBOUNCE_MS = 500
+const SAVE_DEBOUNCE_MS = 500
 
-function readFromStorage(): MapPosition | null {
-  if (typeof window === 'undefined') return null
+function parsePosition(raw: string | null): MapPosition | null {
+  if (!raw) return null
   try {
-    const stored = localStorage.getItem(STORAGE_KEY)
-    if (!stored) return null
-    const parsed = JSON.parse(stored)
+    const parsed = JSON.parse(raw) as Partial<MapPosition>
     if (
       typeof parsed.latitude === 'number' &&
       typeof parsed.longitude === 'number' &&
       typeof parsed.zoom === 'number'
     ) {
-      return parsed as MapPosition
+      return { latitude: parsed.latitude, longitude: parsed.longitude, zoom: parsed.zoom }
     }
   } catch {
-    // Invalid JSON or localStorage error
+    // Invalid JSON
   }
   return null
 }
 
+/**
+ * Picks the map's starting view, in priority order: the saved pan/zoom
+ * ("own" mode only), the busiest activity cluster, the latest activity's
+ * start, then a hardcoded default.
+ */
 export function usePersistedMapPosition(
   activities: Activity[],
   mode: MapPositionMode = 'own',
 ): UsePersistedMapPositionResult {
   const isOwnMode = mode === 'own'
 
-  const [savedPosition, setSavedPosition] = useState<MapPosition | null>(null)
-  const [hasCheckedStorage, setHasCheckedStorage] = useState<boolean>(!isOwnMode)
-
-  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const pendingPositionRef = useRef<MapPosition | null>(null)
-
-  // Read from localStorage on mount — only in own mode. Public maps never
-  // read or write the local cache (it belongs to the viewer's own map).
-  useEffect(() => {
-    if (!isOwnMode) return
-    const stored = readFromStorage()
-    if (stored) setSavedPosition(stored)
-    setHasCheckedStorage(true)
-  }, [isOwnMode])
+  // Public maps never read or write the local cache — it belongs to the
+  // viewer's own map.
+  const storedRaw = useLocalStorageItem(STORAGE_KEY)
+  const savedPosition = useMemo(() => (isOwnMode ? parsePosition(storedRaw) : null), [isOwnMode, storedRaw])
 
   const busiestArea = useMemo(() => {
     const top = clusterActivities(activities)[0]
     if (!top) return null
     const { minLat, maxLat, minLng, maxLng } = top.bounds
     // Pad slightly so points don't sit on the very edge of the viewport.
-    const lngSpan = Math.max(maxLng - minLng, 0.05)
-    const latSpan = Math.max(maxLat - minLat, 0.05)
-    const padLng = lngSpan * 0.1
-    const padLat = latSpan * 0.1
-    return {
-      bounds: [
-        [minLng - padLng, minLat - padLat],
-        [maxLng + padLng, maxLat + padLat],
-      ] as [[number, number], [number, number]],
-      center: top.centroid,
-    }
+    const padLng = Math.max(maxLng - minLng, 0.05) * 0.1
+    const padLat = Math.max(maxLat - minLat, 0.05) * 0.1
+    const bounds: MapBounds = [
+      [minLng - padLng, minLat - padLat],
+      [maxLng + padLng, maxLat + padLat],
+    ]
+    return { bounds, center: top.centroid }
   }, [activities])
 
   const latestActivityPosition = useMemo((): MapPosition | null => {
-    if (activities.length === 0) return null
-
-    let latest: Activity | null = null
-    let latestTs = -Infinity
-    for (const a of activities) {
-      if (!a.date) continue
-      if (!a.feature?.geometry?.coordinates?.length) continue
-      const ts = a.date.getTime()
-      if (ts > latestTs) {
-        latestTs = ts
-        latest = a
-      }
-    }
-    if (!latest?.feature?.geometry.coordinates.length) return null
-
-    const [longitude, latitude] = latest.feature.geometry.coordinates[0]
-    return { latitude, longitude, zoom: ACTIVITY_FALLBACK_ZOOM }
+    const start = latestActivityStart(activities)
+    return start ? { ...start, zoom: ACTIVITY_FALLBACK_ZOOM } : null
   }, [activities])
+
+  // Debounced write; the pending value is flushed on unmount so a quick
+  // navigation away doesn't lose the last pan.
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const pendingPositionRef = useRef<MapPosition | null>(null)
 
   const savePosition = useCallback(
     (position: MapPosition) => {
       if (!isOwnMode) return
       pendingPositionRef.current = position
-
-      if (debounceTimerRef.current) {
-        clearTimeout(debounceTimerRef.current)
-      }
-
+      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current)
       debounceTimerRef.current = setTimeout(() => {
-        try {
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(position))
-          setSavedPosition(position)
-          pendingPositionRef.current = null
-        } catch (e) {
-          console.error('Failed to save map position:', e)
-        }
-      }, DEBOUNCE_MS)
+        writeLocalStorage(STORAGE_KEY, JSON.stringify(position))
+        pendingPositionRef.current = null
+      }, SAVE_DEBOUNCE_MS)
     },
     [isOwnMode],
   )
 
-  // Flush pending save and cleanup on unmount
   useEffect(() => {
     return () => {
-      if (debounceTimerRef.current) {
-        clearTimeout(debounceTimerRef.current)
-      }
+      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current)
       if (pendingPositionRef.current) {
-        try {
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(pendingPositionRef.current))
-        } catch (e) {
-          console.error('Failed to save map position on unmount:', e)
-        }
+        writeLocalStorage(STORAGE_KEY, JSON.stringify(pendingPositionRef.current))
       }
     }
   }, [])
 
-  const result = useMemo((): UsePersistedMapPositionResult => {
-    if (isOwnMode && !hasCheckedStorage) {
-      return {
-        position: DEFAULT_POSITION,
-        initialBounds: null,
-        isLoading: true,
-        source: 'default',
-        savePosition,
-      }
+  return useMemo((): UsePersistedMapPositionResult => {
+    if (savedPosition) {
+      return { position: savedPosition, initialBounds: null, source: 'saved', savePosition }
     }
-
-    // Priority 1 (own mode only): saved pan/zoom from localStorage.
-    if (isOwnMode && savedPosition) {
-      return {
-        position: savedPosition,
-        initialBounds: null,
-        isLoading: false,
-        source: 'saved',
-        savePosition,
-      }
-    }
-
-    // Priority 2: busiest activity cluster.
     if (busiestArea) {
       return {
-        position: {
-          latitude: busiestArea.center.latitude,
-          longitude: busiestArea.center.longitude,
-          zoom: BUSIEST_FALLBACK_ZOOM,
-        },
+        position: { ...busiestArea.center, zoom: BUSIEST_FALLBACK_ZOOM },
         initialBounds: busiestArea.bounds,
-        isLoading: false,
         source: 'busiest',
         savePosition,
       }
     }
-
-    // Priority 3: latest activity start point.
     if (latestActivityPosition) {
-      return {
-        position: latestActivityPosition,
-        initialBounds: null,
-        isLoading: false,
-        source: 'activity',
-        savePosition,
-      }
+      return { position: latestActivityPosition, initialBounds: null, source: 'activity', savePosition }
     }
-
-    // Priority 4: hardcoded default.
-    return {
-      position: DEFAULT_POSITION,
-      initialBounds: null,
-      isLoading: false,
-      source: 'default',
-      savePosition,
-    }
-  }, [isOwnMode, hasCheckedStorage, savedPosition, busiestArea, latestActivityPosition, savePosition])
-
-  return result
+    return { position: DEFAULT_MAP_POSITION, initialBounds: null, source: 'default', savePosition }
+  }, [savedPosition, busiestArea, latestActivityPosition, savePosition])
 }

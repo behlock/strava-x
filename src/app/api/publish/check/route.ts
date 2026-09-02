@@ -1,19 +1,21 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { type NextRequest, NextResponse } from 'next/server'
 
-import { validateSlug } from '@/lib/slug'
+import { authenticateAthlete, enforceRateLimit, isAccessToken, readJsonBody } from '@/lib/api'
 import { findBySlug } from '@/lib/db'
-import { verifyStravaToken, StravaAuthError } from '@/lib/strava-verify'
-import { clientKey, rateLimit, tooManyRequests } from '@/lib/rate-limit'
+import { validateSlug } from '@/lib/slug'
 
 export const runtime = 'nodejs'
 
-const MAX_ACCESS_TOKEN_LENGTH = 200
 // Generous upper bound — validateSlug enforces the real regex.
 const MAX_SLUG_LENGTH = 100
 
 interface CheckBody {
   slug?: unknown
   accessToken?: unknown
+}
+
+function unavailable(reason: string, status = 200) {
+  return NextResponse.json({ available: false, reason }, { status })
 }
 
 // POST /api/publish/check — body: { slug, accessToken? }.
@@ -24,50 +26,29 @@ interface CheckBody {
 export async function POST(req: NextRequest) {
   // Higher limit than publish itself since the dialog calls this on every
   // keystroke. Still bounded so a runaway client can't fan out to Strava.
-  const rl = rateLimit(clientKey(req, 'publish-check'), { windowMs: 60_000, max: 60 })
-  if (!rl.ok) return tooManyRequests(rl.retryAfterSeconds ?? 60)
+  const limited = enforceRateLimit(req, 'publish-check', { windowMs: 60_000, max: 60 })
+  if (limited) return limited
 
-  let body: CheckBody
-  try {
-    body = (await req.json()) as CheckBody
-  } catch {
-    return NextResponse.json({ available: false, reason: 'invalid_json' }, { status: 400 })
-  }
+  const body = await readJsonBody<CheckBody>(req)
+  if (!body) return unavailable('invalid_json', 400)
 
   const { slug: rawSlug, accessToken } = body
-  if (typeof rawSlug !== 'string' || rawSlug.length > MAX_SLUG_LENGTH) {
-    return NextResponse.json({ available: false, reason: 'missing_slug' }, { status: 400 })
-  }
+  if (typeof rawSlug !== 'string' || rawSlug.length > MAX_SLUG_LENGTH) return unavailable('missing_slug', 400)
 
   const slugResult = validateSlug(rawSlug)
-  if (!slugResult.ok) {
-    return NextResponse.json({
-      available: false,
-      reason: slugResult.error === 'reserved' ? 'slug_reserved' : 'invalid_slug',
-    })
-  }
+  if (!slugResult.ok) return unavailable(slugResult.error === 'reserved' ? 'slug_reserved' : 'invalid_slug')
 
   const existing = await findBySlug(slugResult.slug)
-  if (!existing) {
-    return NextResponse.json({ available: true })
+  if (!existing) return NextResponse.json({ available: true })
+
+  // Taken — unless it's taken by the caller themselves.
+  if (!isAccessToken(accessToken)) return unavailable('slug_taken')
+
+  const auth = await authenticateAthlete(accessToken)
+  if (!auth.ok) {
+    return auth.error === 'strava_auth_failed' ? unavailable('auth_failed') : unavailable(auth.error, auth.status)
   }
 
-  if (typeof accessToken !== 'string' || accessToken.length === 0 || accessToken.length > MAX_ACCESS_TOKEN_LENGTH) {
-    return NextResponse.json({ available: false, reason: 'slug_taken' })
-  }
-
-  let athleteId: number
-  try {
-    athleteId = (await verifyStravaToken(accessToken)).athleteId
-  } catch (e) {
-    if (e instanceof StravaAuthError && e.reason === 'unauthorized') {
-      return NextResponse.json({ available: false, reason: 'auth_failed' })
-    }
-    return NextResponse.json({ available: false, reason: 'strava_verify_failed' }, { status: 502 })
-  }
-
-  if (existing.athlete_id === athleteId) {
-    return NextResponse.json({ available: true, ownedByMe: true })
-  }
-  return NextResponse.json({ available: false, reason: 'slug_taken' })
+  if (existing.athlete_id === auth.athlete.athleteId) return NextResponse.json({ available: true, ownedByMe: true })
+  return unavailable('slug_taken')
 }

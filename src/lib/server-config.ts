@@ -1,4 +1,11 @@
-import type { NextRequest } from 'next/server'
+import type { NextRequest, NextResponse } from 'next/server'
+
+import {
+  SESSION_COOKIE_MAX_AGE,
+  STRAVA_CONNECTED_COOKIE,
+  STRAVA_OAUTH_STATE_COOKIE,
+  STRAVA_REFRESH_COOKIE,
+} from '@/lib/cookies'
 
 // Resolves the app's canonical origin. Prefers an explicit env var, then on
 // production Vercel deployments the project's stable production domain (so
@@ -17,19 +24,44 @@ export function getAppUrl(req?: NextRequest): string {
   throw new Error('app_url_not_configured')
 }
 
-export function isProduction(): boolean {
+function isProduction(): boolean {
   return process.env.NODE_ENV === 'production'
 }
 
-// The long-lived Strava refresh_token. httpOnly so JS (including any XSS)
-// cannot read it; the access_token can be reminted as long as this cookie
-// is present.
-export const STRAVA_REFRESH_COOKIE = 'strava_rt'
+export function getStravaCredentials(): { clientId: string; clientSecret: string } | null {
+  const clientId = process.env.NEXT_PUBLIC_STRAVA_CLIENT_ID
+  const clientSecret = process.env.STRAVA_CLIENT_SECRET
+  return clientId && clientSecret ? { clientId, clientSecret } : null
+}
 
-// Non-httpOnly flag the client uses to know "a session exists". Carries no
-// secret — the value is always '1'.
-export const STRAVA_CONNECTED_COOKIE = 'strava_connected'
+const OAUTH_STATE_COOKIE_PATH = '/api/auth/strava'
 
-// httpOnly cookie that holds the OAuth `state` value for the duration of the
-// authorize round-trip. Compared server-side in the callback to defeat CSRF.
-export const STRAVA_OAUTH_STATE_COOKIE = 'strava_oauth_state'
+export function setOAuthStateCookie(res: NextResponse, state: string): void {
+  res.cookies.set(STRAVA_OAUTH_STATE_COOKIE, state, {
+    httpOnly: true,
+    secure: isProduction(),
+    // Must be 'lax' (not 'strict') so the cookie is sent when Strava bounces
+    // the user back via top-level GET navigation.
+    sameSite: 'lax',
+    path: OAUTH_STATE_COOKIE_PATH,
+    maxAge: 60 * 10,
+  })
+}
+
+export function clearOAuthStateCookie(res: NextResponse): void {
+  res.cookies.set(STRAVA_OAUTH_STATE_COOKIE, '', { path: OAUTH_STATE_COOKIE_PATH, maxAge: 0 })
+}
+
+// Sets the httpOnly refresh cookie plus the non-httpOnly "connected" flag.
+// The client reads the flag to know a session exists without ever touching
+// the refresh token.
+export function setSessionCookies(res: NextResponse, refreshToken: string): void {
+  const base = { secure: isProduction(), sameSite: 'lax', path: '/', maxAge: SESSION_COOKIE_MAX_AGE } as const
+  res.cookies.set(STRAVA_REFRESH_COOKIE, refreshToken, { ...base, httpOnly: true })
+  res.cookies.set(STRAVA_CONNECTED_COOKIE, '1', base)
+}
+
+export function clearSessionCookies(res: NextResponse): void {
+  res.cookies.set(STRAVA_REFRESH_COOKIE, '', { path: '/', maxAge: 0 })
+  res.cookies.set(STRAVA_CONNECTED_COOKIE, '', { path: '/', maxAge: 0 })
+}

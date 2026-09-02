@@ -1,37 +1,56 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useSyncExternalStore } from 'react'
 
-// Cookie set by /api/auth/strava/callback alongside the httpOnly refresh
-// cookie. Non-httpOnly so JS can see "a session exists"; carries no secret.
-const CONNECTED_COOKIE_NAME = 'strava_connected'
+import { STRAVA_CONNECTED_COOKIE } from '@/lib/cookies'
+
 const REFRESH_SKEW_SECONDS = 60
 
-// Legacy keys we used to store tokens in. Cleared on mount so left-over
-// access/refresh tokens stop sitting in localStorage where any script on this
-// origin can read them.
-const LEGACY_TOKEN_KEY = 'strava-x:tokens'
+// Keys from before the cookie migration. Cleared on mount so left-over
+// tokens stop sitting in storage where any script on this origin can read them.
+const LEGACY_STORAGE_KEYS = ['strava-x:tokens', 'strava-x:oauth_state']
 
 interface AccessToken {
   access_token: string
   expires_at: number
 }
 
+// --- Session store -----------------------------------------------------------
+// "Connected" is derived from the non-httpOnly flag cookie the callback sets
+// alongside the httpOnly refresh cookie. Cookies don't emit change events, so
+// the code paths that change them call `notifySessionChange()`.
+
+const sessionListeners = new Set<() => void>()
+
+function subscribeSession(listener: () => void): () => void {
+  sessionListeners.add(listener)
+  // Re-check when the tab regains focus in case another tab logged out.
+  window.addEventListener('focus', listener)
+  return () => {
+    sessionListeners.delete(listener)
+    window.removeEventListener('focus', listener)
+  }
+}
+
+function notifySessionChange(): void {
+  for (const listener of sessionListeners) listener()
+}
+
 function hasConnectedCookie(): boolean {
-  if (typeof document === 'undefined') return false
   // Match the explicit value '1' rather than the bare name= prefix so an empty
   // cookie (shouldn't happen — logout uses Max-Age=0 — but defensive) isn't
   // mistaken for an active session.
-  return document.cookie.split(';').some((c) => c.trim() === `${CONNECTED_COOKIE_NAME}=1`)
+  return document.cookie.split(';').some((c) => c.trim() === `${STRAVA_CONNECTED_COOKIE}=1`)
 }
 
-function clearLegacyStorage() {
-  if (typeof window === 'undefined') return
+const getServerSnapshot = () => false
+
+function clearLegacyStorage(): void {
   try {
-    window.localStorage.removeItem(LEGACY_TOKEN_KEY)
-    // Removed in the cookie migration; kept here so older clients don't
-    // leak the value across sessions if they ever hit a downgraded build.
-    window.sessionStorage.removeItem('strava-x:oauth_state')
+    for (const key of LEGACY_STORAGE_KEYS) {
+      window.localStorage.removeItem(key)
+      window.sessionStorage.removeItem(key)
+    }
   } catch {
     // ignore
   }
@@ -39,12 +58,9 @@ function clearLegacyStorage() {
 
 async function refreshFromServer(): Promise<AccessToken | null> {
   try {
-    const res = await fetch('/api/auth/strava/refresh', {
-      method: 'POST',
-      credentials: 'same-origin',
-    })
+    const res = await fetch('/api/auth/strava/refresh', { method: 'POST', credentials: 'same-origin' })
     if (!res.ok) return null
-    const body = (await res.json()) as { access_token?: string; expires_at?: number }
+    const body = (await res.json()) as { access_token?: unknown; expires_at?: unknown }
     if (typeof body.access_token !== 'string' || typeof body.expires_at !== 'number') return null
     return { access_token: body.access_token, expires_at: body.expires_at }
   } catch {
@@ -54,50 +70,41 @@ async function refreshFromServer(): Promise<AccessToken | null> {
 
 export interface UseStravaAuth {
   isConnected: boolean
-  justConnected: boolean
   connect: () => void
   disconnect: () => void
+  /** Resolves a valid access token, reminting via the refresh cookie when needed; `null` when the session is gone. */
   getAccessToken: () => Promise<string | null>
 }
 
 export function useStravaAuth(): UseStravaAuth {
-  const [isConnected, setIsConnected] = useState(false)
-  const [justConnected, setJustConnected] = useState(false)
+  const isConnected = useSyncExternalStore(subscribeSession, hasConnectedCookie, getServerSnapshot)
+
   // Access token lives in JS memory only — not localStorage. On reload it's
-  // reminted via the httpOnly refresh cookie. Bound to the refreshSkew window.
+  // reminted via the httpOnly refresh cookie.
   const tokenRef = useRef<AccessToken | null>(null)
   const refreshInFlightRef = useRef<Promise<AccessToken | null> | null>(null)
 
   useEffect(() => {
     clearLegacyStorage()
-
-    if (typeof window !== 'undefined') {
-      const url = new URL(window.location.href)
-      if (url.searchParams.get('just_connected') === '1') {
-        url.searchParams.delete('just_connected')
-        const search = url.search
-        window.history.replaceState(null, '', url.pathname + (search ? search : '') + url.hash)
-        setJustConnected(true)
-      }
-    }
-
-    if (hasConnectedCookie()) {
-      setIsConnected(true)
-    }
   }, [])
 
   const connect = useCallback(() => {
-    if (typeof window === 'undefined') return
     // Server-managed OAuth: /start sets the state cookie and 302s to Strava.
+    // A full navigation is required (not the Next router): the target is a
+    // route handler that redirects off-site.
+    // eslint-disable-next-line @next/next/no-location-assign-relative-destination
     window.location.href = '/api/auth/strava/start'
   }, [])
 
   const disconnect = useCallback(() => {
-    void fetch('/api/auth/strava/logout', { method: 'POST', credentials: 'same-origin' }).catch(() => {})
     tokenRef.current = null
-    setIsConnected(false)
-    setJustConnected(false)
-    clearLegacyStorage()
+    // Drop the readable flag immediately so the UI updates without waiting on
+    // the round-trip; the server clears the httpOnly refresh cookie.
+    document.cookie = `${STRAVA_CONNECTED_COOKIE}=; Max-Age=0; path=/`
+    notifySessionChange()
+    void fetch('/api/auth/strava/logout', { method: 'POST', credentials: 'same-origin' })
+      .catch(() => {})
+      .finally(notifySessionChange)
   }, [])
 
   const getAccessToken = useCallback(async (): Promise<string | null> => {
@@ -117,21 +124,12 @@ export function useStravaAuth(): UseStravaAuth {
     }
 
     const refreshed = await refreshInFlightRef.current
-    if (refreshed) {
-      tokenRef.current = refreshed
-      setIsConnected(true)
-      return refreshed.access_token
-    }
-    tokenRef.current = null
-    setIsConnected(false)
-    return null
+    tokenRef.current = refreshed
+    // On failure the server has cleared the session cookies; on success the
+    // flag cookie is already present. Either way, resync the store.
+    notifySessionChange()
+    return refreshed?.access_token ?? null
   }, [])
 
-  return {
-    isConnected,
-    justConnected,
-    connect,
-    disconnect,
-    getAccessToken,
-  }
+  return { isConnected, connect, disconnect, getAccessToken }
 }

@@ -11,7 +11,7 @@ const emptySubscribe = () => () => {}
 export function useMounted(): boolean {
   return useSyncExternalStore(
     emptySubscribe,
-    () => true,  // Client: always mounted
-    () => false  // Server: never mounted
+    () => true, // Client: always mounted
+    () => false, // Server: never mounted
   )
 }

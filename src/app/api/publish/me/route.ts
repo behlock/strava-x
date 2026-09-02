@@ -1,12 +1,9 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { type NextRequest, NextResponse } from 'next/server'
 
+import { authenticateAthlete, enforceRateLimit, isAccessToken, jsonError, readJsonBody } from '@/lib/api'
 import { findByAthleteId } from '@/lib/db'
-import { verifyStravaToken, StravaAuthError } from '@/lib/strava-verify'
-import { clientKey, rateLimit, tooManyRequests } from '@/lib/rate-limit'
 
 export const runtime = 'nodejs'
-
-const MAX_ACCESS_TOKEN_LENGTH = 200
 
 interface MeBody {
   accessToken?: unknown
@@ -17,31 +14,16 @@ interface MeBody {
 // "your current slug" state when the user reconnects to Strava from a
 // different browser or after clearing localStorage.
 export async function POST(req: NextRequest) {
-  const rl = rateLimit(clientKey(req, 'publish-me'), { windowMs: 60_000, max: 30 })
-  if (!rl.ok) return tooManyRequests(rl.retryAfterSeconds ?? 60)
+  const limited = enforceRateLimit(req, 'publish-me', { windowMs: 60_000, max: 30 })
+  if (limited) return limited
 
-  let body: MeBody
-  try {
-    body = (await req.json()) as MeBody
-  } catch {
-    return NextResponse.json({ error: 'invalid_json' }, { status: 400 })
-  }
+  const body = await readJsonBody<MeBody>(req)
+  if (!body) return jsonError('invalid_json')
+  if (!isAccessToken(body.accessToken)) return jsonError('missing_access_token')
 
-  const { accessToken } = body
-  if (typeof accessToken !== 'string' || accessToken.length === 0 || accessToken.length > MAX_ACCESS_TOKEN_LENGTH) {
-    return NextResponse.json({ error: 'missing_access_token' }, { status: 400 })
-  }
+  const auth = await authenticateAthlete(body.accessToken)
+  if (!auth.ok) return jsonError(auth.error, auth.status)
 
-  let athleteId: number
-  try {
-    athleteId = (await verifyStravaToken(accessToken)).athleteId
-  } catch (e) {
-    if (e instanceof StravaAuthError && e.reason === 'unauthorized') {
-      return NextResponse.json({ error: 'strava_auth_failed' }, { status: 401 })
-    }
-    return NextResponse.json({ error: 'strava_verify_failed' }, { status: 502 })
-  }
-
-  const existing = await findByAthleteId(athleteId)
+  const existing = await findByAthleteId(auth.athlete.athleteId)
   return NextResponse.json({ slug: existing?.slug ?? null })
 }

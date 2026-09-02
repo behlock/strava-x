@@ -1,113 +1,78 @@
 'use client'
 
-import { ReactNode, useCallback, useEffect, useMemo, useRef, useState, startTransition } from 'react'
+import { type ReactNode, startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import dynamic from 'next/dynamic'
 
-import { AppShell, FilterPanel, StatsPanel, ActivityList, LocationSelector, MapSkeleton } from '@/components/ui'
-import { Activity, ActivityFeatureCollection } from '@/models/activity'
-import { useStatistics } from '@/hooks/use-statistics'
-import { usePersistedMapPosition, MapPositionMode } from '@/hooks/use-persisted-map-position'
+import { ACTIVITY_TYPES, type Activity, type ActivityFeatureCollection } from '@/models/activity'
+import type { LngLat } from '@/models/map'
+import type { ActivityMapRef } from '@/components/activity-map'
+import { ActivityList, AppShell, FilterPanel, LocationSelector, MapSkeleton, StatsPanel } from '@/components/ui'
 import { useActivityClusters } from '@/hooks/use-activity-clusters'
-import { useUnits } from '@/hooks/use-units'
 import { useIsMobile } from '@/hooks/use-media-query'
+import { type MapPositionMode, usePersistedMapPosition } from '@/hooks/use-persisted-map-position'
+import { useStatistics } from '@/hooks/use-statistics'
 
-const MapboxHeatmap = dynamic(() => import('@/components/mapbox-heatmap'), {
+const ActivityMap = dynamic(() => import('@/components/activity-map').then((mod) => mod.ActivityMap), {
   ssr: false,
   loading: () => <MapSkeleton />,
 })
 
-import type { MapboxHeatmapRef } from '@/components/mapbox-heatmap'
-
-export { MapboxHeatmapRef }
-
-export const ACTIVITY_TYPES = ['cycling', 'hiking', 'running', 'walking']
-
-export interface MapViewHandles {
-  mapRef: React.RefObject<MapboxHeatmapRef | null>
-  flyToLatestActivity: () => void
-}
-
 interface MapViewProps {
   activities: Activity[]
-  /** When true, show list/stats loading states (used during initial sync). */
+  /** Show list/stats loading states (used during initial sync). */
   loading?: boolean
+  header: ReactNode
+  /** Extra overlays (modals) rendered on top of the map. */
+  overlays?: ReactNode
   /**
-   * Header slot — can be a ReactNode or a renderer that receives map handles
-   * so the header can wire its own logo-click / export buttons into the map.
+   * Populated with the map handle so other parts of the page (e.g. the
+   * export modal) can drive the map directly.
    */
-  header: ReactNode | ((handles: MapViewHandles) => ReactNode)
+  externalMapRef?: React.RefObject<ActivityMapRef | null>
   /**
-   * Extra overlays rendered inside the AppShell body alongside the map
-   * (e.g. modals that need access to the map ref). Can be a ReactNode or a
-   * renderer that receives the same handles the header gets.
-   */
-  overlays?: ReactNode | ((handles: MapViewHandles) => ReactNode)
-  /** Fallback rendered in place of panels when there are no activities yet. */
-  emptyState?: ReactNode
-  /**
-   * Optional external ref for the underlying map. Pass this in when another
-   * part of the page (e.g. an export modal) needs direct access to the map
-   * canvas — MapView will populate it with the same handle it uses internally.
-   */
-  externalMapRef?: React.RefObject<MapboxHeatmapRef | null>
-  /**
-   * "own" — viewing your own map. Persists pan/zoom to localStorage and
-   * defaults to the saved view on revisits.
-   * "public" — viewing someone else's published map. Never reads or writes
-   * the localStorage cache; always defaults to the busiest activity cluster.
+   * "own" persists pan/zoom to localStorage and restores it on revisits.
+   * "public" never touches that cache and always frames the busiest cluster.
    */
   mode?: MapPositionMode
 }
+
+const DESKTOP_PADDING = { top: 80, bottom: 80, left: 100, right: 80 }
 
 export function MapView({
   activities: allActivities,
   loading = false,
   header,
   overlays,
-  emptyState,
   externalMapRef,
   mode = 'own',
 }: MapViewProps) {
-  const { convertDistance, convertElevation, distanceLabel, elevationLabel } = useUnits()
-
-  const [selectedActivityTypes, setSelectedActivityTypes] = useState<string[]>(ACTIVITY_TYPES)
-  const [selectedDate, setSelectedDate] = useState<number>(100)
+  const [selectedActivityTypes, setSelectedActivityTypes] = useState<string[]>([...ACTIVITY_TYPES])
+  const [selectedDate, setSelectedDate] = useState(100)
   const [highlightedActivityId, setHighlightedActivityId] = useState<string | null>(null)
   const [hoveredFilterType, setHoveredFilterType] = useState<string | null>(null)
 
-  const isMobile = useIsMobile()
-  const drawerHeightRef = useRef(0)
-
-  const handleDrawerHeightChange = useCallback((height: number) => {
-    drawerHeightRef.current = height
-  }, [])
-
-  const computePadding = useCallback(() => {
-    if (!isMobile) {
-      return { top: 80, bottom: 80, left: 100, right: 80 }
-    }
-    return {
-      top: 80,
-      bottom: Math.round(drawerHeightRef.current) + 20,
-      left: 40,
-      right: 40,
-    }
-  }, [isMobile])
-
-  const mapRef = useRef<MapboxHeatmapRef | null>(null)
-
-  // Keep externalMapRef in sync so other parts of the page (e.g. an export
-  // modal) see the same underlying map handle.
+  const mapRef = useRef<ActivityMapRef | null>(null)
   const setMapRef = useCallback(
-    (instance: MapboxHeatmapRef | null) => {
+    (instance: ActivityMapRef | null) => {
       mapRef.current = instance
       if (externalMapRef) externalMapRef.current = instance
     },
     [externalMapRef],
   )
 
+  // On mobile the bottom drawer covers part of the map; pad fits accordingly.
+  const isMobile = useIsMobile()
+  const drawerHeightRef = useRef(0)
+  const handleDrawerHeightChange = useCallback((height: number) => {
+    drawerHeightRef.current = height
+  }, [])
+  const computePadding = useCallback(
+    () =>
+      isMobile ? { top: 80, bottom: Math.round(drawerHeightRef.current) + 20, left: 40, right: 40 } : DESKTOP_PADDING,
+    [isMobile],
+  )
+
   const dateRange = useMemo(() => {
-    if (allActivities.length === 0) return null
     let min = Infinity
     let max = -Infinity
     for (const a of allActivities) {
@@ -116,106 +81,84 @@ export function MapView({
       if (t < min) min = t
       if (t > max) max = t
     }
-    if (min === Infinity) return null
-    return { min: new Date(min), max: new Date(max) }
+    return min === Infinity ? null : { min: new Date(min), max: new Date(max) }
   }, [allActivities])
 
   const cutoffTime = useMemo(() => {
-    if (!dateRange) return null
+    if (!dateRange || selectedDate >= 100) return null
     return dateRange.min.getTime() + ((dateRange.max.getTime() - dateRange.min.getTime()) * selectedDate) / 100
   }, [dateRange, selectedDate])
 
+  const isBeforeCutoff = useCallback(
+    (a: Activity) => cutoffTime === null || !a.date || a.date.getTime() <= cutoffTime,
+    [cutoffTime],
+  )
+
   const activities = useMemo(() => {
-    if (allActivities.length === 0) return []
     const typeSet = new Set(selectedActivityTypes)
-    return allActivities.filter((activity) => {
-      if (!typeSet.has(activity.type as string)) return false
-      if (cutoffTime !== null && activity.date && activity.date.getTime() > cutoffTime) return false
-      return true
-    })
-  }, [allActivities, selectedActivityTypes, cutoffTime])
-
-  const statistics = useStatistics(activities)
-
-  const {
-    position: initialMapPosition,
-    initialBounds,
-    savePosition,
-    isLoading: isMapPositionLoading,
-  } = usePersistedMapPosition(allActivities, mode)
+    return allActivities.filter((a) => a.type !== null && typeSet.has(a.type) && isBeforeCutoff(a))
+  }, [allActivities, selectedActivityTypes, isBeforeCutoff])
 
   const activityCounts = useMemo(() => {
     const counts: Record<string, number> = {}
-    for (const activity of allActivities) {
-      if (cutoffTime !== null && activity.date && activity.date.getTime() > cutoffTime) continue
-      const type = activity.type || 'unknown'
-      counts[type] = (counts[type] || 0) + 1
+    for (const a of allActivities) {
+      if (!isBeforeCutoff(a)) continue
+      const type = a.type || 'unknown'
+      counts[type] = (counts[type] ?? 0) + 1
     }
     return counts
-  }, [allActivities, cutoffTime])
+  }, [allActivities, isBeforeCutoff])
 
-  const displayedActivities = useMemo(() => {
-    if (!hoveredFilterType) return activities
-    return activities.filter((a) => a.type === hoveredFilterType)
-  }, [activities, hoveredFilterType])
+  const displayedActivities = useMemo(
+    () => (hoveredFilterType ? activities.filter((a) => a.type === hoveredFilterType) : activities),
+    [activities, hoveredFilterType],
+  )
 
-  const allGeoData = useMemo((): ActivityFeatureCollection => {
-    const features = allActivities
-      .filter((a) => a.feature)
-      .map((activity) => ({
-        type: 'Feature' as const,
-        geometry: activity.feature!.geometry,
-        properties: {
-          id: activity.id,
-          type: activity.type || 'unknown',
-          dateTs: activity.date?.getTime() ?? 0,
-        },
-      }))
+  const statistics = useStatistics(activities)
+  const { position: initialMapPosition, initialBounds, savePosition } = usePersistedMapPosition(allActivities, mode)
 
-    return {
-      type: 'FeatureCollection' as const,
-      features,
-    }
-  }, [allActivities])
-
-  const dateCutoff = selectedDate >= 100 ? null : cutoffTime
+  const allGeoData = useMemo(
+    (): ActivityFeatureCollection => ({
+      type: 'FeatureCollection',
+      features: allActivities.flatMap((a) =>
+        a.feature
+          ? [
+              {
+                type: 'Feature' as const,
+                geometry: a.feature.geometry,
+                properties: { id: a.id, type: a.type || 'unknown', dateTs: a.date?.getTime() ?? 0 },
+              },
+            ]
+          : [],
+      ),
+    }),
+    [allActivities],
+  )
 
   const handleActivityClick = useCallback(
     (activity: Activity) => {
       setHighlightedActivityId(activity.id)
-      if (activity.feature?.geometry.coordinates) {
-        mapRef.current?.fitToBounds(activity.feature.geometry.coordinates as [number, number][], {
-          padding: computePadding(),
-        })
-      }
+      const coords = activity.feature?.geometry.coordinates as LngLat[] | undefined
+      if (coords?.length) mapRef.current?.fitToBounds(coords, { padding: computePadding() })
     },
     [computePadding],
   )
 
+  // Hovering a row pans the map to it, debounced so scrolling the list
+  // doesn't thrash the camera.
   const hoverPanTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const activitiesRef = useRef<Activity[]>(activities)
-  useEffect(() => {
-    activitiesRef.current = activities
-  }, [activities])
-
   const handleActivityHover = useCallback(
     (id: string | null) => {
       setHighlightedActivityId(id)
-      if (hoverPanTimeoutRef.current) {
-        clearTimeout(hoverPanTimeoutRef.current)
-        hoverPanTimeoutRef.current = null
-      }
+      if (hoverPanTimeoutRef.current) clearTimeout(hoverPanTimeoutRef.current)
       if (!id) return
       hoverPanTimeoutRef.current = setTimeout(() => {
-        const coords = activitiesRef.current.find((a) => a.id === id)?.feature?.geometry.coordinates
-        if (coords?.length) {
-          mapRef.current?.ensureInView(coords as [number, number][], { padding: computePadding() })
-        }
+        const coords = allActivities.find((a) => a.id === id)?.feature?.geometry.coordinates as LngLat[] | undefined
+        if (coords?.length) mapRef.current?.ensureInView(coords, { padding: computePadding() })
       }, 150)
     },
-    [computePadding],
+    [allActivities, computePadding],
   )
-
   useEffect(() => {
     return () => {
       if (hoverPanTimeoutRef.current) clearTimeout(hoverPanTimeoutRef.current)
@@ -224,158 +167,96 @@ export function MapView({
 
   const handleActivityNavigate = useCallback((activity: Activity) => {
     const coords = activity.feature?.geometry.coordinates
-    if (coords?.length) {
-      const mid = coords[Math.floor(coords.length / 2)] as [number, number]
-      mapRef.current?.flyTo({ latitude: mid[1], longitude: mid[0], zoom: 13 })
-    }
+    if (!coords?.length) return
+    const [longitude, latitude] = coords[Math.floor(coords.length / 2)]
+    mapRef.current?.flyTo({ latitude, longitude, zoom: 13 })
   }, [])
 
-  const flyToLatestActivity = useCallback(() => {
-    const latestActivity = allActivities
-      .filter((a) => a.date && a.feature?.geometry?.coordinates?.length)
-      .sort((a, b) => (b.date?.getTime() ?? 0) - (a.date?.getTime() ?? 0))[0]
-    if (latestActivity?.feature?.geometry.coordinates.length) {
-      const [longitude, latitude] = latestActivity.feature.geometry.coordinates[0]
-      mapRef.current?.flyTo({ latitude, longitude, zoom: 12 })
-    }
-  }, [allActivities])
-
+  // Filter changes re-render a large list and the map source; keep the
+  // controls responsive by marking them as transitions.
   const handleActivityTypesChange = useCallback((types: string[]) => {
-    startTransition(() => {
-      setSelectedActivityTypes(types)
-    })
+    startTransition(() => setSelectedActivityTypes(types))
   }, [])
-
   const handleDateChange = useCallback((date: number) => {
-    startTransition(() => {
-      setSelectedDate(date)
-    })
+    startTransition(() => setSelectedDate(date))
   }, [])
-
-  const hasActivities = allActivities.length > 0
 
   const clusters = useActivityClusters(activities)
   const [selectedClusterId, setSelectedClusterId] = useState<string | null>(null)
-
-  // Keep the selection valid as filters change. If the previously selected
-  // id is no longer in the cluster set (filter dropped it), snap back to the
-  // busiest remaining cluster.
-  useEffect(() => {
-    if (clusters.length === 0) {
-      if (selectedClusterId !== null) setSelectedClusterId(null)
-      return
-    }
-    if (selectedClusterId === null || !clusters.some((c) => c.id === selectedClusterId)) {
-      setSelectedClusterId(clusters[0].id)
-    }
-  }, [clusters, selectedClusterId])
+  // Fall back to the busiest cluster whenever the selection is filtered away.
+  const activeClusterId = clusters.some((c) => c.id === selectedClusterId)
+    ? selectedClusterId
+    : (clusters[0]?.id ?? null)
 
   const handleClusterSelect = useCallback(
     (id: string) => {
       const target = clusters.find((c) => c.id === id)
       if (!target) return
       setSelectedClusterId(id)
-      const corners: [number, number][] = [
-        [target.bounds.minLng, target.bounds.minLat],
-        [target.bounds.maxLng, target.bounds.maxLat],
-      ]
-      mapRef.current?.fitToBounds(corners, { padding: computePadding() })
+      const { minLng, minLat, maxLng, maxLat } = target.bounds
+      mapRef.current?.fitToBounds(
+        [
+          [minLng, minLat],
+          [maxLng, maxLat],
+        ],
+        { padding: computePadding() },
+      )
     },
     [clusters, computePadding],
   )
 
-  const handles: MapViewHandles = useMemo(() => ({ mapRef, flyToLatestActivity }), [flyToLatestActivity])
-
-  const filterPanelComponent = (
-    <FilterPanel
-      activityTypes={ACTIVITY_TYPES}
-      selectedActivityTypes={selectedActivityTypes}
-      onActivityTypesChange={handleActivityTypesChange}
-      activityCounts={activityCounts}
-      dateRange={dateRange}
-      selectedDate={selectedDate}
-      onDateChange={handleDateChange}
-      onTypeHover={setHoveredFilterType}
-    />
-  )
-
-  const activityListComponent = (
-    <ActivityList
-      activities={displayedActivities}
-      highlightedActivityId={highlightedActivityId}
-      onActivityHover={handleActivityHover}
-      onActivityClick={handleActivityClick}
-      onActivityNavigate={handleActivityNavigate}
-      loading={loading}
-      className="flex-1 min-h-0"
-      convertDistance={convertDistance}
-      convertElevation={convertElevation}
-      distanceLabel={distanceLabel}
-      elevationLabel={elevationLabel}
-    />
-  )
-
-  const statsPanelComponent = (
-    <StatsPanel
-      statistics={statistics}
-      loading={loading}
-      convertDistance={convertDistance}
-      convertElevation={convertElevation}
-      distanceLabel={distanceLabel}
-      elevationLabel={elevationLabel}
-    />
-  )
-
-  const locationSelectorComponent =
-    clusters.length > 0 ? (
-      <LocationSelector
-        clusters={clusters}
-        selectedClusterId={selectedClusterId}
-        onClusterSelect={handleClusterSelect}
-      />
-    ) : null
-
-  const resolvedHeader = typeof header === 'function' ? header(handles) : header
-  const resolvedOverlays = typeof overlays === 'function' ? overlays(handles) : overlays
+  const hasActivities = allActivities.length > 0
 
   return (
     <AppShell
-      header={resolvedHeader}
-      leftPanels={
-        hasActivities ? (
-          <>
-            {filterPanelComponent}
-            {locationSelectorComponent}
-            {activityListComponent}
-          </>
-        ) : (
-          (emptyState ?? null)
-        )
-      }
-      bottomRightPanel={hasActivities ? statsPanelComponent : null}
-      statsPanel={statsPanelComponent}
-      filterPanel={filterPanelComponent}
-      locationsPanel={locationSelectorComponent}
-      activityList={activityListComponent}
+      header={header}
       hasActivities={hasActivities}
+      filterPanel={
+        <FilterPanel
+          activityTypes={ACTIVITY_TYPES}
+          selectedActivityTypes={selectedActivityTypes}
+          onActivityTypesChange={handleActivityTypesChange}
+          activityCounts={activityCounts}
+          dateRange={dateRange}
+          selectedDate={selectedDate}
+          onDateChange={handleDateChange}
+          onTypeHover={setHoveredFilterType}
+        />
+      }
+      locationsPanel={
+        clusters.length > 0 ? (
+          <LocationSelector
+            clusters={clusters}
+            selectedClusterId={activeClusterId}
+            onClusterSelect={handleClusterSelect}
+          />
+        ) : null
+      }
+      activityList={
+        <ActivityList
+          activities={displayedActivities}
+          highlightedActivityId={highlightedActivityId}
+          onActivityHover={handleActivityHover}
+          onActivityClick={handleActivityClick}
+          onActivityNavigate={handleActivityNavigate}
+          loading={loading}
+        />
+      }
+      statsPanel={<StatsPanel statistics={statistics} loading={loading} />}
       onDrawerHeightChange={handleDrawerHeightChange}
     >
-      {isMapPositionLoading ? (
-        <MapSkeleton />
-      ) : (
-        <MapboxHeatmap
-          ref={setMapRef}
-          data={allGeoData}
-          highlightedActivityId={highlightedActivityId}
-          typeFilter={selectedActivityTypes}
-          dateCutoff={dateCutoff}
-          hoverType={hoveredFilterType}
-          initialPosition={initialMapPosition}
-          initialBounds={initialBounds}
-          onPositionChange={savePosition}
-        />
-      )}
-      {resolvedOverlays}
+      <ActivityMap
+        ref={setMapRef}
+        data={allGeoData}
+        highlightedActivityId={highlightedActivityId}
+        typeFilter={selectedActivityTypes}
+        dateCutoff={cutoffTime}
+        hoverType={hoveredFilterType}
+        initialPosition={initialMapPosition}
+        initialBounds={initialBounds}
+        onPositionChange={savePosition}
+      />
+      {overlays}
     </AppShell>
   )
 }

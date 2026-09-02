@@ -1,63 +1,55 @@
 {
-  "name": "strava—x",
+  "name": "strava-x",
   "version": "0.1.0",
+  "private": true,
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint src",
+    "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "clear-cache": "rm -rf node_modules && rm -rf package-lock.json && rm -rf .next",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "clear-cache": "rm -rf node_modules package-lock.json .next",
     "prepare": "husky"
   },
   "lint-staged": {
-    "*.{ts,tsx}": [
+    "*.{ts,tsx,js,mjs}": [
       "eslint --max-warnings=0"
     ],
-    "*.{ts,tsx,js,mjs,json,css,scss,md}": [
+    "*.{ts,tsx,js,mjs,json,css,md}": [
       "prettier --write"
     ]
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.1.0",
-    "@next/env": "^16.2.10",
-    "@radix-ui/react-icons": "^1.3.2",
-    "@radix-ui/react-slot": "^1.3.0",
-    "@tanstack/react-virtual": "^3.14.7",
-    "@types/mapbox-gl": "^3.5.0",
-    "@types/node": "^26.1.1",
-    "@types/react": "19.2.17",
-    "@types/react-dom": "19.2.3",
-    "@vercel/blob": "^2.6.1",
-    "autoprefixer": "^10.5.4",
-    "class-variance-authority": "^0.7.1",
+    "@tanstack/react-virtual": "^3.14.10",
+    "@vercel/blob": "^2.8.0",
     "clsx": "^2.1.1",
-    "lucide-react": "^1.25.0",
-    "mapbox-gl": "^3.26.0",
-    "next": "^16.2.10",
+    "lucide-react": "^1.39.0",
+    "mapbox-gl": "^3.29.0",
+    "next": "^16.3.4",
     "next-themes": "^0.4.6",
-    "react": "19.2.7",
-    "react-dom": "19.2.7",
-    "react-map-gl": "^8.1.1",
-    "sass": "^1.101.0",
-    "tailwind-merge": "^3.6.0",
-    "tailwindcss-animate": "^1.0.7",
-    "tailwindcss-radix": "^4.0.2",
-    "typescript": "^6.0.3"
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "react-map-gl": "^8.1.2",
+    "tailwind-merge": "^3.6.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.5",
+    "@tailwindcss/postcss": "^4.3.3",
     "@types/geojson": "^7946.0.16",
+    "@types/node": "^26.4.1",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.5",
     "eslint": "^9.39.5",
-    "eslint-config-next": "^16.2.10",
+    "eslint-config-next": "^16.3.4",
     "eslint-config-prettier": "^10.1.8",
     "husky": "^9.1.7",
-    "lint-staged": "^17.1.0",
-    "postcss": "^8.5.20",
-    "postcss-import": "^16.1.1",
-    "prettier": "^3.9.5",
+    "lint-staged": "^17.4.1",
+    "prettier": "^3.9.6",
     "prettier-plugin-tailwindcss": "^0.8.1",
-    "stats.js": "^0.17.0",
-    "tailwindcss": "^3.4.19"
+    "tailwindcss": "^4.3.3",
+    "typescript": "^6.0.3"
   }
 }

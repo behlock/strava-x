@@ -1,0 +1,95 @@
+@import './reset.css' layer(base);
+@import 'tailwindcss';
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@layer base {
+  :root {
+    /* Neutral gray light mode */
+    --background: hsl(0 0% 92%);
+    --foreground: hsl(0 0% 20%);
+    --muted: hsl(0 0% 88%);
+    --border: hsl(0 0% 78%);
+
+    /* Floating panels */
+    --panel: hsl(0 0% 95%);
+    --panel-border: hsl(0 0% 78%);
+    --panel-muted: hsl(0 0% 45%);
+  }
+
+  .dark {
+    /* Neutral gray dark mode */
+    --background: hsl(0 0% 4%);
+    --foreground: hsl(0 0% 95%);
+    --muted: hsl(0 0% 12%);
+    --border: hsl(0 0% 20%);
+
+    --panel: hsl(0 0% 8%);
+    --panel-border: hsl(0 0% 20%);
+    --panel-muted: hsl(0 0% 60%);
+  }
+}
+
+@theme inline {
+  /* `--font-jetbrains-mono` is injected on <html> by next/font in the root layout. */
+  --font-mono: var(--font-jetbrains-mono), 'IBM Plex Mono', Menlo, monospace;
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-border: var(--border);
+  --color-panel: var(--panel);
+  --color-panel-border: var(--panel-border);
+  --color-panel-muted: var(--panel-muted);
+
+  --text-xs-compact: 10px;
+  --text-xs-compact--line-height: 14px;
+  --text-xs-compact--letter-spacing: 0.05em;
+  --text-sm-compact: 11px;
+  --text-sm-compact--line-height: 16px;
+  --text-sm-compact--letter-spacing: 0.02em;
+  --text-base-compact: 12px;
+  --text-base-compact--line-height: 18px;
+  --text-lg-compact: 14px;
+  --text-lg-compact--line-height: 20px;
+
+  /* Square corners by design: only `rounded-lg` (and `rounded-full`) round anything. */
+  --radius-sm: 0px;
+  --radius-md: 0px;
+  --radius-lg: 2px;
+}
+
+@layer base {
+  * {
+    border-color: var(--border);
+  }
+  body {
+    @apply bg-background font-mono text-foreground;
+  }
+}
+
+/* Minimal scrollbar for scrolling panels */
+@utility scrollbar-thin {
+  scrollbar-width: thin;
+  &::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+  }
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  &::-webkit-scrollbar-thumb {
+    background: var(--panel-border);
+    border-radius: 0;
+  }
+  &::-webkit-scrollbar-thumb:hover {
+    background: var(--panel-muted);
+  }
+}
+
+/* Hide the Mapbox attribution and logo controls. */
+.mapboxgl-ctrl-attrib-inner,
+.mapboxgl-ctrl-bottom-left,
+.mapboxgl-ctrl-bottom-right {
+  display: none;
+}

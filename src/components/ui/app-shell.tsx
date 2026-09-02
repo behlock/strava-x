@@ -1,72 +1,61 @@
 'use client'
 
-import { ReactNode } from 'react'
-import { cn } from '@/lib/utils'
+import type { ReactNode } from 'react'
+
 import { useIsMobile } from '@/hooks/use-media-query'
 import { MobileDrawer } from './mobile-drawer'
 
 interface AppShellProps {
   header: ReactNode
-  leftPanels: ReactNode
-  bottomRightPanel?: ReactNode
+  /** The map. */
   children: ReactNode
-  className?: string
-  // Mobile-specific props
-  statsPanel?: ReactNode
-  filterPanel?: ReactNode
-  locationsPanel?: ReactNode
-  activityList?: ReactNode
-  hasActivities?: boolean
-  onDrawerHeightChange?: (height: number) => void
+  hasActivities: boolean
+  filterPanel: ReactNode
+  locationsPanel: ReactNode
+  activityList: ReactNode
+  statsPanel: ReactNode
+  onDrawerHeightChange: (height: number) => void
 }
 
+/**
+ * Full-screen map with floating panels: a left column and a bottom-right
+ * stats panel on desktop, a bottom-sheet drawer on mobile.
+ */
 export function AppShell({
   header,
-  leftPanels,
-  bottomRightPanel,
   children,
-  className,
-  // Mobile props
-  statsPanel,
+  hasActivities,
   filterPanel,
   locationsPanel,
   activityList,
-  hasActivities = false,
+  statsPanel,
   onDrawerHeightChange,
 }: AppShellProps) {
   const isMobile = useIsMobile()
 
   return (
-    <div className={cn('relative h-screen w-screen overflow-hidden', className)}>
-      {/* Full-screen map as background */}
+    <div className="relative h-screen w-screen overflow-hidden">
       <div className="absolute inset-0">{children}</div>
 
-      {/* Header - fixed at top */}
-      <div className="absolute top-0 left-0 right-0 z-10">{header}</div>
+      <div className="absolute top-0 right-0 left-0 z-10">{header}</div>
 
-      {/* Desktop layout */}
-      {!isMobile && (
+      {hasActivities && !isMobile && (
         <>
-          {/* Left floating panels */}
-          <div className="absolute top-[4.5rem] bottom-4 left-4 z-10 w-56 lg:w-64 xl:w-72 flex flex-col gap-3">
-            {leftPanels}
+          <div className="absolute top-18 bottom-4 left-4 z-10 flex w-56 flex-col gap-3 lg:w-64 xl:w-72">
+            {filterPanel}
+            {locationsPanel}
+            {activityList}
           </div>
-
-          {/* Bottom right statistics panel */}
-          {bottomRightPanel && (
-            <div className="absolute bottom-4 right-4 z-10 w-64 lg:w-72 xl:w-80">{bottomRightPanel}</div>
-          )}
+          <div className="absolute right-4 bottom-4 z-10 w-64 lg:w-72 xl:w-80">{statsPanel}</div>
         </>
       )}
 
-      {/* Mobile layout: bottom sheet drawer when activities exist */}
-      {isMobile && hasActivities && (
+      {hasActivities && isMobile && (
         <MobileDrawer
-          statsPanel={statsPanel}
           filterPanel={filterPanel}
           locationsPanel={locationsPanel}
           activityList={activityList}
-          hasActivities={hasActivities}
+          statsPanel={statsPanel}
           onHeightChange={onDrawerHeightChange}
         />
       )}

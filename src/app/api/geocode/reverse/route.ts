@@ -1,6 +1,7 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { type NextRequest, NextResponse } from 'next/server'
 
-import { clientKey, rateLimit, tooManyRequests } from '@/lib/rate-limit'
+import { enforceRateLimit, jsonError } from '@/lib/api'
+import { SITE_URL } from '@/lib/site'
 
 export const runtime = 'nodejs'
 
@@ -10,7 +11,7 @@ export const runtime = 'nodejs'
 // we control the rate of outbound calls (Nominatim's policy is ~1 req/sec).
 
 const NOMINATIM_URL = 'https://nominatim.openstreetmap.org/reverse'
-const USER_AGENT = 'strava-x/1.0 (https://strava-x.com)'
+const USER_AGENT = `strava-x/1.0 (${SITE_URL})`
 const FETCH_TIMEOUT_MS = 5000
 
 type LookupResult = { ok: true; name: string | null } | { ok: false }
@@ -26,29 +27,19 @@ async function fetchUpstream(lat: string, lng: string): Promise<LookupResult> {
   url.searchParams.set('format', 'json')
   url.searchParams.set('zoom', '10')
 
-  const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS)
   try {
-    const upstream = await fetch(url.toString(), {
+    const upstream = await fetch(url, {
       headers: { 'User-Agent': USER_AGENT, Accept: 'application/json' },
-      signal: controller.signal,
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
     })
     if (!upstream.ok) return { ok: false }
     const data = (await upstream.json()) as {
-      address?: {
-        city?: string
-        town?: string
-        village?: string
-        county?: string
-        state?: string
-      }
+      address?: { city?: string; town?: string; village?: string; county?: string; state?: string }
     }
     const a = data.address ?? {}
     return { ok: true, name: a.city || a.town || a.village || a.county || a.state || null }
   } catch {
     return { ok: false }
-  } finally {
-    clearTimeout(timer)
   }
 }
 
@@ -56,43 +47,36 @@ function lookupName(lat: string, lng: string): Promise<LookupResult> {
   const key = `${lat},${lng}`
   const existing = inFlightLookups.get(key)
   if (existing) return existing
-  const pending = fetchUpstream(lat, lng)
-  inFlightLookups.set(key, pending)
-  pending.finally(() => {
+  const pending = fetchUpstream(lat, lng).finally(() => {
     if (inFlightLookups.get(key) === pending) inFlightLookups.delete(key)
   })
+  inFlightLookups.set(key, pending)
   return pending
 }
 
 export async function GET(req: NextRequest) {
-  // Per-IP burst cap. Genuine usage is one call per discovered cluster centroid;
-  // this limit catches accidental loops without affecting normal flows.
-  const rl = rateLimit(clientKey(req, 'geocode'), { windowMs: 60_000, max: 60 })
-  if (!rl.ok) return tooManyRequests(rl.retryAfterSeconds ?? 60)
+  // Genuine usage is one call per discovered cluster centroid; this catches
+  // accidental loops without affecting normal flows.
+  const limited = enforceRateLimit(req, 'geocode', { windowMs: 60_000, max: 60 })
+  if (limited) return limited
 
   const { searchParams } = new URL(req.url)
   const lat = Number(searchParams.get('lat'))
   const lng = Number(searchParams.get('lng'))
-
   if (!Number.isFinite(lat) || lat < -90 || lat > 90 || !Number.isFinite(lng) || lng < -180 || lng > 180) {
-    return NextResponse.json({ error: 'invalid_coordinates' }, { status: 400 })
+    return jsonError('invalid_coordinates')
   }
 
   // Round to 2 decimals so the upstream request can be cached at the CDN edge
   // and so user-side variance in centroids doesn't fan out to distinct calls.
-  const roundedLat = lat.toFixed(2)
-  const roundedLng = lng.toFixed(2)
-
-  const result = await lookupName(roundedLat, roundedLng)
-  if (!result.ok) {
-    return NextResponse.json({ error: 'upstream_failed' }, { status: 502 })
-  }
+  const result = await lookupName(lat.toFixed(2), lng.toFixed(2))
+  if (!result.ok) return jsonError('upstream_failed', 502)
 
   return NextResponse.json(
     { name: result.name },
     {
       // Same-cluster lookups within ~1 day hit the edge cache instead of
-      // hitting Nominatim. Stale-while-revalidate keeps results fresh-ish.
+      // Nominatim. Stale-while-revalidate keeps results fresh-ish.
       headers: { 'Cache-Control': 'public, s-maxage=86400, stale-while-revalidate=604800' },
     },
   )
