@@ -35,22 +35,22 @@ export function WelcomePanel({ open, onDismiss, onConnect }: WelcomePanelProps) 
         role="dialog"
         aria-modal="true"
         aria-labelledby="welcome-title"
-        className="relative bg-panel border border-panel-border rounded-sm w-full max-w-md mx-4"
+        className="relative mx-4 w-full max-w-md rounded-sm border border-panel-border bg-panel"
       >
-        <div className="flex items-center justify-between px-4 py-3 border-b border-panel-border">
+        <div className="flex items-center justify-between border-b border-panel-border px-4 py-3">
           <span id="welcome-title" className="text-sm-compact tracking-wider">
             [welcome]
           </span>
           <button
             onClick={onDismiss}
             aria-label="Close welcome panel"
-            className="text-xs-compact text-panel-muted hover:text-foreground transition-colors"
+            className="text-xs-compact text-panel-muted transition-colors hover:text-foreground"
           >
             [x]
           </button>
         </div>
 
-        <div className="p-4 space-y-4">
+        <div className="space-y-4 p-4">
           <div className="space-y-2">
             <p className="text-sm-compact">welcome to strava—x</p>
             <p className="text-xs-compact text-panel-muted">
@@ -58,11 +58,11 @@ export function WelcomePanel({ open, onDismiss, onConnect }: WelcomePanelProps) 
             </p>
           </div>
 
-          <div className="flex flex-col gap-2 pt-2 border-t border-panel-border">
+          <div className="flex flex-col gap-2 border-t border-panel-border pt-2">
             <button
               onClick={handleConnectClick}
               className={cn(
-                'min-h-[44px] md:min-h-0 px-3 py-2 text-xs-compact tracking-wider border rounded-sm transition-colors',
+                'min-h-[44px] rounded-sm border px-3 py-2 text-xs-compact tracking-wider transition-colors md:min-h-0',
                 'border-foreground bg-foreground/10 hover:bg-foreground/20',
               )}
             >
@@ -71,7 +71,7 @@ export function WelcomePanel({ open, onDismiss, onConnect }: WelcomePanelProps) 
             <Link
               href="/walid"
               onClick={onDismiss}
-              className="min-h-[44px] md:min-h-0 px-3 py-2 text-xs-compact tracking-wider border border-panel-border hover:border-foreground hover:bg-foreground/5 transition-colors rounded-sm text-left inline-flex items-center justify-start"
+              className="inline-flex min-h-[44px] items-center justify-start rounded-sm border border-panel-border px-3 py-2 text-left text-xs-compact tracking-wider transition-colors hover:border-foreground hover:bg-foreground/5 md:min-h-0"
             >
               [↗]—check out walid&apos;s map
             </Link>

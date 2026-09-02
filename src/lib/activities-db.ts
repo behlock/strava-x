@@ -1,7 +1,6 @@
-'use client'
-
-import { Activity } from '@/models/activity'
-import { SerializedActivity, deserializeActivity, serializeActivity } from '@/lib/activities-serialize'
+import type { Activity } from '@/models/activity'
+import { sortActivitiesByDateDesc } from '@/lib/activities'
+import { deserializeActivity, type SerializedActivity, serializeActivity } from '@/lib/activities-serialize'
 
 const DB_NAME = 'strava-x'
 const DB_VERSION = 1
@@ -10,12 +9,10 @@ const STORE_NAME = 'activities'
 function openDB(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     const request = indexedDB.open(DB_NAME, DB_VERSION)
-
     request.onerror = () => reject(request.error)
     request.onsuccess = () => resolve(request.result)
-
-    request.onupgradeneeded = (event) => {
-      const db = (event.target as IDBOpenDBRequest).result
+    request.onupgradeneeded = () => {
+      const db = request.result
       if (!db.objectStoreNames.contains(STORE_NAME)) {
         db.createObjectStore(STORE_NAME, { keyPath: 'id' })
       }
@@ -23,71 +20,72 @@ function openDB(): Promise<IDBDatabase> {
   })
 }
 
-export async function saveActivities(activities: Activity[]): Promise<void> {
-  const db = await openDB()
-  const tx = db.transaction(STORE_NAME, 'readwrite')
-  const store = tx.objectStore(STORE_NAME)
-
-  for (const activity of activities) {
-    store.put(serializeActivity(activity))
-  }
-
+function awaitTransaction(tx: IDBTransaction): Promise<void> {
   return new Promise((resolve, reject) => {
-    tx.oncomplete = () => {
-      db.close()
-      resolve()
-    }
-    tx.onerror = () => {
-      db.close()
-      console.error(`[activities-db] Failed to save ${activities.length} activities:`, tx.error)
-      reject(tx.error)
-    }
+    tx.oncomplete = () => resolve()
+    tx.onerror = () => reject(tx.error)
+    tx.onabort = () => reject(tx.error)
   })
 }
 
+function awaitRequest<T>(request: IDBRequest<T>): Promise<T> {
+  return new Promise((resolve, reject) => {
+    request.onsuccess = () => resolve(request.result)
+    request.onerror = () => reject(request.error)
+  })
+}
+
+async function withStore<T>(mode: IDBTransactionMode, run: (store: IDBObjectStore) => Promise<T>): Promise<T> {
+  const db = await openDB()
+  try {
+    const tx = db.transaction(STORE_NAME, mode)
+    const done = awaitTransaction(tx)
+    const result = await run(tx.objectStore(STORE_NAME))
+    await done
+    return result
+  } finally {
+    db.close()
+  }
+}
+
+// Entries written by older builds can lack an id or carry a feature without
+// geometry; drop them rather than crash the map.
+function isUsable(activity: Activity): boolean {
+  if (!activity.id) return false
+  if (activity.feature && !activity.feature.geometry?.coordinates?.length) {
+    console.warn('[activities-db] Dropping activity with invalid feature:', activity.id)
+    return false
+  }
+  return true
+}
+
+/** Upserts activities by id. */
+export function saveActivities(activities: Activity[]): Promise<void> {
+  return withStore('readwrite', async (store) => {
+    for (const activity of activities) store.put(serializeActivity(activity))
+  })
+}
+
+/** Loads every stored activity, newest first. Resolves with `[]` on any failure. */
 export async function loadActivities(): Promise<Activity[]> {
   try {
-    const db = await openDB()
-    const tx = db.transaction(STORE_NAME, 'readonly')
-    const store = tx.objectStore(STORE_NAME)
-    const request = store.getAll()
-
-    return new Promise((resolve, reject) => {
-      request.onsuccess = () => {
-        db.close()
-        const serialized: SerializedActivity[] = request.result
-        const activities = serialized.map(deserializeActivity)
-        // Sort by date
-        activities.sort((a, b) => {
-          if (a.date && b.date) return a.date.getTime() - b.date.getTime()
-          return 0
-        })
-        resolve(activities)
-      }
-      request.onerror = () => {
-        db.close()
-        reject(request.error)
-      }
-    })
+    const rows = await withStore('readonly', (store) =>
+      awaitRequest(store.getAll() as IDBRequest<SerializedActivity[]>),
+    )
+    return sortActivitiesByDateDesc(rows.map(deserializeActivity).filter(isUsable))
   } catch (error) {
     console.error('[activities-db] Failed to load activities from IndexedDB:', error)
     return []
   }
 }
 
+/** Best-effort wipe of the store. */
 export async function clearActivities(): Promise<void> {
-  const db = await openDB()
-  const tx = db.transaction(STORE_NAME, 'readwrite')
-  tx.objectStore(STORE_NAME).clear()
-
-  return new Promise((resolve) => {
-    tx.oncomplete = () => {
-      db.close()
-      resolve()
-    }
-    tx.onerror = () => {
-      db.close()
-      resolve() // Resolve anyway, clearing is best-effort
-    }
-  })
+  try {
+    await withStore('readwrite', async (store) => {
+      store.clear()
+    })
+  } catch (error) {
+    console.error('[activities-db] Failed to clear activities:', error)
+  }
 }

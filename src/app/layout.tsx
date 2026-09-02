@@ -1,35 +1,36 @@
 import type { Metadata } from 'next'
+import { JetBrains_Mono } from 'next/font/google'
 import Script from 'next/script'
+import { ThemeProvider } from 'next-themes'
 
-import '@/styles/global.scss'
+import '@/styles/global.css'
 import { config } from '@/lib/config'
-import ThemeProvider from '@/components/theme-provider'
+import { SITE_DESCRIPTION, SITE_NAME, SITE_URL } from '@/lib/site'
+
+const jetbrainsMono = JetBrains_Mono({
+  subsets: ['latin'],
+  display: 'swap',
+  variable: '--font-jetbrains-mono',
+})
 
 export const metadata: Metadata = {
-  title: 'strava—x',
-  description: 'Visualize your Strava activities on an interactive map',
-  keywords: ['Walid Behlock', 'Strava', 'map', 'activity map', 'GPX', 'FIT'],
+  title: SITE_NAME,
+  description: SITE_DESCRIPTION,
+  keywords: ['Walid Behlock', 'Strava', 'map', 'activity map'],
   authors: [{ name: 'Walid Behlock' }],
-  metadataBase: new URL('https://strava-x.com'),
+  metadataBase: new URL(SITE_URL),
   openGraph: {
     type: 'website',
-    url: 'https://strava-x.com',
-    title: 'strava—x',
-    description: 'Visualize your Strava activities on an interactive map',
-    siteName: 'strava—x',
-    images: [
-      {
-        url: '/og-image.png',
-        width: 1200,
-        height: 630,
-        alt: 'strava—x — activity map preview',
-      },
-    ],
+    url: SITE_URL,
+    title: SITE_NAME,
+    description: SITE_DESCRIPTION,
+    siteName: SITE_NAME,
+    images: [{ url: '/og-image.png', width: 1200, height: 630, alt: `${SITE_NAME} — activity map preview` }],
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'strava—x',
-    description: 'Visualize your Strava activities on an interactive map',
+    title: SITE_NAME,
+    description: SITE_DESCRIPTION,
     images: ['/og-image.png'],
   },
   icons: {
@@ -42,18 +43,16 @@ export const metadata: Metadata = {
   manifest: '/site.webmanifest',
 }
 
-export default async function RootLayout({ children }: { children: React.ReactNode }) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en" className={jetbrainsMono.variable} suppressHydrationWarning>
       <body className="h-full">
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
-          {config.STATS_TRACKING_URL ? (
-            // crossOrigin="anonymous" prevents the request from carrying
-            // credentials, so a compromise of the analytics origin can't
-            // exfiltrate cookies. Long-term: pin a Subresource Integrity hash
-            // once the script content is stable.
+          {config.STATS_TRACKING_URL && (
+            // crossOrigin="anonymous" keeps credentials off the request, so a
+            // compromise of the analytics origin can't exfiltrate cookies.
             <Script src={config.STATS_TRACKING_URL} crossOrigin="anonymous" />
-          ) : null}
+          )}
           {children}
         </ThemeProvider>
       </body>

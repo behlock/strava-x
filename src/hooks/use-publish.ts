@@ -1,22 +1,29 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useState } from 'react'
 
-import { Activity } from '@/models/activity'
+import type { Activity } from '@/models/activity'
 import { serializeActivities } from '@/lib/activities-serialize'
 import { validateSlug } from '@/lib/slug'
+import { useLocalStorageItem, writeLocalStorage } from '@/hooks/use-local-storage'
 
 const CURRENT_SLUG_KEY = 'strava-x:published-slug'
 
-export type PublishError =
-  | 'invalid_slug'
-  | 'slug_reserved'
-  | 'slug_taken'
-  | 'strava_auth_failed'
-  | 'payload_too_large'
-  | 'no_activities'
-  | 'network'
-  | 'server'
+const PUBLISH_ERRORS = [
+  'invalid_slug',
+  'slug_reserved',
+  'slug_taken',
+  'strava_auth_failed',
+  'payload_too_large',
+  'no_activities',
+  'network',
+  'server',
+] as const
+export type PublishError = (typeof PUBLISH_ERRORS)[number]
+
+function isPublishError(value: unknown): value is PublishError {
+  return typeof value === 'string' && (PUBLISH_ERRORS as readonly string[]).includes(value)
+}
 
 export interface PublishResult {
   slug: string
@@ -34,26 +41,7 @@ export interface CheckResult {
 
 interface UsePublishOptions {
   getAccessToken: () => Promise<string | null>
-  getActivities: () => Activity[]
-}
-
-function readCurrentSlug(): string | null {
-  if (typeof window === 'undefined') return null
-  try {
-    return window.localStorage.getItem(CURRENT_SLUG_KEY)
-  } catch {
-    return null
-  }
-}
-
-function writeCurrentSlug(slug: string | null) {
-  if (typeof window === 'undefined') return
-  try {
-    if (slug) window.localStorage.setItem(CURRENT_SLUG_KEY, slug)
-    else window.localStorage.removeItem(CURRENT_SLUG_KEY)
-  } catch {
-    // no-op
-  }
+  activities: Activity[]
 }
 
 // Activity payloads can exceed Vercel's ~4.5 MB serverless request body limit
@@ -62,32 +50,36 @@ function writeCurrentSlug(slug: string | null) {
 // gzip cuts the payload by ~5x for this data shape).
 async function gzipString(text: string): Promise<Blob> {
   const stream = new Blob([text]).stream().pipeThrough(new CompressionStream('gzip'))
-  return await new Response(stream).blob()
+  return new Response(stream).blob()
 }
 
-export function usePublish({ getAccessToken, getActivities }: UsePublishOptions) {
-  const [currentSlug, setCurrentSlug] = useState<string | null>(null)
-  const [isPublishing, setIsPublishing] = useState(false)
+function slugError(error: 'invalid_format' | 'reserved'): PublishError {
+  return error === 'reserved' ? 'slug_reserved' : 'invalid_slug'
+}
 
-  useEffect(() => {
-    setCurrentSlug(readCurrentSlug())
-  }, [])
+export function usePublish({ getAccessToken, activities }: UsePublishOptions) {
+  // Mirrors the server's record for this athlete; rehydrated by
+  // `refreshCurrentSlug` and cleared by `forgetCurrentSlug`.
+  const currentSlug = useLocalStorageItem(CURRENT_SLUG_KEY)
+  const [isPublishing, setIsPublishing] = useState(false)
 
   const checkSlug = useCallback(
     async (rawSlug: string): Promise<CheckResult> => {
       const local = validateSlug(rawSlug)
-      if (!local.ok) {
-        return { available: false, reason: local.error === 'reserved' ? 'slug_reserved' : 'invalid_slug' }
-      }
+      if (!local.ok) return { available: false, reason: slugError(local.error) }
 
       const token = await getAccessToken().catch(() => null)
-      const res = await fetch('/api/publish/check', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ slug: local.slug, accessToken: token ?? undefined }),
-      })
-      if (!res.ok) return { available: false, reason: 'server' }
-      return (await res.json()) as CheckResult
+      try {
+        const res = await fetch('/api/publish/check', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ slug: local.slug, accessToken: token ?? undefined }),
+        })
+        if (!res.ok) return { available: false, reason: 'server' }
+        return (await res.json()) as CheckResult
+      } catch {
+        return { available: false, reason: 'network' }
+      }
     },
     [getAccessToken],
   )
@@ -95,19 +87,11 @@ export function usePublish({ getAccessToken, getActivities }: UsePublishOptions)
   const publish = useCallback(
     async (rawSlug: string): Promise<PublishResult | { error: PublishError }> => {
       const local = validateSlug(rawSlug)
-      if (!local.ok) {
-        return { error: local.error === 'reserved' ? 'slug_reserved' : 'invalid_slug' }
-      }
-
-      const activities = getActivities()
-      if (activities.length === 0) {
-        return { error: 'no_activities' }
-      }
+      if (!local.ok) return { error: slugError(local.error) }
+      if (activities.length === 0) return { error: 'no_activities' }
 
       const token = await getAccessToken()
-      if (!token) {
-        return { error: 'strava_auth_failed' }
-      }
+      if (!token) return { error: 'strava_auth_failed' }
 
       setIsPublishing(true)
       try {
@@ -117,36 +101,20 @@ export function usePublish({ getAccessToken, getActivities }: UsePublishOptions)
           activities: serializeActivities(activities),
         })
         const supportsGzip = typeof CompressionStream !== 'undefined'
-        const body: BodyInit = supportsGzip ? await gzipString(json) : json
         const res = await fetch('/api/publish', {
           method: 'POST',
           headers: { 'Content-Type': supportsGzip ? 'application/gzip' : 'application/json' },
-          body,
+          body: supportsGzip ? await gzipString(json) : json,
         })
 
         if (!res.ok) {
-          let errorCode: PublishError = 'server'
-          try {
-            const body = (await res.json()) as { error?: string }
-            if (
-              body.error === 'invalid_slug' ||
-              body.error === 'slug_reserved' ||
-              body.error === 'slug_taken' ||
-              body.error === 'strava_auth_failed' ||
-              body.error === 'payload_too_large' ||
-              body.error === 'no_activities'
-            ) {
-              errorCode = body.error
-            }
-          } catch {
-            // ignore; fall through to 'server'
-          }
-          return { error: errorCode }
+          const body = await res.json().catch(() => null)
+          const code = (body as { error?: unknown } | null)?.error
+          return { error: isPublishError(code) && code !== 'network' && code !== 'server' ? code : 'server' }
         }
 
         const result = (await res.json()) as PublishResult
-        setCurrentSlug(result.slug)
-        writeCurrentSlug(result.slug)
+        writeLocalStorage(CURRENT_SLUG_KEY, result.slug)
         return result
       } catch {
         return { error: 'network' }
@@ -154,14 +122,13 @@ export function usePublish({ getAccessToken, getActivities }: UsePublishOptions)
         setIsPublishing(false)
       }
     },
-    [getAccessToken, getActivities],
+    [getAccessToken, activities],
   )
 
-  const unpublish = useCallback(async (): Promise<{ ok: boolean; error?: PublishError }> => {
+  const unpublish = useCallback(async (): Promise<{ ok: true } | { ok: false; error: PublishError }> => {
     const token = await getAccessToken()
-    if (!token) {
-      return { ok: false, error: 'strava_auth_failed' }
-    }
+    if (!token) return { ok: false, error: 'strava_auth_failed' }
+
     setIsPublishing(true)
     try {
       const res = await fetch('/api/publish', {
@@ -169,11 +136,8 @@ export function usePublish({ getAccessToken, getActivities }: UsePublishOptions)
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ accessToken: token }),
       })
-      if (!res.ok) {
-        return { ok: false, error: 'server' }
-      }
-      setCurrentSlug(null)
-      writeCurrentSlug(null)
+      if (!res.ok) return { ok: false, error: 'server' }
+      writeLocalStorage(CURRENT_SLUG_KEY, null)
       return { ok: true }
     } catch {
       return { ok: false, error: 'network' }
@@ -196,27 +160,15 @@ export function usePublish({ getAccessToken, getActivities }: UsePublishOptions)
       })
       if (!res.ok) return
       const body = (await res.json()) as { slug: string | null }
-      setCurrentSlug(body.slug)
-      writeCurrentSlug(body.slug)
+      writeLocalStorage(CURRENT_SLUG_KEY, body.slug)
     } catch {
       // leave current state as-is
     }
   }, [getAccessToken])
 
-  // Called from the parent after Strava disconnect clears local state so the
-  // UI doesn't keep claiming the user owns a slug we can no longer verify.
-  const forgetCurrentSlug = useCallback(() => {
-    setCurrentSlug(null)
-    writeCurrentSlug(null)
-  }, [])
+  // Called after Strava disconnect so the UI doesn't keep claiming the user
+  // owns a slug we can no longer verify.
+  const forgetCurrentSlug = useCallback(() => writeLocalStorage(CURRENT_SLUG_KEY, null), [])
 
-  return {
-    currentSlug,
-    isPublishing,
-    checkSlug,
-    publish,
-    unpublish,
-    refreshCurrentSlug,
-    forgetCurrentSlug,
-  }
+  return { currentSlug, isPublishing, checkSlug, publish, unpublish, refreshCurrentSlug, forgetCurrentSlug }
 }

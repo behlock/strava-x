@@ -1,46 +1,36 @@
 'use client'
 
-import { useState, useRef, useMemo, useCallback, useEffect } from 'react'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { Activity } from '@/models/activity'
-import { getActivityColor } from '@/hooks/use-statistics'
+
+import type { Activity } from '@/models/activity'
+import { getActivityColor } from '@/lib/activity-colors'
+import { sortActivitiesByDateDesc } from '@/lib/activities'
 import { cn } from '@/lib/utils'
+import { Panel, PanelSkeleton } from './panel'
 
 interface ActivityListProps {
   activities: Activity[]
-  highlightedActivityId?: string | null
-  onActivityHover?: (id: string | null) => void
-  onActivityClick?: (activity: Activity) => void
-  onActivityNavigate?: (activity: Activity) => void
+  highlightedActivityId: string | null
+  onActivityHover: (id: string | null) => void
+  onActivityClick: (activity: Activity) => void
+  /** Keyboard navigation: called for the row that gains selection. */
+  onActivityNavigate: (activity: Activity) => void
   loading?: boolean
-  className?: string
-  defaultExpanded?: boolean
-  convertDistance?: (km: number) => number
-  convertElevation?: (m: number) => number
-  distanceLabel?: string
-  elevationLabel?: string
 }
 
 function formatDistance(km: number): string {
-  if (km < 10) {
-    return km.toFixed(1).padStart(5, ' ')
-  }
-  return km.toFixed(0).padStart(4, ' ')
+  return km < 10 ? km.toFixed(1).padStart(5, ' ') : km.toFixed(0).padStart(4, ' ')
 }
 
 function formatDate(date: Date | undefined): string {
   if (!date) return '—'
-  return date
-    .toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-    })
-    .toLowerCase()
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).toLowerCase()
 }
 
-// Row height: 56px on mobile (py-4 = 16px*2 + content), 40px on desktop (py-2 = 8px*2 + content)
-const ITEM_HEIGHT = 56
+// Rows are absolutely positioned by the virtualizer, so this fixes the row
+// height on every breakpoint. Sized for the taller mobile rows (py-4).
+const ROW_HEIGHT = 56
 
 export function ActivityList({
   activities,
@@ -49,27 +39,13 @@ export function ActivityList({
   onActivityClick,
   onActivityNavigate,
   loading = false,
-  className,
-  defaultExpanded = true,
-  convertDistance = (km) => km,
-  convertElevation = (m) => m,
-  distanceLabel = 'km',
-  elevationLabel = 'm',
 }: ActivityListProps) {
-  const [expanded, setExpanded] = useState(defaultExpanded)
   const parentRef = useRef<HTMLDivElement>(null)
   const selectedIndexRef = useRef(-1)
 
-  // Sort activities by date in descending order (newest first)
-  const sortedActivities = useMemo(() => {
-    return [...activities].sort((a, b) => {
-      const dateA = a.date?.getTime() ?? 0
-      const dateB = b.date?.getTime() ?? 0
-      return dateB - dateA
-    })
-  }, [activities])
+  const sortedActivities = useMemo(() => sortActivitiesByDateDesc(activities), [activities])
 
-  // Reset keyboard selection when activities change
+  // Reset keyboard selection when the list changes.
   useEffect(() => {
     selectedIndexRef.current = -1
   }, [sortedActivities])
@@ -77,41 +53,32 @@ export function ActivityList({
   const virtualizer = useVirtualizer({
     count: sortedActivities.length,
     getScrollElement: () => parentRef.current,
-    estimateSize: () => ITEM_HEIGHT,
+    estimateSize: () => ROW_HEIGHT,
     overscan: 5,
   })
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
       if (sortedActivities.length === 0) return
-
+      const moveTo = (index: number) => {
+        e.preventDefault()
+        selectedIndexRef.current = index
+        const activity = sortedActivities[index]
+        onActivityHover(activity.id)
+        onActivityNavigate(activity)
+        virtualizer.scrollToIndex(index, { align: 'auto' })
+      }
       switch (e.key) {
-        case 'ArrowDown': {
-          e.preventDefault()
-          const next = Math.min(selectedIndexRef.current + 1, sortedActivities.length - 1)
-          selectedIndexRef.current = next
-          const downActivity = sortedActivities[next]
-          onActivityHover?.(downActivity.id)
-          onActivityNavigate?.(downActivity)
-          virtualizer.scrollToIndex(next, { align: 'auto' })
+        case 'ArrowDown':
+          moveTo(Math.min(selectedIndexRef.current + 1, sortedActivities.length - 1))
           break
-        }
-        case 'ArrowUp': {
-          e.preventDefault()
-          const next = Math.max(selectedIndexRef.current - 1, 0)
-          selectedIndexRef.current = next
-          const upActivity = sortedActivities[next]
-          onActivityHover?.(upActivity.id)
-          onActivityNavigate?.(upActivity)
-          virtualizer.scrollToIndex(next, { align: 'auto' })
+        case 'ArrowUp':
+          moveTo(Math.max(selectedIndexRef.current - 1, 0))
           break
-        }
         case 'Enter': {
           e.preventDefault()
-          const idx = selectedIndexRef.current
-          if (idx >= 0 && idx < sortedActivities.length) {
-            onActivityClick?.(sortedActivities[idx])
-          }
+          const selected = sortedActivities[selectedIndexRef.current]
+          if (selected) onActivityClick(selected)
           break
         }
       }
@@ -121,132 +88,75 @@ export function ActivityList({
 
   if (loading) {
     return (
-      <div
-        className={cn(
-          'bg-panel/90 panel-blur border border-panel-border rounded-sm',
-          expanded ? className : 'flex-none',
-        )}
-      >
-        <button
-          onClick={() => setExpanded(!expanded)}
-          className="w-full flex items-center justify-between px-3 py-2 border-b border-panel-border hover:bg-foreground/5 transition-colors"
-        >
-          <span className="text-xs-compact tracking-wider">activities</span>
-          <span className="text-panel-muted text-xs-compact">{expanded ? '[-]' : '[+]'}</span>
-        </button>
-        {expanded && (
-          <div className="p-3">
-            <div className="animate-pulse space-y-2">
-              {[1, 2, 3, 4, 5].map((i) => (
-                <div key={i} className="h-8 bg-panel-border rounded-sm" />
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
+      <Panel title="activities" grow>
+        <PanelSkeleton rows={5} rowClassName="h-8 !w-full" />
+      </Panel>
     )
   }
 
   return (
-    <div
-      className={cn(
-        'bg-panel/90 panel-blur border border-panel-border rounded-sm flex flex-col',
-        expanded ? className : 'flex-none',
-      )}
+    <Panel
+      title="activities"
+      grow
+      meta={<span className="tabular-nums">{activities.length.toLocaleString()} total</span>}
     >
-      <button
-        onClick={() => setExpanded(!expanded)}
-        className="w-full flex items-center justify-between px-3 py-2 border-b border-panel-border hover:bg-foreground/5 transition-colors shrink-0"
+      <div
+        ref={parentRef}
+        className="scrollbar-thin min-h-0 flex-1 overflow-y-auto focus:outline-hidden focus-visible:ring-1 focus-visible:ring-foreground/60 focus-visible:ring-inset"
+        tabIndex={0}
+        role="listbox"
+        aria-label="Activities"
+        onKeyDown={handleKeyDown}
       >
-        <span className="text-xs-compact tracking-wider">activities</span>
-        <span className="text-panel-muted text-xs-compact flex items-center gap-2">
-          <span className="tabular-nums">{activities.length.toLocaleString()} total</span>
-          <span>{expanded ? '[-]' : '[+]'}</span>
-        </span>
-      </button>
-
-      {expanded && (
-        <div
-          ref={parentRef}
-          className="flex-1 min-h-0 overflow-y-auto scrollbar-thin focus:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-foreground/60"
-          tabIndex={0}
-          role="listbox"
-          aria-label="Activities"
-          onKeyDown={handleKeyDown}
-        >
-          {activities.length === 0 ? (
-            <div className="p-3 text-xs-compact text-panel-muted text-center">no activities</div>
-          ) : (
-            <div
-              style={{
-                height: `${virtualizer.getTotalSize()}px`,
-                width: '100%',
-                position: 'relative',
-              }}
-            >
-              {virtualizer.getVirtualItems().map((virtualItem) => {
-                const activity = sortedActivities[virtualItem.index]
-                const color = getActivityColor(activity.type)
-                const isHighlighted = activity.id === highlightedActivityId
-
-                return (
+        {activities.length === 0 ? (
+          <div className="p-3 text-center text-xs-compact text-panel-muted">no activities</div>
+        ) : (
+          <div className="relative w-full" style={{ height: virtualizer.getTotalSize() }}>
+            {virtualizer.getVirtualItems().map((row) => {
+              const activity = sortedActivities[row.index]
+              const isHighlighted = activity.id === highlightedActivityId
+              return (
+                <div
+                  key={activity.id}
+                  role="option"
+                  aria-selected={isHighlighted}
+                  className={cn(
+                    'absolute top-0 left-0 w-full cursor-pointer border-b border-panel-border transition-colors',
+                    isHighlighted ? 'bg-foreground/20' : 'hover:bg-foreground/5',
+                  )}
+                  style={{ height: row.size, transform: `translateY(${row.start}px)` }}
+                  onMouseEnter={() => {
+                    selectedIndexRef.current = row.index
+                    onActivityHover(activity.id)
+                  }}
+                  onMouseLeave={() => onActivityHover(null)}
+                  onClick={() => onActivityClick(activity)}
+                >
                   <div
-                    key={activity.id}
-                    style={{
-                      position: 'absolute',
-                      top: 0,
-                      left: 0,
-                      width: '100%',
-                      height: `${virtualItem.size}px`,
-                      transform: `translateY(${virtualItem.start}px)`,
-                    }}
-                  >
-                    <div
-                      className={cn(
-                        'relative h-full border-b border-panel-border cursor-pointer transition-colors',
-                        isHighlighted ? 'bg-foreground/20' : 'hover:bg-foreground/5',
+                    className="absolute top-0 bottom-0 left-0 w-0.5"
+                    style={{ backgroundColor: getActivityColor(activity.type) }}
+                  />
+                  <div className="px-3 py-4 md:py-2">
+                    <div className="flex items-center justify-between text-sm-compact">
+                      <span className="w-8 text-panel-muted tabular-nums">
+                        {String(row.index + 1).padStart(3, '0')}
+                      </span>
+                      <span className="ml-2 flex-1 truncate">{activity.type || 'unknown'}</span>
+                      <span className="ml-2 tabular-nums">{formatDistance(activity.distance)} km</span>
+                    </div>
+                    <div className="flex items-center justify-between pl-10 text-xs-compact text-panel-muted">
+                      <span>{formatDate(activity.date)}</span>
+                      {activity.elevationGain > 0 && (
+                        <span className="tabular-nums">+{Math.round(activity.elevationGain)}m</span>
                       )}
-                      onMouseEnter={() => {
-                        selectedIndexRef.current = virtualItem.index
-                        onActivityHover?.(activity.id)
-                      }}
-                      onMouseLeave={() => onActivityHover?.(null)}
-                      onClick={() => onActivityClick?.(activity)}
-                    >
-                      {/* Color indicator bar */}
-                      <div className="absolute left-0 top-0 bottom-0 w-0.5" style={{ backgroundColor: color }} />
-
-                      <div className="pl-3 pr-3 py-4 md:py-2">
-                        {/* Main row */}
-                        <div className="flex items-center justify-between text-sm-compact">
-                          <span className="text-panel-muted tabular-nums w-8">
-                            {(virtualItem.index + 1).toString().padStart(3, '0')}
-                          </span>
-                          <span className="flex-1 ml-2 truncate">{activity.type || 'unknown'}</span>
-                          <span className="tabular-nums ml-2">
-                            {formatDistance(convertDistance(activity.distance))} {distanceLabel}
-                          </span>
-                        </div>
-
-                        {/* Detail row */}
-                        <div className="flex items-center justify-between text-xs-compact text-panel-muted pl-10">
-                          <span>{formatDate(activity.date)}</span>
-                          {activity.elevationGain > 0 && (
-                            <span className="tabular-nums">
-                              +{Math.round(convertElevation(activity.elevationGain))}
-                              {elevationLabel}
-                            </span>
-                          )}
-                        </div>
-                      </div>
                     </div>
                   </div>
-                )
-              })}
-            </div>
-          )}
-        </div>
-      )}
-    </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </div>
+    </Panel>
   )
 }

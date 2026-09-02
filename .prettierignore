@@ -1,7 +1,6 @@
 node_modules
-**/.next/**
-**/dist/**
-**/public/**
-.github/**
-.vercel/**
-.husky/**
+.next
+public
+.vercel
+.husky
+package-lock.json

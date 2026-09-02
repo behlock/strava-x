@@ -1,34 +1,44 @@
 'use client'
 
-import { useEffect, useState, useCallback, useRef } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTheme } from 'next-themes'
+
+import type { ActivityMapRef } from '@/components/activity-map'
 import { cn } from '@/lib/utils'
-import type { MapboxHeatmapRef } from '@/components/mapbox-heatmap'
 import {
-  useMapScreenshot,
-  AspectRatio,
   ASPECT_RATIO_OPTIONS,
+  type AspectRatio,
   getAspectRatioConfig,
-  PanOffset,
+  type PanOffset,
+  useMapScreenshot,
 } from './use-map-screenshot'
 
 interface ExportModalProps {
   open: boolean
   onClose: () => void
-  mapRef: React.RefObject<MapboxHeatmapRef | null>
-  className?: string
+  mapRef: React.RefObject<ActivityMapRef | null>
 }
 
-export function ExportModal({ open, onClose, mapRef, className }: ExportModalProps) {
-  const { theme, systemTheme } = useTheme()
-  const currentTheme = theme === 'system' ? systemTheme : theme
-  const isDark = currentTheme === 'dark'
+const CENTER: PanOffset = { x: 0, y: 0 }
+const FEEDBACK_MS = 3000
+const DRAG_SENSITIVITY = 2
+
+const ACTION_BUTTON =
+  'min-h-11 flex-1 rounded-sm border border-panel-border px-3 py-2 text-xs-compact tracking-wider transition-colors hover:border-foreground hover:bg-foreground/5 disabled:opacity-50 md:min-h-0'
+
+function clamp(value: number): number {
+  return Math.max(-1, Math.min(1, value))
+}
+
+export function ExportModal({ open, onClose, mapRef }: ExportModalProps) {
+  const { resolvedTheme } = useTheme()
+  const isDark = resolvedTheme === 'dark'
 
   const [aspectRatio, setAspectRatio] = useState<AspectRatio>('1:1')
+  const [panOffset, setPanOffset] = useState<PanOffset>(CENTER)
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [panOffset, setPanOffset] = useState<PanOffset>({ x: 0, y: 0 })
   const [isDragging, setIsDragging] = useState(false)
   const dragStartRef = useRef<{ x: number; y: number; startOffset: PanOffset } | null>(null)
   const previewRef = useRef<HTMLDivElement>(null)
@@ -39,26 +49,26 @@ export function ExportModal({ open, onClose, mapRef, className }: ExportModalPro
   const { captureScreenshot, captureBlob, capturePreview, isCapturing } = useMapScreenshot({
     mapRef,
     aspectRatio,
-    showBranding: true,
     isDark,
     panOffset,
   })
 
-  // Feature detection
   const canCopy = typeof navigator !== 'undefined' && 'clipboard' in navigator && 'write' in navigator.clipboard
   const canShare = typeof navigator !== 'undefined' && 'share' in navigator && 'canShare' in navigator
 
-  // Generate preview when settings change
+  // Regenerate the preview whenever framing changes.
   useEffect(() => {
     if (!open) return
-    const generate = async () => {
-      const dataUrl = await capturePreview()
-      setPreviewUrl(dataUrl)
+    let cancelled = false
+    capturePreview().then((dataUrl) => {
+      if (!cancelled) setPreviewUrl(dataUrl)
+    })
+    return () => {
+      cancelled = true
     }
-    generate()
   }, [open, capturePreview])
 
-  // Close on escape key + trap Tab focus inside the modal while open
+  // Escape closes; Tab is trapped inside the dialog.
   useEffect(() => {
     if (!open) return
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -73,11 +83,10 @@ export function ExportModal({ open, onClose, mapRef, className }: ExportModalPro
       if (focusable.length === 0) return
       const first = focusable[0]
       const last = focusable[focusable.length - 1]
-      const active = document.activeElement
-      if (e.shiftKey && active === first) {
+      if (e.shiftKey && document.activeElement === first) {
         e.preventDefault()
         last.focus()
-      } else if (!e.shiftKey && active === last) {
+      } else if (!e.shiftKey && document.activeElement === last) {
         e.preventDefault()
         first.focus()
       }
@@ -86,7 +95,7 @@ export function ExportModal({ open, onClose, mapRef, className }: ExportModalPro
     return () => document.removeEventListener('keydown', handleKeyDown)
   }, [open, onClose])
 
-  // Manage focus: capture trigger on open, focus close button, restore on close
+  // Focus the close button on open; restore the trigger's focus on close.
   useEffect(() => {
     if (open) {
       previouslyFocusedRef.current = document.activeElement as HTMLElement | null
@@ -97,12 +106,21 @@ export function ExportModal({ open, onClose, mapRef, className }: ExportModalPro
     }
   }, [open])
 
-  // Reset pan offset when aspect ratio changes
+  // Transient feedback auto-clears.
   useEffect(() => {
-    setPanOffset({ x: 0, y: 0 })
-  }, [aspectRatio])
+    if (!error && !copied) return
+    const handle = setTimeout(() => {
+      setError(null)
+      setCopied(false)
+    }, FEEDBACK_MS)
+    return () => clearTimeout(handle)
+  }, [error, copied])
 
-  // Drag handlers
+  const handleAspectRatioChange = useCallback((ratio: AspectRatio) => {
+    setAspectRatio(ratio)
+    setPanOffset(CENTER)
+  }, [])
+
   const handleDragStart = useCallback(
     (clientX: number, clientY: number) => {
       setIsDragging(true)
@@ -113,17 +131,15 @@ export function ExportModal({ open, onClose, mapRef, className }: ExportModalPro
 
   const handleDragMove = useCallback(
     (clientX: number, clientY: number) => {
-      if (!isDragging || !dragStartRef.current || !previewRef.current) return
-
-      const rect = previewRef.current.getBoundingClientRect()
-      const deltaX = (clientX - dragStartRef.current.x) / rect.width
-      const deltaY = (clientY - dragStartRef.current.y) / rect.height
-
-      const sensitivity = 2
-      const newX = Math.max(-1, Math.min(1, dragStartRef.current.startOffset.x - deltaX * sensitivity))
-      const newY = Math.max(-1, Math.min(1, dragStartRef.current.startOffset.y - deltaY * sensitivity))
-
-      setPanOffset({ x: newX, y: newY })
+      const start = dragStartRef.current
+      const rect = previewRef.current?.getBoundingClientRect()
+      if (!isDragging || !start || !rect) return
+      const deltaX = (clientX - start.x) / rect.width
+      const deltaY = (clientY - start.y) / rect.height
+      setPanOffset({
+        x: clamp(start.startOffset.x - deltaX * DRAG_SENSITIVITY),
+        y: clamp(start.startOffset.y - deltaY * DRAG_SENSITIVITY),
+      })
     },
     [isDragging],
   )
@@ -133,66 +149,20 @@ export function ExportModal({ open, onClose, mapRef, className }: ExportModalPro
     dragStartRef.current = null
   }, [])
 
-  // Mouse event handlers
-  const handleMouseDown = useCallback(
-    (e: React.MouseEvent) => {
-      e.preventDefault()
-      handleDragStart(e.clientX, e.clientY)
-    },
-    [handleDragStart],
-  )
-
-  const handleMouseMove = useCallback(
-    (e: React.MouseEvent) => {
-      handleDragMove(e.clientX, e.clientY)
-    },
-    [handleDragMove],
-  )
-
-  const handleMouseUp = useCallback(() => {
-    handleDragEnd()
-  }, [handleDragEnd])
-
-  // Touch event handlers
-  const handleTouchStart = useCallback(
-    (e: React.TouchEvent) => {
-      if (e.touches.length === 1) {
-        handleDragStart(e.touches[0].clientX, e.touches[0].clientY)
-      }
-    },
-    [handleDragStart],
-  )
-
-  const handleTouchMove = useCallback(
-    (e: React.TouchEvent) => {
-      if (e.touches.length === 1) {
-        handleDragMove(e.touches[0].clientX, e.touches[0].clientY)
-      }
-    },
-    [handleDragMove],
-  )
-
-  const handleTouchEnd = useCallback(() => {
-    handleDragEnd()
-  }, [handleDragEnd])
-
-  // Global mouse up listener for when mouse leaves the preview area
+  // End the drag even when the pointer is released outside the preview.
   useEffect(() => {
-    if (isDragging) {
-      const handleGlobalMouseUp = () => handleDragEnd()
-      window.addEventListener('mouseup', handleGlobalMouseUp)
-      window.addEventListener('touchend', handleGlobalMouseUp)
-      return () => {
-        window.removeEventListener('mouseup', handleGlobalMouseUp)
-        window.removeEventListener('touchend', handleGlobalMouseUp)
-      }
+    if (!isDragging) return
+    window.addEventListener('mouseup', handleDragEnd)
+    window.addEventListener('touchend', handleDragEnd)
+    return () => {
+      window.removeEventListener('mouseup', handleDragEnd)
+      window.removeEventListener('touchend', handleDragEnd)
     }
   }, [isDragging, handleDragEnd])
 
   const handleDownload = useCallback(async () => {
     const dataUrl = await captureScreenshot()
     if (!dataUrl) return
-
     const link = document.createElement('a')
     link.href = dataUrl
     link.download = `strava-x-map-${Date.now()}.png`
@@ -204,18 +174,14 @@ export function ExportModal({ open, onClose, mapRef, className }: ExportModalPro
     const blob = await captureBlob()
     if (!blob) {
       setError('Failed to capture image')
-      setTimeout(() => setError(null), 3000)
       return
     }
-
     try {
       await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
       setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
     } catch (err) {
       console.error('Failed to copy image:', err)
       setError('Failed to copy to clipboard')
-      setTimeout(() => setError(null), 3000)
     }
   }, [captureBlob])
 
@@ -224,147 +190,126 @@ export function ExportModal({ open, onClose, mapRef, className }: ExportModalPro
     const blob = await captureBlob()
     if (!blob) {
       setError('Failed to capture image')
-      setTimeout(() => setError(null), 3000)
       return
     }
-
     try {
       const file = new File([blob], 'strava-x-map.png', { type: 'image/png' })
-
       if (navigator.canShare?.({ files: [file] })) {
-        await navigator.share({
-          files: [file],
-          title: 'My Strava Activity Map',
-        })
+        await navigator.share({ files: [file], title: 'My Strava Activity Map' })
       }
     } catch (err) {
-      if ((err as Error).name !== 'AbortError') {
-        console.error('Failed to share:', err)
-        setError('Failed to share')
-        setTimeout(() => setError(null), 3000)
-      }
+      if ((err as Error).name === 'AbortError') return
+      console.error('Failed to share:', err)
+      setError('Failed to share')
     }
   }, [captureBlob])
 
   if (!open) return null
 
-  const config = getAspectRatioConfig(aspectRatio)
-  const previewAspect = config.width / config.height
+  const { width, height } = getAspectRatioConfig(aspectRatio)
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
-      {/* Backdrop */}
-      <div className="absolute inset-0 bg-background/80 panel-blur" onClick={onClose} aria-hidden="true" />
+      <div className="absolute inset-0 bg-background/80 backdrop-blur-md" onClick={onClose} aria-hidden="true" />
 
-      {/* Modal */}
       <div
         ref={modalRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby="export-modal-title"
-        className={cn('relative bg-panel border border-panel-border rounded-sm w-full max-w-lg mx-4', className)}
+        className="relative mx-4 w-full max-w-lg rounded-sm border border-panel-border bg-panel"
       >
-        {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-panel-border">
+        <div className="flex items-center justify-between border-b border-panel-border px-4 py-3">
           <span id="export-modal-title" className="text-sm-compact tracking-wider">
             [export]
           </span>
           <button
             ref={closeButtonRef}
+            type="button"
             onClick={onClose}
             aria-label="Close export dialog"
-            className="text-xs-compact text-panel-muted hover:text-foreground transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-foreground"
+            className="text-xs-compact text-panel-muted transition-colors hover:text-foreground focus-visible:ring-1 focus-visible:ring-foreground focus-visible:outline-hidden"
           >
             [x]
           </button>
         </div>
 
-        {/* Content */}
-        <div className="p-4 space-y-4">
-          {/* Preview */}
-          <div className="relative bg-background border border-panel-border rounded-sm overflow-hidden">
+        <div className="space-y-4 p-4">
+          <div className="relative overflow-hidden rounded-sm border border-panel-border bg-background">
             <div
               ref={previewRef}
               className={cn('relative w-full select-none', isDragging ? 'cursor-grabbing' : 'cursor-grab')}
-              style={{ paddingBottom: `${(1 / previewAspect) * 100}%` }}
-              onMouseDown={handleMouseDown}
-              onMouseMove={handleMouseMove}
-              onMouseUp={handleMouseUp}
-              onMouseLeave={handleMouseUp}
-              onTouchStart={handleTouchStart}
-              onTouchMove={handleTouchMove}
-              onTouchEnd={handleTouchEnd}
+              style={{ aspectRatio: `${width} / ${height}` }}
+              onMouseDown={(e) => {
+                e.preventDefault()
+                handleDragStart(e.clientX, e.clientY)
+              }}
+              onMouseMove={(e) => handleDragMove(e.clientX, e.clientY)}
+              onMouseUp={handleDragEnd}
+              onMouseLeave={handleDragEnd}
+              onTouchStart={(e) => {
+                if (e.touches.length === 1) handleDragStart(e.touches[0].clientX, e.touches[0].clientY)
+              }}
+              onTouchMove={(e) => {
+                if (e.touches.length === 1) handleDragMove(e.touches[0].clientX, e.touches[0].clientY)
+              }}
+              onTouchEnd={handleDragEnd}
             >
               {previewUrl && (
                 <img
                   src={previewUrl}
                   alt="Map preview"
-                  className="absolute inset-0 w-full h-full object-contain pointer-events-none"
+                  className="pointer-events-none absolute inset-0 size-full object-contain"
                   draggable={false}
                 />
               )}
             </div>
           </div>
-          <p className="text-xs-compact text-panel-muted text-center">drag to reposition</p>
+          <p className="text-center text-xs-compact text-panel-muted">drag to reposition</p>
 
-          {/* Options */}
-          <div className="space-y-3">
-            {/* Aspect Ratio */}
-            <div className="flex items-center justify-between">
-              <span className="text-xs-compact tracking-wider text-panel-muted">aspect ratio</span>
-              <div className="flex gap-1">
-                {ASPECT_RATIO_OPTIONS.map((ratio) => (
-                  <button
-                    key={ratio}
-                    onClick={() => setAspectRatio(ratio)}
-                    className={cn(
-                      'px-2 py-1 text-xs-compact border rounded-sm transition-colors',
-                      aspectRatio === ratio
-                        ? 'border-foreground bg-foreground/10'
-                        : 'border-panel-border hover:border-foreground/50',
-                    )}
-                  >
-                    {ratio}
-                  </button>
-                ))}
-              </div>
+          <div className="flex items-center justify-between">
+            <span className="text-xs-compact tracking-wider text-panel-muted">aspect ratio</span>
+            <div className="flex gap-1" role="radiogroup" aria-label="Aspect ratio">
+              {ASPECT_RATIO_OPTIONS.map((ratio) => (
+                <button
+                  key={ratio}
+                  type="button"
+                  role="radio"
+                  aria-checked={aspectRatio === ratio}
+                  onClick={() => handleAspectRatioChange(ratio)}
+                  className={cn(
+                    'rounded-sm border px-2 py-1 text-xs-compact transition-colors',
+                    aspectRatio === ratio
+                      ? 'border-foreground bg-foreground/10'
+                      : 'border-panel-border hover:border-foreground/50',
+                  )}
+                >
+                  {ratio}
+                </button>
+              ))}
             </div>
           </div>
 
-          {/* Status feedback (announced to screen readers) */}
           <div role="status" aria-live="polite" className="sr-only">
-            {error ? error : copied ? 'Image copied to clipboard' : ''}
+            {error ?? (copied ? 'Image copied to clipboard' : '')}
           </div>
           {error && (
-            <p className="text-xs-compact text-red-500 text-center" aria-hidden="true">
+            <p className="text-center text-xs-compact text-red-500" aria-hidden="true">
               {error}
             </p>
           )}
 
-          {/* Actions */}
-          <div className="flex gap-2 pt-2 border-t border-panel-border">
-            <button
-              onClick={handleDownload}
-              disabled={isCapturing}
-              className="flex-1 min-h-[44px] md:min-h-0 px-3 py-2 text-xs-compact tracking-wider border border-panel-border hover:border-foreground hover:bg-foreground/5 transition-colors rounded-sm disabled:opacity-50"
-            >
+          <div className="flex gap-2 border-t border-panel-border pt-2">
+            <button type="button" onClick={handleDownload} disabled={isCapturing} className={ACTION_BUTTON}>
               [download]
             </button>
             {canCopy && (
-              <button
-                onClick={handleCopy}
-                disabled={isCapturing}
-                className="flex-1 min-h-[44px] md:min-h-0 px-3 py-2 text-xs-compact tracking-wider border border-panel-border hover:border-foreground hover:bg-foreground/5 transition-colors rounded-sm disabled:opacity-50"
-              >
+              <button type="button" onClick={handleCopy} disabled={isCapturing} className={ACTION_BUTTON}>
                 {copied ? '[copied]' : '[copy]'}
               </button>
             )}
             {canShare && (
-              <button
-                onClick={handleShare}
-                disabled={isCapturing}
-                className="flex-1 min-h-[44px] md:min-h-0 px-3 py-2 text-xs-compact tracking-wider border border-panel-border hover:border-foreground hover:bg-foreground/5 transition-colors rounded-sm disabled:opacity-50"
-              >
+              <button type="button" onClick={handleShare} disabled={isCapturing} className={ACTION_BUTTON}>
                 [share]
               </button>
             )}

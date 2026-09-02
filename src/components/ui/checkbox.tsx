@@ -22,14 +22,14 @@ export function Checkbox({ checked, onChange, label, count, className, onHover }
       onMouseEnter={() => onHover?.(true)}
       onMouseLeave={() => onHover?.(false)}
       className={cn(
-        'flex items-center justify-between w-full text-sm-compact py-3 md:py-1 min-h-[44px] md:min-h-0 hover:bg-foreground/5 px-1 -mx-1 transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-foreground',
+        '-mx-1 flex min-h-[44px] w-full items-center justify-between px-1 py-3 text-sm-compact transition-colors hover:bg-foreground/5 focus-visible:ring-1 focus-visible:ring-foreground focus-visible:outline-hidden md:min-h-0 md:py-1',
         className,
       )}
     >
-      <span className="text-panel-muted font-mono" aria-hidden="true">
+      <span className="font-mono text-panel-muted" aria-hidden="true">
         {checked ? '[x]' : '[ ]'}
       </span>
-      <span className="flex-1 text-left ml-2">{label}</span>
+      <span className="ml-2 flex-1 text-left">{label}</span>
       {count !== undefined && (
         <span className="text-panel-muted tabular-nums" aria-hidden="true">
           ({count.toString().padStart(3, '0')})

@@ -16,10 +16,7 @@ export interface RateLimitOptions {
   max: number
 }
 
-export interface RateLimitResult {
-  ok: boolean
-  retryAfterSeconds?: number
-}
+export type RateLimitResult = { ok: true } | { ok: false; retryAfterSeconds: number }
 
 export function rateLimit(key: string, opts: RateLimitOptions): RateLimitResult {
   const now = Date.now()
@@ -31,9 +28,8 @@ export function rateLimit(key: string, opts: RateLimitOptions): RateLimitResult 
   bucket.count++
 
   if (buckets.size > MAX_BUCKETS) {
-    for (const k of Array.from(buckets.keys())) {
-      const b = buckets.get(k)
-      if (b && now - b.windowStart > opts.windowMs) buckets.delete(k)
+    for (const [k, b] of buckets) {
+      if (now - b.windowStart > opts.windowMs) buckets.delete(k)
       if (buckets.size <= MAX_BUCKETS / 2) break
     }
   }
@@ -49,14 +45,4 @@ export function clientKey(req: Request, prefix: string): string {
   const forwarded = req.headers.get('x-forwarded-for')
   const ip = forwarded ? forwarded.split(',')[0].trim() : req.headers.get('x-real-ip') || 'unknown'
   return `${prefix}:${ip}`
-}
-
-export function tooManyRequests(retryAfterSeconds: number) {
-  return new Response(JSON.stringify({ error: 'rate_limited' }), {
-    status: 429,
-    headers: {
-      'Content-Type': 'application/json',
-      'Retry-After': String(retryAfterSeconds),
-    },
-  })
 }

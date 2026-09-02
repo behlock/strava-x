@@ -1,13 +1,16 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useState } from 'react'
+
+import { useLocalStorageItem, writeLocalStorage } from '@/hooks/use-local-storage'
 
 const DISMISS_KEY = 'strava-x:welcome_dismissed'
 
 interface UseWelcomePanelArgs {
   stravaConnected: boolean
-  hasCachedActivities: boolean
-  isCacheLoading: boolean
+  hasActivities: boolean
+  /** True while activities are still being restored from IndexedDB. */
+  isRestoring: boolean
 }
 
 export interface UseWelcomePanel {
@@ -15,44 +18,17 @@ export interface UseWelcomePanel {
   dismiss: () => void
 }
 
-export function useWelcomePanel({
-  stravaConnected,
-  hasCachedActivities,
-  isCacheLoading,
-}: UseWelcomePanelArgs): UseWelcomePanel {
-  const [open, setOpen] = useState(false)
-  const [dismissedChecked, setDismissedChecked] = useState(false)
-  const [previouslyDismissed, setPreviouslyDismissed] = useState(false)
+/** Shows the welcome panel to first-time visitors with nothing to look at yet. */
+export function useWelcomePanel({ stravaConnected, hasActivities, isRestoring }: UseWelcomePanelArgs): UseWelcomePanel {
+  const persistedDismissed = useLocalStorageItem(DISMISS_KEY) === '1'
+  // Session fallback for when localStorage is unavailable (private mode).
+  const [dismissedThisSession, setDismissedThisSession] = useState(false)
 
-  useEffect(() => {
-    if (typeof window === 'undefined') return
-    try {
-      setPreviouslyDismissed(window.localStorage.getItem(DISMISS_KEY) === '1')
-    } catch {
-      // localStorage can throw in private modes — treat as not dismissed.
-    }
-    setDismissedChecked(true)
-  }, [])
-
-  useEffect(() => {
-    if (!dismissedChecked) return
-    if (isCacheLoading) return
-    if (previouslyDismissed) return
-    if (stravaConnected) return
-    if (hasCachedActivities) return
-    setOpen(true)
-  }, [dismissedChecked, isCacheLoading, previouslyDismissed, stravaConnected, hasCachedActivities])
+  const open = !persistedDismissed && !dismissedThisSession && !isRestoring && !stravaConnected && !hasActivities
 
   const dismiss = useCallback(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        window.localStorage.setItem(DISMISS_KEY, '1')
-      } catch {
-        // ignore — we'll still hide the panel for the session via state.
-      }
-    }
-    setPreviouslyDismissed(true)
-    setOpen(false)
+    setDismissedThisSession(true)
+    writeLocalStorage(DISMISS_KEY, '1')
   }, [])
 
   return { open, dismiss }

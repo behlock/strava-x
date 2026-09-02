@@ -13,7 +13,7 @@ export function useMediaQuery(query: string): boolean {
       media.addEventListener('change', callback)
       return () => media.removeEventListener('change', callback)
     },
-    [query]
+    [query],
   )
 
   const getSnapshot = useCallback(() => {
