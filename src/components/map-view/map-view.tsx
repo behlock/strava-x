@@ -31,6 +31,8 @@ interface MapViewProps {
   /** Show list/stats loading states (used during initial sync). */
   loading?: boolean
   header: ReactNode
+  /** Settings panel (theme, account) shown alongside the map panels. */
+  setupPanel?: ReactNode
   /** Extra overlays (modals) rendered on top of the map. */
   overlays?: ReactNode
   /**
@@ -51,6 +53,7 @@ export function MapView({
   activities: allActivities,
   loading = false,
   header,
+  setupPanel,
   overlays,
   externalMapRef,
   mode = 'own',
@@ -225,6 +228,7 @@ export function MapView({
       header={header}
       hasActivities={hasActivities}
       mapControls={<LocateControl onClick={handleLocate} />}
+      setupPanel={setupPanel}
       filterPanel={
         <FilterPanel
           activityTypes={ACTIVITY_TYPES}

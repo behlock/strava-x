@@ -10,13 +10,15 @@ interface ShareMenuProps {
   onPublish: () => void
   /** Publishing needs a connected Strava account; without it the chip exports directly. */
   canPublish: boolean
+  /** Pass `end` when the chip is the last one in the header. */
+  tooltipAlign?: 'center' | 'start' | 'end'
 }
 
 const ITEM_CLASS =
   'flex w-full items-center gap-2 px-3 py-2 text-left text-xs-compact tracking-wider whitespace-nowrap transition-colors hover:bg-foreground/5 focus-visible:bg-foreground/5 focus-visible:outline-hidden'
 
 /** One header chip for both ways of getting the map out of the app. */
-export function ShareMenu({ onExport, onPublish, canPublish }: ShareMenuProps) {
+export function ShareMenu({ onExport, onPublish, canPublish, tooltipAlign }: ShareMenuProps) {
   const [open, setOpen] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
@@ -80,7 +82,7 @@ export function ShareMenu({ onExport, onPublish, canPublish }: ShareMenuProps) {
 
   if (!canPublish) {
     return (
-      <HeaderChip tooltip="export" onClick={onExport} aria-label="Export image">
+      <HeaderChip tooltip="export" tooltipAlign={tooltipAlign} onClick={onExport} aria-label="Export image">
         <Share2 className="size-4" />
       </HeaderChip>
     )
@@ -91,6 +93,7 @@ export function ShareMenu({ onExport, onPublish, canPublish }: ShareMenuProps) {
       <HeaderChip
         ref={triggerRef}
         tooltip="share"
+        tooltipAlign={tooltipAlign}
         tooltipHidden={open}
         onClick={() => setOpen((value) => !value)}
         onKeyDown={(e) => {

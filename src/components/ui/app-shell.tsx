@@ -14,6 +14,8 @@ interface AppShellProps {
   locationsPanel: ReactNode
   activityList: ReactNode
   statsPanel: ReactNode
+  /** Settings panel; last in the left column on desktop, last drawer section on mobile. */
+  setupPanel?: ReactNode
   /** Floating map controls (e.g. locate), anchored bottom-right above the panels. */
   mapControls?: ReactNode
   onDrawerHeightChange: (height: number) => void
@@ -36,6 +38,7 @@ export function AppShell({
   locationsPanel,
   activityList,
   statsPanel,
+  setupPanel,
   mapControls,
   onDrawerHeightChange,
 }: AppShellProps) {
@@ -66,6 +69,7 @@ export function AppShell({
           {filterPanel}
           {locationsPanel}
           {activityList}
+          {setupPanel}
         </div>
       )}
 
@@ -86,6 +90,7 @@ export function AppShell({
           locationsPanel={locationsPanel}
           activityList={activityList}
           statsPanel={statsPanel}
+          setupPanel={setupPanel}
           onHeightChange={handleDrawerHeightChange}
         />
       )}
