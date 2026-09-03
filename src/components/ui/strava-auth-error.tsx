@@ -33,7 +33,7 @@ export function StravaAuthError() {
       aria-label={`${message}. Dismiss`}
       className="text-red-500 dark:text-red-400"
     >
-      [!]<span className="hidden md:inline">—{message}</span>
+      [!]<span className="ml-1 hidden md:inline">{message}</span>
     </HeaderChip>
   )
 }

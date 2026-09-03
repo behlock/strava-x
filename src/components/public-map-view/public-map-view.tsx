@@ -1,15 +1,12 @@
 'use client'
 
 import Link from 'next/link'
-import { useEffect, useRef, useState } from 'react'
-import { Locate } from 'lucide-react'
+import { useEffect, useState } from 'react'
 
 import type { Activity } from '@/models/activity'
-import type { ActivityMapRef } from '@/components/activity-map'
 import { MapView } from '@/components/map-view'
-import { HEADER_LOGO_CLASS, HeaderBar, HeaderChip, ThemeToggle } from '@/components/ui'
+import { HEADER_LOGO_CLASS, HeaderBar, ThemeToggle } from '@/components/ui'
 import { deserializeActivities, type SerializedActivity } from '@/lib/activities-serialize'
-import { locateUser } from '@/lib/geolocation'
 
 interface PublicMapViewProps {
   slug: string
@@ -26,7 +23,7 @@ interface PublishedPayload {
 
 const SUPPORTED_PAYLOAD_VERSION = 1
 
-function PublicHeader({ displayName, onLocateClick }: { displayName: string | null; onLocateClick: () => void }) {
+function PublicHeader({ displayName }: { displayName: string | null }) {
   return (
     <HeaderBar
       logo={
@@ -40,10 +37,7 @@ function PublicHeader({ displayName, onLocateClick }: { displayName: string | nu
         </div>
       }
     >
-      <HeaderChip tooltip="my location" onClick={onLocateClick} aria-label="Recenter on my location">
-        <Locate className="size-4" />
-      </HeaderChip>
-      <ThemeToggle />
+      <ThemeToggle tooltipAlign="end" />
     </HeaderBar>
   )
 }
@@ -52,7 +46,6 @@ function PublicHeader({ displayName, onLocateClick }: { displayName: string | nu
 export function PublicMapView({ slug, blobUrl, displayName }: PublicMapViewProps) {
   const [activities, setActivities] = useState<Activity[] | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const mapRef = useRef<ActivityMapRef | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -70,7 +63,7 @@ export function PublicMapView({ slug, blobUrl, displayName }: PublicMapViewProps
       } catch (e) {
         if (cancelled) return
         console.error('[public-map-view] failed to load payload', e)
-        setError('Failed to load this map. Please refresh.')
+        setError("this map couldn't be loaded, refresh to try again")
       }
     })()
     return () => {
@@ -82,8 +75,8 @@ export function PublicMapView({ slug, blobUrl, displayName }: PublicMapViewProps
     return (
       <main className="flex min-h-screen items-center justify-center bg-panel px-6">
         <div className="space-y-3 text-center">
-          <h1 className="text-lg font-medium tracking-tight">Couldn&apos;t load /{slug}</h1>
-          <p className="text-sm opacity-60">{error}</p>
+          <h1 className="text-lg-compact font-medium tracking-tight">couldn&apos;t load /{slug}</h1>
+          <p className="text-sm-compact text-panel-muted">{error}</p>
         </div>
       </main>
     )
@@ -93,14 +86,8 @@ export function PublicMapView({ slug, blobUrl, displayName }: PublicMapViewProps
     <MapView
       activities={activities ?? []}
       loading={activities === null}
-      header={
-        <PublicHeader
-          displayName={displayName}
-          onLocateClick={() => locateUser((position) => mapRef.current?.flyTo({ ...position, zoom: 12 }))}
-        />
-      }
+      header={<PublicHeader displayName={displayName} />}
       mode="public"
-      externalMapRef={mapRef}
     />
   )
 }

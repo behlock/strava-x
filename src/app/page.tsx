@@ -10,7 +10,6 @@ import { latestActivityStart, mergeActivities } from '@/lib/activities'
 import { saveActivities } from '@/lib/activities-db'
 import { serializeActivities } from '@/lib/activities-serialize'
 import { config } from '@/lib/config'
-import { locateUser } from '@/lib/geolocation'
 import { fetchAllActivities } from '@/lib/strava'
 import { usePersistedActivities } from '@/hooks/use-persisted-activities'
 import { usePublish } from '@/hooks/use-publish'
@@ -24,8 +23,8 @@ const PublishDialog = dynamic(() => import('@/components/publish').then((mod) =>
 const WelcomePanel = dynamic(() => import('@/components/welcome').then((mod) => mod.WelcomePanel), { ssr: false })
 
 const SYNC_ERRORS: Record<string, string> = {
-  strava_unauthorized: 'Strava authorization expired. Please reconnect.',
-  strava_rate_limited: 'Strava rate limit hit. Please try again in 15 minutes.',
+  strava_unauthorized: 'strava authorization expired, reconnect to continue',
+  strava_rate_limited: 'strava rate limit hit, try again in 15 minutes',
 }
 
 export default function HomePage() {
@@ -66,7 +65,7 @@ export default function HomePage() {
       const token = await getAccessToken()
       if (controller.signal.aborted) return
       if (!token) {
-        setSyncError('Strava session expired. Please reconnect.')
+        setSyncError('strava session expired, reconnect to continue')
         return
       }
       setIsSyncing(true)
@@ -78,18 +77,18 @@ export default function HomePage() {
           // Merge and persist page by page so an aborted sync keeps what it got.
           setActivities((current) => mergeActivities(current, batch))
           saveActivities(batch).catch(() => {
-            setSyncError('Activities loaded but failed to save to browser storage.')
+            setSyncError("activities loaded but couldn't be saved to browser storage")
           })
         },
       })
       if (!controller.signal.aborted && fetched === 0) {
-        setSyncError('No Strava activities found on this account.')
+        setSyncError('no strava activities found on this account')
       }
     } catch (err) {
       if (controller.signal.aborted || (err as Error)?.name === 'AbortError') return
       console.error('Strava sync failed:', err)
       const code = err instanceof Error ? err.message : ''
-      setSyncError(SYNC_ERRORS[code] ?? 'Failed to sync from Strava. Please try again.')
+      setSyncError(SYNC_ERRORS[code] ?? 'strava sync failed, try again')
       if (code === 'strava_unauthorized') disconnect()
     } finally {
       if (syncAbortRef.current === controller) syncAbortRef.current = null
@@ -147,7 +146,6 @@ export default function HomePage() {
   const header = (
     <Header
       onLogoClick={flyToLatestActivity}
-      onLocateClick={() => locateUser((position) => mapRef.current?.flyTo({ ...position, zoom: 12 }))}
       onExportClick={() => setExportOpen(true)}
       onPublishClick={() => setPublishOpen(true)}
       hasActivities={hasActivities}

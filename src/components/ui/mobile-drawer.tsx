@@ -6,7 +6,7 @@ import { cn } from '@/lib/utils'
 
 type Section = 'filters' | 'locations' | 'activities' | 'stats'
 
-const COLLAPSED_HEIGHT = 56
+export const DRAWER_COLLAPSED_HEIGHT = 56
 const SWIPE_THRESHOLD = 50
 
 interface MobileDrawerProps {
@@ -104,7 +104,7 @@ export function MobileDrawer({
   // While dragging: an expanded drawer slides down with the finger; a
   // collapsed one grows upward (anchored to the bottom edge).
   const transform = isDragging && isExpanded ? `translateY(${Math.max(0, dragOffset)}px)` : 'translateY(0)'
-  const maxHeight = isDragging && !isExpanded ? `${COLLAPSED_HEIGHT + Math.max(0, -dragOffset)}px` : undefined
+  const maxHeight = isDragging && !isExpanded ? `${DRAWER_COLLAPSED_HEIGHT + Math.max(0, -dragOffset)}px` : undefined
 
   return (
     <div
@@ -147,7 +147,7 @@ export function MobileDrawer({
           </CollapsibleSection>
         )}
         <CollapsibleSection
-          title="list"
+          title="activities"
           isOpen={openSection === 'activities'}
           onToggle={() => toggleSection('activities')}
         >

@@ -1,6 +1,6 @@
 'use client'
 
-import type { ButtonHTMLAttributes, ReactNode } from 'react'
+import type { ButtonHTMLAttributes, ReactNode, Ref } from 'react'
 import { Moon, Sun } from 'lucide-react'
 import { useTheme } from 'next-themes'
 
@@ -43,21 +43,39 @@ interface HeaderChipProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: 'icon' | 'text'
   tooltip?: string
   tooltipAlign?: 'center' | 'start' | 'end'
+  /**
+   * Suppress the tooltip without changing the rendered tree (e.g. while a
+   * menu is open). Toggling `tooltip` itself would remount the button.
+   */
+  tooltipHidden?: boolean
+  ref?: Ref<HTMLButtonElement>
 }
 
-export function HeaderChip({ variant = 'icon', tooltip, tooltipAlign, className, ...props }: HeaderChipProps) {
+export function HeaderChip({
+  variant = 'icon',
+  tooltip,
+  tooltipAlign,
+  tooltipHidden = false,
+  className,
+  ...props
+}: HeaderChipProps) {
   const button = (
     <button type="button" className={cn(CHIP_BASE, variant === 'icon' ? CHIP_ICON : CHIP_TEXT, className)} {...props} />
   )
   if (!tooltip) return button
   return (
-    <Tooltip text={tooltip} align={tooltipAlign} disabled={props.disabled}>
+    <Tooltip text={tooltip} align={tooltipAlign} disabled={props.disabled || tooltipHidden}>
       {button}
     </Tooltip>
   )
 }
 
-export function ThemeToggle() {
+interface ThemeToggleProps {
+  /** Pass `end` when the toggle is the last chip so its tooltip stays on-screen. */
+  tooltipAlign?: 'center' | 'start' | 'end'
+}
+
+export function ThemeToggle({ tooltipAlign }: ThemeToggleProps) {
   const { resolvedTheme, setTheme } = useTheme()
   // next-themes can't know the theme during SSR; keep the icon stable until hydrated.
   const mounted = useMounted()
@@ -66,6 +84,7 @@ export function ThemeToggle() {
   return (
     <HeaderChip
       tooltip={isDark ? 'light mode' : 'dark mode'}
+      tooltipAlign={tooltipAlign}
       disabled={!mounted}
       onClick={() => setTheme(isDark ? 'light' : 'dark')}
       aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}

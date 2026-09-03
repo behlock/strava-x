@@ -1,9 +1,14 @@
 'use client'
 
 import Link from 'next/link'
-import { useEffect } from 'react'
+import { useRef } from 'react'
+import { ArrowRight, ArrowUpRight } from 'lucide-react'
 
 import { cn } from '@/lib/utils'
+import { useFocusTrap } from '@/hooks/use-focus-trap'
+
+/** The public map offered to first-time visitors who don't want to connect yet. */
+const DEMO_MAP = { href: '/walid', label: "check out walid's map" }
 
 interface WelcomePanelProps {
   open: boolean
@@ -11,15 +16,17 @@ interface WelcomePanelProps {
   onConnect: () => void
 }
 
+const BUTTON =
+  'inline-flex min-h-11 w-full items-center gap-2 rounded-sm border px-3 py-2 text-left text-xs-compact tracking-wider transition-colors focus-visible:ring-1 focus-visible:ring-foreground focus-visible:ring-offset-1 focus-visible:ring-offset-panel focus-visible:outline-hidden md:min-h-0'
+const BUTTON_ICON = 'size-3.5 shrink-0'
+
 export function WelcomePanel({ open, onDismiss, onConnect }: WelcomePanelProps) {
-  useEffect(() => {
-    if (!open) return
-    const handleKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onDismiss()
-    }
-    window.addEventListener('keydown', handleKey)
-    return () => window.removeEventListener('keydown', handleKey)
-  }, [open, onDismiss])
+  const dialogRef = useRef<HTMLDivElement>(null)
+
+  // Focus starts on the dialog itself so no ring shows on open; the first
+  // Tab lands on the primary action, since the close button comes last in
+  // DOM order.
+  useFocusTrap(dialogRef, { active: open, onEscape: onDismiss, initialFocus: dialogRef })
 
   if (!open) return null
 
@@ -30,53 +37,52 @@ export function WelcomePanel({ open, onDismiss, onConnect }: WelcomePanelProps) 
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="absolute inset-0 bg-background/10" onClick={onDismiss} aria-hidden="true" />
+      <div className="absolute inset-0 bg-background/60 backdrop-blur-xs" onClick={onDismiss} aria-hidden="true" />
       <div
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby="welcome-title"
-        className="relative mx-4 w-full max-w-md rounded-sm border border-panel-border bg-panel"
+        tabIndex={-1}
+        className="relative mx-4 w-full max-w-md space-y-5 rounded-sm border border-panel-border bg-panel p-5 focus:outline-hidden"
       >
-        <div className="flex items-center justify-between border-b border-panel-border px-4 py-3">
-          <span id="welcome-title" className="text-sm-compact tracking-wider">
-            [welcome]
-          </span>
+        <div className="space-y-2 pr-8">
+          <h2 id="welcome-title" className="text-sm-compact tracking-wider">
+            welcome to strava—x
+          </h2>
+          <p className="text-xs-compact text-panel-muted">
+            a map of everything you&apos;ve recorded on strava. connect your account, or browse someone else&apos;s map
+            first
+          </p>
+        </div>
+
+        <div className="flex flex-col gap-2">
           <button
-            onClick={onDismiss}
-            aria-label="Close welcome panel"
-            className="text-xs-compact text-panel-muted transition-colors hover:text-foreground"
+            type="button"
+            onClick={handleConnectClick}
+            className={cn(BUTTON, 'border-foreground bg-foreground text-background hover:bg-foreground/85')}
           >
-            [x]
+            <ArrowRight className={BUTTON_ICON} aria-hidden="true" />
+            connect strava
           </button>
+          <Link
+            href={DEMO_MAP.href}
+            onClick={onDismiss}
+            className={cn(BUTTON, 'border-panel-border hover:border-foreground hover:bg-foreground/5')}
+          >
+            <ArrowUpRight className={BUTTON_ICON} aria-hidden="true" />
+            {DEMO_MAP.label}
+          </Link>
         </div>
 
-        <div className="space-y-4 p-4">
-          <div className="space-y-2">
-            <p className="text-sm-compact">welcome to strava—x</p>
-            <p className="text-xs-compact text-panel-muted">
-              a map of your Strava activities. connect your account, or take a look at someone else&apos;s map first
-            </p>
-          </div>
-
-          <div className="flex flex-col gap-2 border-t border-panel-border pt-2">
-            <button
-              onClick={handleConnectClick}
-              className={cn(
-                'min-h-[44px] rounded-sm border px-3 py-2 text-xs-compact tracking-wider transition-colors md:min-h-0',
-                'border-foreground bg-foreground/10 hover:bg-foreground/20',
-              )}
-            >
-              [→]—connect strava
-            </button>
-            <Link
-              href="/walid"
-              onClick={onDismiss}
-              className="inline-flex min-h-[44px] items-center justify-start rounded-sm border border-panel-border px-3 py-2 text-left text-xs-compact tracking-wider transition-colors hover:border-foreground hover:bg-foreground/5 md:min-h-0"
-            >
-              [↗]—check out walid&apos;s map
-            </Link>
-          </div>
-        </div>
+        <button
+          type="button"
+          onClick={onDismiss}
+          aria-label="Close welcome panel"
+          className="absolute top-3 right-3 text-xs-compact text-panel-muted transition-colors hover:text-foreground focus-visible:ring-1 focus-visible:ring-foreground focus-visible:outline-hidden"
+        >
+          [x]
+        </button>
       </div>
     </div>
   )

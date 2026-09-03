@@ -6,7 +6,16 @@ import dynamic from 'next/dynamic'
 import { ACTIVITY_TYPES, type Activity, type ActivityFeatureCollection } from '@/models/activity'
 import type { LngLat } from '@/models/map'
 import type { ActivityMapRef } from '@/components/activity-map'
-import { ActivityList, AppShell, FilterPanel, LocationSelector, MapSkeleton, StatsPanel } from '@/components/ui'
+import {
+  ActivityList,
+  AppShell,
+  FilterPanel,
+  LocateControl,
+  LocationSelector,
+  MapSkeleton,
+  StatsPanel,
+} from '@/components/ui'
+import { locateUser } from '@/lib/geolocation'
 import { useActivityClusters } from '@/hooks/use-activity-clusters'
 import { useIsMobile } from '@/hooks/use-media-query'
 import { type MapPositionMode, usePersistedMapPosition } from '@/hooks/use-persisted-map-position'
@@ -205,12 +214,17 @@ export function MapView({
     [clusters, computePadding],
   )
 
+  const handleLocate = useCallback(() => {
+    locateUser((position) => mapRef.current?.flyTo({ ...position, zoom: 12 }))
+  }, [])
+
   const hasActivities = allActivities.length > 0
 
   return (
     <AppShell
       header={header}
       hasActivities={hasActivities}
+      mapControls={<LocateControl onClick={handleLocate} />}
       filterPanel={
         <FilterPanel
           activityTypes={ACTIVITY_TYPES}
