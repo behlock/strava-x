@@ -11,10 +11,6 @@ Strava-X puts your runs and rides on a single interactive map, making it easy to
 - Inspect individual activities
 - See overlapping routes and patterns
 
-## Built with
-
-TypeScript, React, Mapbox and the Strava API.
-
 ## Run locally
 
 ```bash
