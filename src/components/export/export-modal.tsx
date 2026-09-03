@@ -5,6 +5,7 @@ import { useTheme } from 'next-themes'
 
 import type { ActivityMapRef } from '@/components/activity-map'
 import { cn } from '@/lib/utils'
+import { useFocusTrap } from '@/hooks/use-focus-trap'
 import {
   ASPECT_RATIO_OPTIONS,
   type AspectRatio,
@@ -44,7 +45,6 @@ export function ExportModal({ open, onClose, mapRef }: ExportModalProps) {
   const previewRef = useRef<HTMLDivElement>(null)
   const modalRef = useRef<HTMLDivElement>(null)
   const closeButtonRef = useRef<HTMLButtonElement>(null)
-  const previouslyFocusedRef = useRef<HTMLElement | null>(null)
 
   const { captureScreenshot, captureBlob, capturePreview, isCapturing } = useMapScreenshot({
     mapRef,
@@ -68,43 +68,9 @@ export function ExportModal({ open, onClose, mapRef }: ExportModalProps) {
     }
   }, [open, capturePreview])
 
-  // Escape closes; Tab is trapped inside the dialog.
-  useEffect(() => {
-    if (!open) return
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        onClose()
-        return
-      }
-      if (e.key !== 'Tab' || !modalRef.current) return
-      const focusable = modalRef.current.querySelectorAll<HTMLElement>(
-        'button:not([disabled]), [href], input:not([disabled]), [tabindex]:not([tabindex="-1"])',
-      )
-      if (focusable.length === 0) return
-      const first = focusable[0]
-      const last = focusable[focusable.length - 1]
-      if (e.shiftKey && document.activeElement === first) {
-        e.preventDefault()
-        last.focus()
-      } else if (!e.shiftKey && document.activeElement === last) {
-        e.preventDefault()
-        first.focus()
-      }
-    }
-    document.addEventListener('keydown', handleKeyDown)
-    return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [open, onClose])
-
-  // Focus the close button on open; restore the trigger's focus on close.
-  useEffect(() => {
-    if (open) {
-      previouslyFocusedRef.current = document.activeElement as HTMLElement | null
-      closeButtonRef.current?.focus()
-    } else if (previouslyFocusedRef.current) {
-      previouslyFocusedRef.current.focus()
-      previouslyFocusedRef.current = null
-    }
-  }, [open])
+  // Escape closes, Tab stays inside, focus goes to the close button on open
+  // and back to the trigger on close.
+  useFocusTrap(modalRef, { active: open, onEscape: onClose, initialFocus: closeButtonRef })
 
   // Transient feedback auto-clears.
   useEffect(() => {
@@ -173,7 +139,7 @@ export function ExportModal({ open, onClose, mapRef }: ExportModalProps) {
     setError(null)
     const blob = await captureBlob()
     if (!blob) {
-      setError('Failed to capture image')
+      setError('failed to capture image')
       return
     }
     try {
@@ -181,7 +147,7 @@ export function ExportModal({ open, onClose, mapRef }: ExportModalProps) {
       setCopied(true)
     } catch (err) {
       console.error('Failed to copy image:', err)
-      setError('Failed to copy to clipboard')
+      setError('failed to copy to clipboard')
     }
   }, [captureBlob])
 
@@ -189,7 +155,7 @@ export function ExportModal({ open, onClose, mapRef }: ExportModalProps) {
     setError(null)
     const blob = await captureBlob()
     if (!blob) {
-      setError('Failed to capture image')
+      setError('failed to capture image')
       return
     }
     try {
@@ -200,7 +166,7 @@ export function ExportModal({ open, onClose, mapRef }: ExportModalProps) {
     } catch (err) {
       if ((err as Error).name === 'AbortError') return
       console.error('Failed to share:', err)
-      setError('Failed to share')
+      setError('failed to share')
     }
   }, [captureBlob])
 
@@ -291,7 +257,7 @@ export function ExportModal({ open, onClose, mapRef }: ExportModalProps) {
           </div>
 
           <div role="status" aria-live="polite" className="sr-only">
-            {error ?? (copied ? 'Image copied to clipboard' : '')}
+            {error ?? (copied ? 'image copied to clipboard' : '')}
           </div>
           {error && (
             <p className="text-center text-xs-compact text-red-500" aria-hidden="true">

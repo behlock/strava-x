@@ -18,14 +18,14 @@ interface PublishDialogProps {
 }
 
 const ERROR_MESSAGES: Record<PublishError, string> = {
-  invalid_slug: 'Slug must be 2–30 lowercase letters, numbers or dashes.',
-  slug_reserved: 'That slug is reserved — please pick another.',
-  slug_taken: 'Someone else already owns that slug.',
-  strava_auth_failed: 'Strava session expired. Please reconnect.',
-  payload_too_large: 'Your activities payload is too large to publish (limit 25 MB).',
-  no_activities: 'Sync some activities before publishing.',
-  network: 'Network error — please try again.',
-  server: 'Publish failed on the server.',
+  invalid_slug: 'slugs are 2–30 lowercase letters, numbers or dashes',
+  slug_reserved: 'that slug is reserved, pick another',
+  slug_taken: 'someone else already owns that slug',
+  strava_auth_failed: 'strava session expired, reconnect to continue',
+  payload_too_large: 'your activities are too large to publish (25 MB limit)',
+  no_activities: 'sync some activities before publishing',
+  network: 'network error, try again',
+  server: 'publish failed on the server',
 }
 
 const SIZE_WARN_BYTES = 10 * 1024 * 1024
@@ -195,7 +195,7 @@ function PublishDialogBody({
                 <p className="text-xs-compact tracking-wider text-panel-muted">your map is published at</p>
                 {showSuccess && (
                   <span role="status" className="text-xs-compact tracking-wider text-green-500">
-                    [✓]—published
+                    [✓] published
                   </span>
                 )}
               </div>
@@ -208,8 +208,7 @@ function PublishDialogBody({
                 </button>
               </div>
               <p className="text-xs-compact text-panel-muted">
-                Republishing overwrites the snapshot. Your latest {formatBytes(estimatedSizeBytes)} of activities will
-                be uploaded.
+                republishing replaces the snapshot with your latest {formatBytes(estimatedSizeBytes)} of activities
               </p>
 
               {error && <p className="text-xs-compact text-red-500">{ERROR_MESSAGES[error]}</p>}
@@ -226,7 +225,7 @@ function PublishDialogBody({
                     cancel
                   </button>
                   <button type="button" onClick={handleUnpublish} disabled={isPublishing} className={BUTTON_DANGER}>
-                    {isPublishing ? '[…]' : '[x]—confirm'}
+                    {isPublishing ? '[…]' : '[x] confirm'}
                   </button>
                 </div>
               ) : (
@@ -237,7 +236,7 @@ function PublishDialogBody({
                     disabled={isPublishing || tooLarge}
                     className={cn(BUTTON_OUTLINE, 'flex-1')}
                   >
-                    {isPublishing ? '[…]—republishing' : '[↻]—republish'}
+                    {isPublishing ? '[…] republishing' : '[↻] republish'}
                   </button>
                   <button
                     type="button"
@@ -245,7 +244,7 @@ function PublishDialogBody({
                     disabled={isPublishing}
                     className={cn(BUTTON_OUTLINE, 'flex-1')}
                   >
-                    [/]—change slug
+                    [/] change slug
                   </button>
                   <button
                     type="button"
@@ -253,7 +252,7 @@ function PublishDialogBody({
                     disabled={isPublishing}
                     className={cn(BUTTON_DANGER, 'flex-1')}
                   >
-                    [x]—unpublish
+                    [x] unpublish
                   </button>
                 </div>
               )}
@@ -290,9 +289,9 @@ function PublishDialogBody({
               </div>
 
               <p className="text-xs-compact text-panel-muted">
-                Upload size: {formatBytes(estimatedSizeBytes)}
-                {sizeWarn && !tooLarge && ' — this may take a moment.'}
-                {tooLarge && ' — over the 25 MB limit; publish not available.'}
+                upload size: {formatBytes(estimatedSizeBytes)}
+                {sizeWarn && !tooLarge && ' — this may take a moment'}
+                {tooLarge && ' — over the 25 MB limit, publishing is disabled'}
               </p>
 
               {error && <p className="text-xs-compact text-red-500">{ERROR_MESSAGES[error]}</p>}
@@ -326,7 +325,7 @@ function PublishDialogBody({
                       : 'cursor-not-allowed border-panel-border opacity-50',
                   )}
                 >
-                  {isPublishing ? '[…]—publishing' : '[↑]—publish'}
+                  {isPublishing ? '[…] publishing' : '[↑] publish'}
                 </button>
               </div>
             </div>
