@@ -5,7 +5,7 @@ import dynamic from 'next/dynamic'
 
 import type { ActivityMapRef } from '@/components/activity-map'
 import { MapView } from '@/components/map-view'
-import { Header } from '@/components/ui'
+import { Header, SetupPanel } from '@/components/ui'
 import { latestActivityStart, mergeActivities } from '@/lib/activities'
 import { saveActivities } from '@/lib/activities-db'
 import { serializeActivities } from '@/lib/activities-serialize'
@@ -154,7 +154,6 @@ export default function HomePage() {
       isStravaSyncing={isSyncing}
       stravaError={syncError}
       onStravaConnect={connect}
-      onStravaDisconnect={handleDisconnect}
       onStravaAbortSync={abortSync}
     />
   )
@@ -164,6 +163,7 @@ export default function HomePage() {
       activities={activities}
       loading={isSyncing}
       header={header}
+      setupPanel={<SetupPanel onDisconnect={stravaConnected ? handleDisconnect : undefined} />}
       externalMapRef={mapRef}
       overlays={
         <>

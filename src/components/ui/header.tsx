@@ -1,11 +1,12 @@
 'use client'
 
 import { Suspense } from 'react'
-import { ArrowRight, LogOut } from 'lucide-react'
+import { ArrowRight, Loader2 } from 'lucide-react'
 
-import { HEADER_LOGO_CLASS, HeaderBar, HeaderChip, ThemeToggle } from './header-bar'
+import { HEADER_LOGO_CLASS, HeaderBar, HeaderChip } from './header-bar'
 import { ShareMenu } from './share-menu'
 import { StravaAuthError } from './strava-auth-error'
+import { Tooltip } from './tooltip'
 
 interface HeaderProps {
   onLogoClick: () => void
@@ -17,8 +18,36 @@ interface HeaderProps {
   isStravaSyncing: boolean
   stravaError: string | null
   onStravaConnect: () => void
-  onStravaDisconnect: () => void
   onStravaAbortSync: () => void
+}
+
+/** Small spinner beside the logo while activities stream in; click cancels. */
+function SyncSpinner({ onCancel }: { onCancel: () => void }) {
+  return (
+    <Tooltip text="syncing, click to cancel" align="start">
+      <button
+        type="button"
+        onClick={onCancel}
+        aria-label="Cancel Strava sync"
+        className="flex size-6 items-center justify-center text-panel-muted transition-colors hover:text-foreground focus-visible:ring-1 focus-visible:ring-foreground focus-visible:outline-hidden"
+      >
+        <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />
+      </button>
+    </Tooltip>
+  )
+}
+
+function SyncFailed({ message }: { message: string }) {
+  return (
+    <span
+      role="alert"
+      title={message}
+      aria-label={message}
+      className="text-xs-compact tracking-wider text-red-500 dark:text-red-400"
+    >
+      [!]<span className="ml-1 hidden md:inline">sync failed</span>
+    </span>
+  )
 }
 
 export function Header({
@@ -31,16 +60,19 @@ export function Header({
   isStravaSyncing,
   stravaError,
   onStravaConnect,
-  onStravaDisconnect,
   onStravaAbortSync,
 }: HeaderProps) {
-  const disconnectVisible = stravaAvailable && stravaConnected && !isStravaSyncing
+  const connected = stravaAvailable && stravaConnected
   return (
     <HeaderBar
       logo={
-        <button type="button" onClick={onLogoClick} className={HEADER_LOGO_CLASS}>
-          strava—x
-        </button>
+        <div className="flex min-w-0 items-center gap-3">
+          <button type="button" onClick={onLogoClick} className={HEADER_LOGO_CLASS}>
+            strava—x
+          </button>
+          {connected && isStravaSyncing && <SyncSpinner onCancel={onStravaAbortSync} />}
+          {connected && !isStravaSyncing && stravaError && <SyncFailed message={stravaError} />}
+        </div>
       }
     >
       {stravaAvailable && !stravaConnected && (
@@ -55,33 +87,14 @@ export function Header({
         </>
       )}
 
-      {hasActivities && <ShareMenu onExport={onExportClick} onPublish={onPublishClick} canPublish={stravaConnected} />}
-
-      {stravaAvailable && stravaConnected && isStravaSyncing && (
-        <HeaderChip variant="text" onClick={onStravaAbortSync} aria-label="Cancel Strava sync">
-          […]<span className="ml-1 hidden md:inline">syncing</span>
-        </HeaderChip>
-      )}
-
-      {stravaAvailable && stravaConnected && !isStravaSyncing && stravaError && (
-        <span
-          role="alert"
-          className="inline-flex h-8 items-center px-2 text-xs-compact tracking-wider text-red-500 dark:text-red-400"
-          aria-label={stravaError}
-          title={stravaError}
-        >
-          [!]<span className="ml-1 hidden md:inline">sync failed</span>
-        </span>
-      )}
-
-      <ThemeToggle tooltipAlign={disconnectVisible ? 'center' : 'end'} />
-
-      {/* Disconnect sits far-right so it's out of the primary flow — users are
-          less likely to hit it by accident while reaching for sync/publish/export. */}
-      {disconnectVisible && (
-        <HeaderChip tooltip="disconnect" tooltipAlign="end" onClick={onStravaDisconnect} aria-label="Disconnect Strava">
-          <LogOut className="size-4" />
-        </HeaderChip>
+      {/* The one primary action; disconnect and theme live in the setup panel. */}
+      {hasActivities && (
+        <ShareMenu
+          onExport={onExportClick}
+          onPublish={onPublishClick}
+          canPublish={stravaConnected}
+          tooltipAlign="end"
+        />
       )}
     </HeaderBar>
   )

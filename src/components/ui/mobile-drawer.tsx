@@ -4,7 +4,7 @@ import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
 
 import { cn } from '@/lib/utils'
 
-type Section = 'filters' | 'locations' | 'activities' | 'stats'
+type Section = 'filters' | 'locations' | 'activities' | 'stats' | 'setup'
 
 export const DRAWER_COLLAPSED_HEIGHT = 56
 const SWIPE_THRESHOLD = 50
@@ -14,6 +14,7 @@ interface MobileDrawerProps {
   locationsPanel: ReactNode
   activityList: ReactNode
   statsPanel: ReactNode
+  setupPanel?: ReactNode
   onHeightChange: (height: number) => void
 }
 
@@ -52,6 +53,7 @@ export function MobileDrawer({
   locationsPanel,
   activityList,
   statsPanel,
+  setupPanel,
   onHeightChange,
 }: MobileDrawerProps) {
   const [isExpanded, setIsExpanded] = useState(false)
@@ -156,6 +158,11 @@ export function MobileDrawer({
         <CollapsibleSection title="stats" isOpen={openSection === 'stats'} onToggle={() => toggleSection('stats')}>
           {statsPanel}
         </CollapsibleSection>
+        {setupPanel && (
+          <CollapsibleSection title="setup" isOpen={openSection === 'setup'} onToggle={() => toggleSection('setup')}>
+            {setupPanel}
+          </CollapsibleSection>
+        )}
       </div>
     </div>
   )

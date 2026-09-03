@@ -1,11 +1,8 @@
 'use client'
 
 import type { ButtonHTMLAttributes, ReactNode, Ref } from 'react'
-import { Moon, Sun } from 'lucide-react'
-import { useTheme } from 'next-themes'
 
 import { cn } from '@/lib/utils'
-import { useMounted } from '@/hooks/use-mounted'
 import { Tooltip } from './tooltip'
 
 /** Class for the brand mark on the far left; the element differs per page (button vs link). */
@@ -67,29 +64,5 @@ export function HeaderChip({
     <Tooltip text={tooltip} align={tooltipAlign} disabled={props.disabled || tooltipHidden}>
       {button}
     </Tooltip>
-  )
-}
-
-interface ThemeToggleProps {
-  /** Pass `end` when the toggle is the last chip so its tooltip stays on-screen. */
-  tooltipAlign?: 'center' | 'start' | 'end'
-}
-
-export function ThemeToggle({ tooltipAlign }: ThemeToggleProps) {
-  const { resolvedTheme, setTheme } = useTheme()
-  // next-themes can't know the theme during SSR; keep the icon stable until hydrated.
-  const mounted = useMounted()
-  const isDark = mounted && resolvedTheme === 'dark'
-
-  return (
-    <HeaderChip
-      tooltip={isDark ? 'light mode' : 'dark mode'}
-      tooltipAlign={tooltipAlign}
-      disabled={!mounted}
-      onClick={() => setTheme(isDark ? 'light' : 'dark')}
-      aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
-    >
-      {isDark ? <Sun className="size-4" /> : <Moon className="size-4" />}
-    </HeaderChip>
   )
 }

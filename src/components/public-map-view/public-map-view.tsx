@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react'
 
 import type { Activity } from '@/models/activity'
 import { MapView } from '@/components/map-view'
-import { HEADER_LOGO_CLASS, HeaderBar, ThemeToggle } from '@/components/ui'
+import { HEADER_LOGO_CLASS, HeaderBar, SetupPanel } from '@/components/ui'
 import { deserializeActivities, type SerializedActivity } from '@/lib/activities-serialize'
 
 interface PublicMapViewProps {
@@ -36,9 +36,7 @@ function PublicHeader({ displayName }: { displayName: string | null }) {
           )}
         </div>
       }
-    >
-      <ThemeToggle tooltipAlign="end" />
-    </HeaderBar>
+    />
   )
 }
 
@@ -87,6 +85,7 @@ export function PublicMapView({ slug, blobUrl, displayName }: PublicMapViewProps
       activities={activities ?? []}
       loading={activities === null}
       header={<PublicHeader displayName={displayName} />}
+      setupPanel={<SetupPanel />}
       mode="public"
     />
   )
