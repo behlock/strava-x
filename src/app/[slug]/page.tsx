@@ -37,5 +37,11 @@ export default async function PublicMapPage({ params }: PageProps) {
   const row = await lookup(slug)
   if (!row) notFound()
 
-  return <PublicMapView slug={row.slug} blobUrl={row.blob_url} displayName={row.athlete_display_name} />
+  // The blob URL is stable across republishes (the blob is overwritten in
+  // place), so browsers and the CDN would keep serving the previous payload.
+  // Keying the URL on updated_at busts that cache without a new pathname.
+  const version = new Date(row.updated_at).getTime()
+  const blobUrl = Number.isFinite(version) ? `${row.blob_url}?v=${version}` : row.blob_url
+
+  return <PublicMapView slug={row.slug} blobUrl={blobUrl} displayName={row.athlete_display_name} />
 }

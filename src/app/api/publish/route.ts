@@ -1,6 +1,6 @@
 import { gunzipSync } from 'node:zlib'
 import { type NextRequest, NextResponse } from 'next/server'
-import { del, put } from '@vercel/blob'
+import { del, list, put } from '@vercel/blob'
 
 import { authenticateAthlete, enforceRateLimit, isAccessToken, jsonError, readJsonBody } from '@/lib/api'
 import type { SerializedActivity } from '@/lib/activities-serialize'
@@ -17,8 +17,29 @@ const BLOB_CACHE_MAX_AGE_SECONDS = 5 * 60
 const MAX_DISPLAY_NAME_LENGTH = 100
 const MAX_ACTIVITIES = 50_000
 
+// Every blob an athlete owns lives under this prefix, which is what makes
+// the athlete-scoped rollback and unpublish sweeps safe.
+function blobPrefixFor(athleteId: number): string {
+  return `published/${athleteId}/`
+}
+
 function blobPathnameFor(athleteId: number, slug: string): string {
-  return `published/${athleteId}/${slug}.json`
+  return `${blobPrefixFor(athleteId)}${slug}.json`
+}
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+// Cheap structural check mirroring SerializedActivity: a string id, and when
+// a feature is present, a GeoJSON-ish geometry with a coordinates array. The
+// payload is stored verbatim and rendered by the public page, so this keeps
+// junk (and a wrongly-typed 50k-element array) out of the blob.
+function isSerializedActivity(value: unknown): boolean {
+  if (!isPlainObject(value) || typeof value.id !== 'string') return false
+  const { feature } = value
+  if (feature === undefined || feature === null) return true
+  return isPlainObject(feature) && isPlainObject(feature.geometry) && Array.isArray(feature.geometry.coordinates)
 }
 
 interface PublishBody {
@@ -33,16 +54,21 @@ interface PublishBody {
 // also enforce a decompressed-size cap to bound zip-bomb risk before parsing.
 async function readPublishBody(req: NextRequest): Promise<PublishBody | NextResponse> {
   const contentType = (req.headers.get('content-type') ?? '').toLowerCase()
+  let parsed: unknown
   if (!contentType.includes('gzip')) {
-    return (await readJsonBody<PublishBody>(req)) ?? jsonError('invalid_json')
+    parsed = await readJsonBody<unknown>(req)
+  } else {
+    try {
+      const compressed = Buffer.from(await req.arrayBuffer())
+      const decompressed = gunzipSync(compressed, { maxOutputLength: PAYLOAD_HARD_LIMIT_BYTES })
+      parsed = JSON.parse(decompressed.toString('utf8'))
+    } catch (e) {
+      return e instanceof RangeError ? jsonError('payload_too_large', 413) : jsonError('invalid_json')
+    }
   }
-  try {
-    const compressed = Buffer.from(await req.arrayBuffer())
-    const decompressed = gunzipSync(compressed, { maxOutputLength: PAYLOAD_HARD_LIMIT_BYTES })
-    return JSON.parse(decompressed.toString('utf8')) as PublishBody
-  } catch (e) {
-    return e instanceof RangeError ? jsonError('payload_too_large', 413) : jsonError('invalid_json')
-  }
+  // Both paths: valid JSON that isn't an object (null, an array, a string)
+  // can't be a publish body, and destructuring null would throw.
+  return isPlainObject(parsed) ? (parsed as PublishBody) : jsonError('invalid_json')
 }
 
 // POST /api/publish — body (gzip or JSON): { slug, accessToken, activities, displayName? }.
@@ -63,6 +89,7 @@ export async function POST(req: NextRequest) {
   if (!Array.isArray(activities)) return jsonError('invalid_activities')
   if (activities.length === 0) return jsonError('no_activities')
   if (activities.length > MAX_ACTIVITIES) return jsonError('too_many_activities', 413)
+  if (!activities.every(isSerializedActivity)) return jsonError('invalid_activities')
 
   // Verify the caller actually owns the athlete they're about to publish as.
   const auth = await authenticateAthlete(accessToken)
@@ -129,8 +156,10 @@ export async function POST(req: NextRequest) {
     console.error('[publish] db upsert failed', e)
     // Best-effort rollback of the athlete's own blob — the pathname is
     // athlete-scoped, so this can't delete anyone else's data even on a
-    // concurrent-publish race.
-    await del(pathname).catch(() => {})
+    // concurrent-publish race. Skipped on a same-slug republish: put() has
+    // overwritten the live blob in place, and deleting it would take down the
+    // previous publish that the DB row still points at.
+    if (pathname !== existingByAthlete?.blob_pathname) await del(pathname).catch(() => {})
     const raced = await findBySlug(slug).catch(() => null)
     if (raced && raced.athlete_id !== athlete.athleteId) return jsonError('slug_taken', 409)
     return jsonError('db_write_failed', 502)
@@ -159,11 +188,32 @@ export async function DELETE(req: NextRequest) {
   const auth = await authenticateAthlete(body.accessToken)
   if (!auth.ok) return jsonError(auth.error, auth.status)
 
-  const existing = await findByAthleteId(auth.athlete.athleteId)
-  if (!existing) return NextResponse.json({ ok: true, wasPublished: false })
+  const { athleteId } = auth.athlete
 
-  await del(existing.blob_pathname).catch((e) => console.warn('[unpublish] blob delete failed', e))
-  await deleteByAthleteId(auth.athlete.athleteId)
+  // DB row first, blob second: a failed blob delete then leaves a dangling
+  // public blob that the client is told to retry, rather than a live row
+  // pointing at nothing. On that retry the row is already gone, so fall back
+  // to sweeping the athlete-scoped prefix for whatever was left behind.
+  const deletedPathname = await deleteByAthleteId(athleteId)
+  const pathnames = deletedPathname ? [deletedPathname] : await listAthleteBlobs(athleteId)
+  if (pathnames.length === 0) return NextResponse.json({ ok: true, wasPublished: false })
 
-  return NextResponse.json({ ok: true, wasPublished: true })
+  try {
+    await del(pathnames)
+  } catch (e) {
+    console.error('[unpublish] blob delete failed', pathnames, e)
+    return jsonError('blob_delete_failed', 502)
+  }
+
+  return NextResponse.json({ ok: true, wasPublished: deletedPathname !== null })
+}
+
+async function listAthleteBlobs(athleteId: number): Promise<string[]> {
+  try {
+    const { blobs } = await list({ prefix: blobPrefixFor(athleteId) })
+    return blobs.map((blob) => blob.pathname)
+  } catch (e) {
+    console.warn('[unpublish] blob list failed', e)
+    return []
+  }
 }

@@ -50,6 +50,13 @@ function recoverRotation(oldRefreshToken: string): Pick<RotationEntry, 'accessTo
   return { accessToken: entry.accessToken, expiresAt: entry.expiresAt }
 }
 
+// Only these statuses mean Strava rejected the refresh_token itself (revoked,
+// already rotated, malformed). Anything else — 429, 5xx, a network failure —
+// says nothing about the token, so the session must be left intact.
+function isTokenRejected(status: number): boolean {
+  return status === 400 || status === 401
+}
+
 // POST /api/auth/strava/refresh
 // Mints a fresh access_token for the caller using the refresh_token in their
 // httpOnly cookie. The refresh_token never crosses the JS boundary — the
@@ -68,16 +75,26 @@ export async function POST(req: NextRequest) {
   const credentials = getStravaCredentials()
   if (!credentials) return jsonError('server_not_configured', 500)
 
-  const stravaRes = await fetch('https://www.strava.com/oauth/token', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      client_id: credentials.clientId,
-      client_secret: credentials.clientSecret,
-      refresh_token: refreshToken,
-      grant_type: 'refresh_token',
-    }),
-  })
+  let stravaRes: Response
+  try {
+    stravaRes = await fetch('https://www.strava.com/oauth/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        client_id: credentials.clientId,
+        client_secret: credentials.clientSecret,
+        refresh_token: refreshToken,
+        grant_type: 'refresh_token',
+      }),
+    })
+  } catch (e) {
+    console.error('[strava/refresh] token request failed', e)
+    const recovered = recoverRotation(refreshToken)
+    if (recovered) {
+      return NextResponse.json({ access_token: recovered.accessToken, expires_at: recovered.expiresAt })
+    }
+    return jsonError('strava_unavailable', 503)
+  }
 
   if (!stravaRes.ok) {
     // Multi-tab rotation race: another concurrent /refresh on this instance
@@ -88,8 +105,15 @@ export async function POST(req: NextRequest) {
     if (recovered) {
       return NextResponse.json({ access_token: recovered.accessToken, expires_at: recovered.expiresAt })
     }
-    // Strava refused — most likely the user revoked access. Clear cookies so
-    // the client treats the session as ended rather than retrying forever.
+    if (!isTokenRejected(stravaRes.status)) {
+      // Strava is rate limiting or down. Keep the cookies so the client can
+      // retry later instead of being logged out by a transient outage.
+      console.error('[strava/refresh] strava unavailable', stravaRes.status)
+      return jsonError('strava_unavailable', 502)
+    }
+    // Strava refused the token — most likely the user revoked access. Clear
+    // cookies so the client treats the session as ended rather than retrying
+    // forever.
     const failed = jsonError('refresh_failed', 401)
     clearSessionCookies(failed)
     return failed
