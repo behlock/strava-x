@@ -15,6 +15,16 @@ interface AccessToken {
   expires_at: number
 }
 
+/**
+ * Outcome of resolving an access token. `unauthenticated` means the session
+ * is really gone (the refresh route answered 401/400); `unavailable` is a
+ * transient failure (network, 5xx, 429, Strava down) worth retrying.
+ */
+export type AccessTokenResult =
+  { status: 'ok'; accessToken: string } | { status: 'unauthenticated' } | { status: 'unavailable' }
+
+type RefreshResult = { ok: true; token: AccessToken } | { ok: false; status: 'unauthenticated' | 'unavailable' }
+
 // --- Session store -----------------------------------------------------------
 // "Connected" is derived from the non-httpOnly flag cookie the callback sets
 // alongside the httpOnly refresh cookie. Cookies don't emit change events, so
@@ -56,15 +66,22 @@ function clearLegacyStorage(): void {
   }
 }
 
-async function refreshFromServer(): Promise<AccessToken | null> {
+async function refreshFromServer(): Promise<RefreshResult> {
   try {
     const res = await fetch('/api/auth/strava/refresh', { method: 'POST', credentials: 'same-origin' })
-    if (!res.ok) return null
+    if (!res.ok) {
+      // 401 (no cookie / Strava refused, cookies cleared) and 400 mean the
+      // session is over. Anything else — 429, 5xx, the route's
+      // 'strava_unavailable' — is Strava or the network having a moment.
+      return { ok: false, status: res.status === 401 || res.status === 400 ? 'unauthenticated' : 'unavailable' }
+    }
     const body = (await res.json()) as { access_token?: unknown; expires_at?: unknown }
-    if (typeof body.access_token !== 'string' || typeof body.expires_at !== 'number') return null
-    return { access_token: body.access_token, expires_at: body.expires_at }
+    if (typeof body.access_token !== 'string' || typeof body.expires_at !== 'number') {
+      return { ok: false, status: 'unavailable' }
+    }
+    return { ok: true, token: { access_token: body.access_token, expires_at: body.expires_at } }
   } catch {
-    return null
+    return { ok: false, status: 'unavailable' }
   }
 }
 
@@ -72,8 +89,10 @@ export interface UseStravaAuth {
   isConnected: boolean
   connect: () => void
   disconnect: () => void
-  /** Resolves a valid access token, reminting via the refresh cookie when needed; `null` when the session is gone. */
+  /** Resolves a valid access token, reminting via the refresh cookie when needed; `null` on any failure. */
   getAccessToken: () => Promise<string | null>
+  /** Like `getAccessToken` but says whether a failure is a dead session or a transient outage. */
+  resolveAccessToken: () => Promise<AccessTokenResult>
 }
 
 export function useStravaAuth(): UseStravaAuth {
@@ -82,7 +101,10 @@ export function useStravaAuth(): UseStravaAuth {
   // Access token lives in JS memory only — not localStorage. On reload it's
   // reminted via the httpOnly refresh cookie.
   const tokenRef = useRef<AccessToken | null>(null)
-  const refreshInFlightRef = useRef<Promise<AccessToken | null> | null>(null)
+  const refreshInFlightRef = useRef<Promise<RefreshResult> | null>(null)
+  // Bumped by `disconnect` so a refresh that was in flight at the time can't
+  // re-establish the session when it resolves.
+  const disconnectGenerationRef = useRef(0)
 
   useEffect(() => {
     clearLegacyStorage()
@@ -97,21 +119,32 @@ export function useStravaAuth(): UseStravaAuth {
   }, [])
 
   const disconnect = useCallback(() => {
+    disconnectGenerationRef.current++
     tokenRef.current = null
     // Drop the readable flag immediately so the UI updates without waiting on
     // the round-trip; the server clears the httpOnly refresh cookie.
     document.cookie = `${STRAVA_CONNECTED_COOKIE}=; Max-Age=0; path=/`
     notifySessionChange()
-    void fetch('/api/auth/strava/logout', { method: 'POST', credentials: 'same-origin' })
+    // Logout only after any in-flight refresh has settled. The refresh
+    // response carries Set-Cookie for the rotated refresh token, and the
+    // browser applies it as soon as the headers arrive — so if logout raced
+    // ahead, the refresh's cookies would land last and silently re-open the
+    // session. Waiting makes logout's Max-Age=0 the final word on the cookie
+    // jar; the refresh result itself is discarded by the generation check in
+    // `resolveAccessToken`.
+    const inFlight = refreshInFlightRef.current ?? Promise.resolve()
+    void inFlight
+      .catch(() => {})
+      .then(() => fetch('/api/auth/strava/logout', { method: 'POST', credentials: 'same-origin' }))
       .catch(() => {})
       .finally(notifySessionChange)
   }, [])
 
-  const getAccessToken = useCallback(async (): Promise<string | null> => {
+  const resolveAccessToken = useCallback(async (): Promise<AccessTokenResult> => {
     const cached = tokenRef.current
     const now = Math.floor(Date.now() / 1000)
     if (cached && cached.expires_at > now + REFRESH_SKEW_SECONDS) {
-      return cached.access_token
+      return { status: 'ok', accessToken: cached.access_token }
     }
 
     // Dedupe concurrent refresh calls — Strava rotates the refresh_token on
@@ -123,13 +156,24 @@ export function useStravaAuth(): UseStravaAuth {
       })
     }
 
+    const generation = disconnectGenerationRef.current
     const refreshed = await refreshInFlightRef.current
-    tokenRef.current = refreshed
-    // On failure the server has cleared the session cookies; on success the
-    // flag cookie is already present. Either way, resync the store.
+    // Disconnected while the refresh was in flight: the caller no longer has
+    // a session, whatever the server said.
+    if (generation !== disconnectGenerationRef.current) return { status: 'unauthenticated' }
+
+    tokenRef.current = refreshed.ok ? refreshed.token : null
+    // On an auth failure the server has cleared the session cookies; on
+    // success the flag cookie is already present. Either way, resync the store.
     notifySessionChange()
-    return refreshed?.access_token ?? null
+    if (!refreshed.ok) return { status: refreshed.status }
+    return { status: 'ok', accessToken: refreshed.token.access_token }
   }, [])
 
-  return { isConnected, connect, disconnect, getAccessToken }
+  const getAccessToken = useCallback(async (): Promise<string | null> => {
+    const result = await resolveAccessToken()
+    return result.status === 'ok' ? result.accessToken : null
+  }, [resolveAccessToken])
+
+  return { isConnected, connect, disconnect, getAccessToken, resolveAccessToken }
 }

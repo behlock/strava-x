@@ -8,13 +8,17 @@ import { latestActivityStart } from '@/lib/activities'
 import { clusterActivities } from '@/lib/clusters'
 import { useLocalStorageItem, writeLocalStorage } from '@/hooks/use-local-storage'
 
-export type PositionSource = 'saved' | 'busiest' | 'activity' | 'default'
 export type MapPositionMode = 'own' | 'public'
 
 interface UsePersistedMapPositionResult {
+  /** Where the map renders first; only read when the map mounts. */
   position: MapPosition
+  /**
+   * Bounds of the busiest cluster, or `null` when a saved position wins or
+   * there is nothing to frame yet. Becomes non-null once activities arrive
+   * (restore, sync, public blob fetch), which may be after the map loaded.
+   */
   initialBounds: MapBounds | null
-  source: PositionSource
   savePosition: (position: MapPosition) => void
 }
 
@@ -104,19 +108,18 @@ export function usePersistedMapPosition(
 
   return useMemo((): UsePersistedMapPositionResult => {
     if (savedPosition) {
-      return { position: savedPosition, initialBounds: null, source: 'saved', savePosition }
+      return { position: savedPosition, initialBounds: null, savePosition }
     }
     if (busiestArea) {
       return {
         position: { ...busiestArea.center, zoom: BUSIEST_FALLBACK_ZOOM },
         initialBounds: busiestArea.bounds,
-        source: 'busiest',
         savePosition,
       }
     }
     if (latestActivityPosition) {
-      return { position: latestActivityPosition, initialBounds: null, source: 'activity', savePosition }
+      return { position: latestActivityPosition, initialBounds: null, savePosition }
     }
-    return { position: DEFAULT_MAP_POSITION, initialBounds: null, source: 'default', savePosition }
+    return { position: DEFAULT_MAP_POSITION, initialBounds: null, savePosition }
   }, [savedPosition, busiestArea, latestActivityPosition, savePosition])
 }
