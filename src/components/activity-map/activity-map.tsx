@@ -8,7 +8,7 @@ import { Layer, Map, type MapRef, Source, type ViewStateChangeEvent } from 'reac
 import { useTheme } from 'next-themes'
 
 import type { ActivityFeatureCollection } from '@/models/activity'
-import { DEFAULT_MAP_POSITION, type LngLat, type MapBounds, type MapPosition } from '@/models/map'
+import type { LngLat, MapBounds, MapPosition } from '@/models/map'
 import { ACTIVITY_TYPE_COLORS, DEFAULT_ACTIVITY_COLOR } from '@/lib/activity-colors'
 import { config } from '@/lib/config'
 import { boundsOf } from '@/lib/geo-utils'
@@ -36,9 +36,11 @@ interface ActivityMapProps {
   hoverType: string | null
   initialPosition: MapPosition
   /**
-   * Bounds to fit on first map load. The map renders at `initialPosition`
-   * (so the canvas isn't blank) then snaps to these once Mapbox finishes
-   * loading. Later changes are ignored.
+   * Bounds to frame once. The map renders at `initialPosition` (so the
+   * canvas isn't blank) and snaps to these as soon as both Mapbox has loaded
+   * and the bounds are known — activities may arrive after load (IndexedDB
+   * restore, first sync, public blob fetch). Never applied once the user has
+   * panned or zoomed the map themselves.
    */
   initialBounds: MapBounds | null
   onPositionChange: (position: MapPosition) => void
@@ -55,8 +57,10 @@ const HIGHLIGHT_COLOR: mapboxgl.ExpressionSpecification = [
 ] as mapboxgl.ExpressionSpecification
 
 function visibilityConditions(typeFilter: string[], dateCutoff: number | null): mapboxgl.FilterSpecification[] {
-  const conditions: mapboxgl.FilterSpecification[] = []
-  if (typeFilter.length > 0) conditions.push(['in', ['get', 'type'], ['literal', typeFilter]])
+  // Always applied: with every type deselected `in` tests against an empty
+  // array and evaluates to false, so the map hides everything — matching the
+  // (empty) list and stats.
+  const conditions: mapboxgl.FilterSpecification[] = [['in', ['get', 'type'], ['literal', typeFilter]]]
   if (dateCutoff !== null) conditions.push(['<=', ['get', 'dateTs'], dateCutoff])
   return conditions
 }
@@ -83,11 +87,25 @@ export function ActivityMap({
 }: ActivityMapProps) {
   const mapRef = useRef<MapRef>(null)
   const containerRef = useRef<HTMLDivElement>(null)
+  const isLoadedRef = useRef(false)
   const hasFramedRef = useRef(false)
+  // Set by the first move that carries a DOM event (drag, wheel, touch,
+  // keyboard); programmatic moves (fitBounds/flyTo) have none.
+  const hasUserMovedRef = useRef(false)
   const initialBoundsRef = useRef(initialBounds)
+
+  const frameInitialBounds = useCallback(() => {
+    const bounds = initialBoundsRef.current
+    if (hasFramedRef.current || hasUserMovedRef.current || !isLoadedRef.current || !bounds || !mapRef.current) return
+    hasFramedRef.current = true
+    mapRef.current.fitBounds(bounds, { padding: DEFAULT_PADDING, maxZoom: 12, duration: 0 })
+  }, [])
+
+  // Bounds that show up after the map loaded still get framed (once).
   useEffect(() => {
     initialBoundsRef.current = initialBounds
-  }, [initialBounds])
+    frameInitialBounds()
+  }, [initialBounds, frameInitialBounds])
 
   // Resize the map only when the container actually changes size.
   useEffect(() => {
@@ -98,6 +116,11 @@ export function ActivityMap({
     return () => observer.disconnect()
   }, [])
 
+  const handleMove = useCallback((event: ViewStateChangeEvent) => {
+    // Not every member of the event union carries `originalEvent`.
+    if ('originalEvent' in event && event.originalEvent) hasUserMovedRef.current = true
+  }, [])
+
   const handleMoveEnd = useCallback(
     ({ viewState }: ViewStateChangeEvent) => {
       onPositionChange({ latitude: viewState.latitude, longitude: viewState.longitude, zoom: viewState.zoom })
@@ -106,11 +129,9 @@ export function ActivityMap({
   )
 
   const handleLoad = useCallback(() => {
-    const bounds = initialBoundsRef.current
-    if (hasFramedRef.current || !bounds || !mapRef.current) return
-    hasFramedRef.current = true
-    mapRef.current.fitBounds(bounds, { padding: DEFAULT_PADDING, maxZoom: 12, duration: 0 })
-  }, [])
+    isLoadedRef.current = true
+    frameInitialBounds()
+  }, [frameInitialBounds])
 
   const fitBounds = useCallback((bounds: MapBounds, options?: FitOptions) => {
     mapRef.current?.fitBounds(bounds, { padding: options?.padding ?? DEFAULT_PADDING, duration: 500, maxZoom: 16 })
@@ -163,10 +184,11 @@ export function ActivityMap({
       <Map
         ref={mapRef}
         style={{ width: '100%', height: '100%' }}
-        initialViewState={initialPosition ?? DEFAULT_MAP_POSITION}
+        initialViewState={initialPosition}
         mapboxAccessToken={config.MAPBOX_ACCESS_TOKEN}
         mapStyle={isDark ? config.MAPBOX_MAP_STYLE_DARK : config.MAPBOX_MAP_STYLE_LIGHT}
         preserveDrawingBuffer
+        onMove={handleMove}
         onMoveEnd={handleMoveEnd}
         onLoad={handleLoad}
       >

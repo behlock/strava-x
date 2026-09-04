@@ -2,8 +2,10 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 
+import { DialogCloseButton } from '@/components/ui'
 import { cn } from '@/lib/utils'
 import { normalizeSlug } from '@/lib/slug'
+import { useFocusTrap } from '@/hooks/use-focus-trap'
 import type { CheckResult, PublishError } from '@/hooks/use-publish'
 
 interface PublishDialogProps {
@@ -34,7 +36,7 @@ const CHECK_DEBOUNCE_MS = 300
 const SUCCESS_PILL_MS = 2500
 const COPIED_PILL_MS = 2000
 
-const BUTTON = 'min-h-11 rounded-sm px-3 py-2 text-xs-compact tracking-wider transition-colors md:min-h-0'
+const BUTTON = 'focus-ring min-h-11 rounded-sm px-3 py-2 text-xs-compact tracking-wider transition-colors md:min-h-0'
 const BUTTON_OUTLINE = `${BUTTON} border border-panel-border hover:border-foreground hover:bg-foreground/5 disabled:opacity-50`
 const BUTTON_DANGER = `${BUTTON} border border-red-500/50 text-red-500 hover:bg-red-500/10 disabled:opacity-50`
 
@@ -156,6 +158,14 @@ function PublishDialogBody({
     }
   }, [publishedUrl])
 
+  // Escape closes, Tab stays inside, focus starts on the close button and
+  // returns to the trigger on close. The body only mounts while open.
+  const dialogRef = useRef<HTMLDivElement>(null)
+  const closeButtonRef = useRef<HTMLButtonElement>(null)
+  useFocusTrap(dialogRef, { active: true, onEscape: onClose, initialFocus: closeButtonRef })
+
+  // Declared after the trap so that, when the slug is being edited, the
+  // input wins the initial focus.
   const inputRef = useRef<HTMLInputElement>(null)
   useEffect(() => {
     if (editingSlug) inputRef.current?.focus()
@@ -169,6 +179,7 @@ function PublishDialogBody({
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="absolute inset-0 bg-background/80 backdrop-blur-md" onClick={onClose} aria-hidden="true" />
       <div
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby="publish-dialog-title"
@@ -178,14 +189,7 @@ function PublishDialogBody({
           <span id="publish-dialog-title" className="text-sm-compact tracking-wider">
             [publish]
           </span>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close publish dialog"
-            className="text-xs-compact text-panel-muted transition-colors hover:text-foreground"
-          >
-            [x]
-          </button>
+          <DialogCloseButton ref={closeButtonRef} onClick={onClose} aria-label="Close publish dialog" />
         </div>
 
         <div className="space-y-4 p-4">

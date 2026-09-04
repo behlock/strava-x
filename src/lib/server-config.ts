@@ -12,6 +12,11 @@ import {
 // Strava's single-registered-callback-domain rule is honored even when the
 // user lands on a per-deployment *.vercel.app URL), then the per-deployment
 // VERCEL_URL, then the incoming request's origin.
+//
+// Note this can differ from the host the request actually arrived on. The
+// OAuth state cookie is host-scoped, so /api/auth/strava/start redirects to
+// this origin before setting it — otherwise the callback (which Strava always
+// sends to the canonical origin) would never see the cookie.
 export function getAppUrl(req?: NextRequest): string {
   const envUrl = process.env.NEXT_PUBLIC_APP_URL
   if (envUrl) return envUrl.replace(/\/$/, '')

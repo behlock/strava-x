@@ -3,6 +3,7 @@
 import { type NextRequest, NextResponse } from 'next/server'
 
 import { clientKey, rateLimit, type RateLimitOptions } from '@/lib/rate-limit'
+import { getAppUrl } from '@/lib/server-config'
 import { StravaAuthError, type VerifiedAthlete, verifyStravaToken } from '@/lib/strava-verify'
 
 export function jsonError(error: string, status = 400, extra?: Record<string, unknown>): NextResponse {
@@ -17,6 +18,20 @@ export function enforceRateLimit(req: NextRequest, prefix: string, opts: RateLim
     { error: 'rate_limited' },
     { status: 429, headers: { 'Retry-After': String(result.retryAfterSeconds) } },
   )
+}
+
+// Fetch metadata headers are set by the browser and can't be forged by a
+// cross-site page. 'none' covers user-initiated navigations (address bar,
+// bookmarks). Older browsers that omit Sec-Fetch-Site still send Origin on
+// POST, which is checked against both the request's own origin and the
+// canonical app origin.
+/** True when the request was made from this app's own origin (a CSRF guard for cookie-authenticated mutations). */
+export function isSameOriginRequest(req: NextRequest): boolean {
+  const site = req.headers.get('sec-fetch-site')
+  if (site === 'same-origin' || site === 'none') return true
+  const origin = req.headers.get('origin')
+  if (!origin) return false
+  return origin === new URL(req.url).origin || origin === getAppUrl(req)
 }
 
 /** Parses a JSON body, returning `null` when it is missing or malformed. */

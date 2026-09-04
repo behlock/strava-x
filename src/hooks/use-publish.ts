@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 
 import type { Activity } from '@/models/activity'
 import { serializeActivities } from '@/lib/activities-serialize'
@@ -63,6 +63,25 @@ export function usePublish({ getAccessToken, activities }: UsePublishOptions) {
   const currentSlug = useLocalStorageItem(CURRENT_SLUG_KEY)
   const [isPublishing, setIsPublishing] = useState(false)
 
+  // Serializing the whole library is the expensive part of publishing, so
+  // the JSON is computed lazily and kept for as long as `activities` is the
+  // same array — the size estimate taken when the dialog opens and the
+  // upload that follows then share one string.
+  const serializedRef = useRef<{ activities: Activity[]; json: string } | null>(null)
+  const serializedActivitiesJson = useCallback((): string => {
+    const cached = serializedRef.current
+    if (cached && cached.activities === activities) return cached.json
+    const json = JSON.stringify(serializeActivities(activities))
+    serializedRef.current = { activities, json }
+    return json
+  }, [activities])
+
+  /** Rough size of the publish payload, so the dialog can warn before upload. */
+  const estimatePayloadSize = useCallback(
+    (): number => (activities.length === 0 ? 0 : new Blob([serializedActivitiesJson()]).size),
+    [activities, serializedActivitiesJson],
+  )
+
   const checkSlug = useCallback(
     async (rawSlug: string): Promise<CheckResult> => {
       const local = validateSlug(rawSlug)
@@ -95,11 +114,9 @@ export function usePublish({ getAccessToken, activities }: UsePublishOptions) {
 
       setIsPublishing(true)
       try {
-        const json = JSON.stringify({
-          slug: local.slug,
-          accessToken: token,
-          activities: serializeActivities(activities),
-        })
+        // Splice the pre-serialized activities in rather than stringifying
+        // the whole body object, which would serialize the library again.
+        const json = `{"slug":${JSON.stringify(local.slug)},"accessToken":${JSON.stringify(token)},"activities":${serializedActivitiesJson()}}`
         const supportsGzip = typeof CompressionStream !== 'undefined'
         const res = await fetch('/api/publish', {
           method: 'POST',
@@ -122,7 +139,7 @@ export function usePublish({ getAccessToken, activities }: UsePublishOptions) {
         setIsPublishing(false)
       }
     },
-    [getAccessToken, activities],
+    [getAccessToken, activities, serializedActivitiesJson],
   )
 
   const unpublish = useCallback(async (): Promise<{ ok: true } | { ok: false; error: PublishError }> => {
@@ -170,5 +187,14 @@ export function usePublish({ getAccessToken, activities }: UsePublishOptions) {
   // owns a slug we can no longer verify.
   const forgetCurrentSlug = useCallback(() => writeLocalStorage(CURRENT_SLUG_KEY, null), [])
 
-  return { currentSlug, isPublishing, checkSlug, publish, unpublish, refreshCurrentSlug, forgetCurrentSlug }
+  return {
+    currentSlug,
+    isPublishing,
+    estimatePayloadSize,
+    checkSlug,
+    publish,
+    unpublish,
+    refreshCurrentSlug,
+    forgetCurrentSlug,
+  }
 }

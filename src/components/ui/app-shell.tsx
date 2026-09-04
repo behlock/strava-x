@@ -54,7 +54,10 @@ export function AppShell({
     },
     [onDrawerHeightChange],
   )
-  const showDrawer = hasActivities && isMobile
+  // The setup panel (theme, disconnect) must stay reachable with no
+  // activities, so the column and drawer show whenever there is one.
+  const showPanels = hasActivities || Boolean(setupPanel)
+  const showDrawer = showPanels && isMobile
   const stackBottom = showDrawer ? `min(${drawerHeight + EDGE_GAP}px, ${STACK_MAX_BOTTOM})` : EDGE_GAP
 
   return (
@@ -64,11 +67,13 @@ export function AppShell({
       {/* Above the mobile drawer (z-20) so header menus never paint under it. */}
       <div className="absolute top-0 right-0 left-0 z-30">{header}</div>
 
-      {hasActivities && !isMobile && (
-        <div className="absolute top-18 bottom-4 left-4 z-10 flex w-56 flex-col gap-3 lg:w-64 xl:w-72">
-          {filterPanel}
-          {locationsPanel}
-          {activityList}
+      {showPanels && !isMobile && (
+        // Scrolls on short viewports so the setup panel is always reachable;
+        // the activity list keeps a floor height and takes any spare room.
+        <div className="absolute top-18 bottom-4 left-4 z-10 flex scrollbar-thin min-h-0 w-56 flex-col gap-3 overflow-x-hidden overflow-y-auto lg:w-64 xl:w-72">
+          {hasActivities && filterPanel}
+          {hasActivities && locationsPanel}
+          {hasActivities && <div className="flex min-h-40 flex-1 flex-col">{activityList}</div>}
           {setupPanel}
         </div>
       )}
@@ -86,10 +91,10 @@ export function AppShell({
 
       {showDrawer && (
         <MobileDrawer
-          filterPanel={filterPanel}
-          locationsPanel={locationsPanel}
-          activityList={activityList}
-          statsPanel={statsPanel}
+          filterPanel={hasActivities ? filterPanel : null}
+          locationsPanel={hasActivities ? locationsPanel : null}
+          activityList={hasActivities ? activityList : null}
+          statsPanel={hasActivities ? statsPanel : null}
           setupPanel={setupPanel}
           onHeightChange={handleDrawerHeightChange}
         />

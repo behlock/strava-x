@@ -80,7 +80,12 @@ export async function upsertPublishedMap(row: {
   `
 }
 
-export async function deleteByAthleteId(athleteId: number): Promise<void> {
+// Returns the deleted row's blob pathname so the caller can clean up the blob
+// after the row is gone, or `null` when the athlete had no publish.
+export async function deleteByAthleteId(athleteId: number): Promise<string | null> {
   const sql = getSql()
-  await sql`DELETE FROM published_maps WHERE athlete_id = ${athleteId}`
+  const rows = (await sql`
+    DELETE FROM published_maps WHERE athlete_id = ${athleteId} RETURNING blob_pathname
+  `) as Pick<PublishedMapRow, 'blob_pathname'>[]
+  return rows[0]?.blob_pathname ?? null
 }

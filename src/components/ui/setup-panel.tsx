@@ -2,11 +2,9 @@
 
 import { useTheme } from 'next-themes'
 
-import { cn } from '@/lib/utils'
 import { useMounted } from '@/hooks/use-mounted'
 import { Panel } from './panel'
-
-const THEMES = ['light', 'dark'] as const
+import { SegmentedControl } from './segmented-control'
 
 interface SetupPanelProps {
   /** Present while a Strava account is connected; shows the account row. */
@@ -22,40 +20,22 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
   )
 }
 
-/** Two-position switch, labelled with the words rather than icons. */
+/**
+ * Picks the stored theme setting (light, dark or system), labelled with words
+ * rather than icons. `system` follows the OS, so it is offered explicitly.
+ */
 function ThemeSwitch() {
-  const { resolvedTheme, setTheme } = useTheme()
-  // next-themes can't know the theme during SSR; show nothing selected until hydrated.
+  const { theme, themes, setTheme } = useTheme()
+  // next-themes can't know the setting during SSR; show nothing selected until hydrated.
   const mounted = useMounted()
 
   return (
-    <div
-      role="radiogroup"
+    <SegmentedControl
+      options={themes}
+      value={mounted ? (theme ?? null) : null}
+      onChange={setTheme}
       aria-label="Theme"
-      className="inline-flex overflow-hidden rounded-sm border border-panel-border"
-    >
-      {THEMES.map((theme) => {
-        const selected = mounted && resolvedTheme === theme
-        return (
-          <button
-            key={theme}
-            type="button"
-            role="radio"
-            aria-checked={selected}
-            disabled={!mounted}
-            onClick={() => setTheme(theme)}
-            className={cn(
-              'px-2 py-1 text-xs-compact tracking-wider transition-colors focus-visible:ring-1 focus-visible:ring-foreground focus-visible:outline-hidden focus-visible:ring-inset',
-              selected
-                ? 'bg-foreground text-background'
-                : 'text-panel-muted hover:bg-foreground/5 hover:text-foreground',
-            )}
-          >
-            {theme}
-          </button>
-        )
-      })}
-    </div>
+    />
   )
 }
 
@@ -74,7 +54,7 @@ export function SetupPanel({ onDisconnect }: SetupPanelProps) {
               <button
                 type="button"
                 onClick={onDisconnect}
-                className="text-panel-muted transition-colors hover:text-foreground focus-visible:ring-1 focus-visible:ring-foreground focus-visible:outline-hidden"
+                className="flex min-h-11 items-center text-panel-muted focus-ring transition-colors hover:text-foreground md:min-h-0"
               >
                 [disconnect]
               </button>

@@ -49,7 +49,7 @@ export function PublicMapView({ slug, blobUrl, displayName }: PublicMapViewProps
     let cancelled = false
     ;(async () => {
       try {
-        const res = await fetch(blobUrl, { cache: 'force-cache' })
+        const res = await fetch(blobUrl)
         if (!res.ok) throw new Error(`fetch_failed_${res.status}`)
         const payload = (await res.json()) as PublishedPayload
         if (cancelled) return
