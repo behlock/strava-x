@@ -6,7 +6,6 @@ import { ArrowRight, Loader2 } from 'lucide-react'
 import { HEADER_LOGO_CLASS, HeaderBar, HeaderChip } from './header-bar'
 import { ShareMenu } from './share-menu'
 import { StravaAuthError } from './strava-auth-error'
-import { Tooltip } from './tooltip'
 
 interface HeaderProps {
   onLogoClick: () => void
@@ -21,19 +20,18 @@ interface HeaderProps {
   onStravaAbortSync: () => void
 }
 
-/** Small spinner beside the logo while activities stream in; click cancels. */
+/** Spinner chip beside the logo while activities stream in; click cancels. */
 function SyncSpinner({ onCancel }: { onCancel: () => void }) {
   return (
-    <Tooltip text="syncing, click to cancel" align="start">
-      <button
-        type="button"
-        onClick={onCancel}
-        aria-label="Cancel Strava sync"
-        className="flex size-6 items-center justify-center text-panel-muted transition-colors hover:text-foreground focus-visible:ring-1 focus-visible:ring-foreground focus-visible:outline-hidden"
-      >
-        <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />
-      </button>
-    </Tooltip>
+    <HeaderChip
+      tooltip="syncing, click to cancel"
+      tooltipAlign="start"
+      onClick={onCancel}
+      aria-label="Cancel Strava sync"
+      className="text-panel-muted hover:text-foreground"
+    >
+      <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />
+    </HeaderChip>
   )
 }
 
@@ -62,17 +60,20 @@ export function Header({
   onStravaConnect,
   onStravaAbortSync,
 }: HeaderProps) {
-  const connected = stravaAvailable && stravaConnected
   return (
     <HeaderBar
       logo={
-        <div className="flex min-w-0 items-center gap-3">
-          <button type="button" onClick={onLogoClick} className={HEADER_LOGO_CLASS}>
-            strava—x
-          </button>
-          {connected && isStravaSyncing && <SyncSpinner onCancel={onStravaAbortSync} />}
-          {connected && !isStravaSyncing && stravaError && <SyncFailed message={stravaError} />}
-        </div>
+        <button type="button" onClick={onLogoClick} className={HEADER_LOGO_CLASS}>
+          strava—x
+        </button>
+      }
+      // Errors are not gated on the connection: an expired session sets the
+      // error at the same moment it disconnects, and still needs showing.
+      status={
+        <>
+          {isStravaSyncing && <SyncSpinner onCancel={onStravaAbortSync} />}
+          {!isStravaSyncing && stravaError && <SyncFailed message={stravaError} />}
+        </>
       }
     >
       {stravaAvailable && !stravaConnected && (
@@ -88,14 +89,7 @@ export function Header({
       )}
 
       {/* The one primary action; disconnect and theme live in the setup panel. */}
-      {hasActivities && (
-        <ShareMenu
-          onExport={onExportClick}
-          onPublish={onPublishClick}
-          canPublish={stravaConnected}
-          tooltipAlign="end"
-        />
-      )}
+      {hasActivities && <ShareMenu onExport={onExportClick} onPublish={onPublishClick} canPublish={stravaConnected} />}
     </HeaderBar>
   )
 }

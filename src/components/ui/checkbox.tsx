@@ -22,7 +22,7 @@ export function Checkbox({ checked, onChange, label, count, className, onHover }
       onMouseEnter={() => onHover?.(true)}
       onMouseLeave={() => onHover?.(false)}
       className={cn(
-        '-mx-1 flex min-h-[44px] w-full items-center justify-between px-1 py-3 text-sm-compact transition-colors hover:bg-foreground/5 focus-visible:ring-1 focus-visible:ring-foreground focus-visible:outline-hidden md:min-h-0 md:py-1',
+        '-mx-1 flex min-h-[44px] w-full items-center justify-between px-1 py-3 text-sm-compact focus-ring transition-colors hover:bg-foreground/5 md:min-h-0 md:py-1',
         className,
       )}
     >

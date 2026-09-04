@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef } from 'react'
+import { useCallback, useEffect, useId, useMemo, useRef } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 
 import type { Activity } from '@/models/activity'
@@ -42,6 +42,8 @@ export function ActivityList({
 }: ActivityListProps) {
   const parentRef = useRef<HTMLDivElement>(null)
   const selectedIndexRef = useRef(-1)
+  const idPrefix = useId()
+  const rowId = (activityId: string) => `${idPrefix}-${activityId}`
 
   const sortedActivities = useMemo(() => sortActivitiesByDateDesc(activities), [activities])
 
@@ -100,12 +102,15 @@ export function ActivityList({
       grow
       meta={<span className="tabular-nums">{activities.length.toLocaleString()} total</span>}
     >
+      {/* Arrow keys highlight a row (via the parent); the active descendant
+          follows the highlight so assistive tech announces the move. */}
       <div
         ref={parentRef}
-        className="scrollbar-thin min-h-0 flex-1 overflow-y-auto focus:outline-hidden focus-visible:ring-1 focus-visible:ring-foreground/60 focus-visible:ring-inset"
+        className="scrollbar-thin min-h-0 flex-1 overflow-y-auto focus-ring-inset"
         tabIndex={0}
         role="listbox"
         aria-label="Activities"
+        aria-activedescendant={highlightedActivityId ? rowId(highlightedActivityId) : undefined}
         onKeyDown={handleKeyDown}
       >
         {activities.length === 0 ? (
@@ -118,6 +123,7 @@ export function ActivityList({
               return (
                 <div
                   key={activity.id}
+                  id={rowId(activity.id)}
                   role="option"
                   aria-selected={isHighlighted}
                   className={cn(

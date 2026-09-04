@@ -48,6 +48,9 @@ interface MapViewProps {
 }
 
 const DESKTOP_PADDING = { top: 80, bottom: 80, left: 100, right: 80 }
+const MOBILE_PADDING_TOP = 80
+const MOBILE_MAX_BOTTOM_RATIO = 0.4
+const MOBILE_MAX_VERTICAL_RATIO = 0.8
 
 export function MapView({
   activities: allActivities,
@@ -78,11 +81,19 @@ export function MapView({
   const handleDrawerHeightChange = useCallback((height: number) => {
     drawerHeightRef.current = height
   }, [])
-  const computePadding = useCallback(
-    () =>
-      isMobile ? { top: 80, bottom: Math.round(drawerHeightRef.current) + 20, left: 40, right: 40 } : DESKTOP_PADDING,
-    [isMobile],
-  )
+  // The expanded drawer can cover most of a phone screen, so its height is
+  // clamped: the bottom pad never exceeds 40% of the viewport, and top plus
+  // bottom never exceed 80%, leaving room for the fit itself.
+  const computePadding = useCallback(() => {
+    if (!isMobile) return DESKTOP_PADDING
+    const viewportHeight = window.innerHeight
+    const bottom = Math.min(
+      Math.round(drawerHeightRef.current) + 20,
+      Math.round(viewportHeight * MOBILE_MAX_BOTTOM_RATIO),
+      Math.round(viewportHeight * MOBILE_MAX_VERTICAL_RATIO) - MOBILE_PADDING_TOP,
+    )
+    return { top: MOBILE_PADDING_TOP, bottom: Math.max(0, bottom), left: 40, right: 40 }
+  }, [isMobile])
 
   const dateRange = useMemo(() => {
     let min = Infinity

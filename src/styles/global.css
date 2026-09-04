@@ -68,6 +68,14 @@
   }
 }
 
+/* The reset strips the UA focus outline; these put one back for keyboard users. */
+@utility focus-ring {
+  @apply focus-visible:ring-1 focus-visible:ring-foreground focus-visible:outline-hidden;
+}
+@utility focus-ring-inset {
+  @apply focus-visible:ring-1 focus-visible:ring-foreground focus-visible:outline-hidden focus-visible:ring-inset;
+}
+
 /* Minimal scrollbar for scrolling panels */
 @utility scrollbar-thin {
   scrollbar-width: thin;

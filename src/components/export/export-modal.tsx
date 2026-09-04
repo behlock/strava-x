@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTheme } from 'next-themes'
 
 import type { ActivityMapRef } from '@/components/activity-map'
+import { DialogCloseButton, SegmentedControl } from '@/components/ui'
 import { cn } from '@/lib/utils'
 import { useFocusTrap } from '@/hooks/use-focus-trap'
 import {
@@ -23,9 +24,11 @@ interface ExportModalProps {
 const CENTER: PanOffset = { x: 0, y: 0 }
 const FEEDBACK_MS = 3000
 const DRAG_SENSITIVITY = 2
+// Composing and PNG-encoding the preview is too slow to do on every mousemove.
+const DRAG_PREVIEW_INTERVAL_MS = 80
 
 const ACTION_BUTTON =
-  'min-h-11 flex-1 rounded-sm border border-panel-border px-3 py-2 text-xs-compact tracking-wider transition-colors hover:border-foreground hover:bg-foreground/5 disabled:opacity-50 md:min-h-0'
+  'focus-ring min-h-11 flex-1 rounded-sm border border-panel-border px-3 py-2 text-xs-compact tracking-wider transition-colors hover:border-foreground hover:bg-foreground/5 disabled:opacity-50 md:min-h-0'
 
 function clamp(value: number): number {
   return Math.max(-1, Math.min(1, value))
@@ -42,6 +45,7 @@ export function ExportModal({ open, onClose, mapRef }: ExportModalProps) {
   const [error, setError] = useState<string | null>(null)
   const [isDragging, setIsDragging] = useState(false)
   const dragStartRef = useRef<{ x: number; y: number; startOffset: PanOffset } | null>(null)
+  const lastPreviewAtRef = useRef(0)
   const previewRef = useRef<HTMLDivElement>(null)
   const modalRef = useRef<HTMLDivElement>(null)
   const closeButtonRef = useRef<HTMLButtonElement>(null)
@@ -56,17 +60,28 @@ export function ExportModal({ open, onClose, mapRef }: ExportModalProps) {
   const canCopy = typeof navigator !== 'undefined' && 'clipboard' in navigator && 'write' in navigator.clipboard
   const canShare = typeof navigator !== 'undefined' && 'share' in navigator && 'canShare' in navigator
 
-  // Regenerate the preview whenever framing changes.
+  // Regenerate the preview whenever framing changes. Aspect-ratio changes
+  // render at once; while dragging, captures are throttled to one per
+  // interval, and the drag ending triggers a final capture of the settled
+  // offset.
   useEffect(() => {
     if (!open) return
     let cancelled = false
-    capturePreview().then((dataUrl) => {
-      if (!cancelled) setPreviewUrl(dataUrl)
-    })
+    const run = () => {
+      lastPreviewAtRef.current = performance.now()
+      capturePreview().then((dataUrl) => {
+        if (!cancelled) setPreviewUrl(dataUrl)
+      })
+    }
+    const wait = isDragging ? Math.max(0, DRAG_PREVIEW_INTERVAL_MS - (performance.now() - lastPreviewAtRef.current)) : 0
+    let handle: ReturnType<typeof setTimeout> | null = null
+    if (wait === 0) run()
+    else handle = setTimeout(run, wait)
     return () => {
       cancelled = true
+      if (handle !== null) clearTimeout(handle)
     }
-  }, [open, capturePreview])
+  }, [open, capturePreview, isDragging])
 
   // Escape closes, Tab stays inside, focus goes to the close button on open
   // and back to the trigger on close.
@@ -178,29 +193,23 @@ export function ExportModal({ open, onClose, mapRef }: ExportModalProps) {
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="absolute inset-0 bg-background/80 backdrop-blur-md" onClick={onClose} aria-hidden="true" />
 
+      {/* Capped to the viewport with a scrolling body, so the tall 4:5 preview
+          never pushes the close or action buttons off a laptop screen. */}
       <div
         ref={modalRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby="export-modal-title"
-        className="relative mx-4 w-full max-w-lg rounded-sm border border-panel-border bg-panel"
+        className="relative mx-4 flex max-h-[calc(100dvh-2rem)] w-full max-w-lg flex-col rounded-sm border border-panel-border bg-panel"
       >
-        <div className="flex items-center justify-between border-b border-panel-border px-4 py-3">
+        <div className="flex shrink-0 items-center justify-between border-b border-panel-border px-4 py-3">
           <span id="export-modal-title" className="text-sm-compact tracking-wider">
             [export]
           </span>
-          <button
-            ref={closeButtonRef}
-            type="button"
-            onClick={onClose}
-            aria-label="Close export dialog"
-            className="text-xs-compact text-panel-muted transition-colors hover:text-foreground focus-visible:ring-1 focus-visible:ring-foreground focus-visible:outline-hidden"
-          >
-            [x]
-          </button>
+          <DialogCloseButton ref={closeButtonRef} onClick={onClose} aria-label="Close export dialog" />
         </div>
 
-        <div className="space-y-4 p-4">
+        <div className="scrollbar-thin min-h-0 space-y-4 overflow-y-auto p-4">
           <div className="relative overflow-hidden rounded-sm border border-panel-border bg-background">
             <div
               ref={previewRef}
@@ -235,25 +244,12 @@ export function ExportModal({ open, onClose, mapRef }: ExportModalProps) {
 
           <div className="flex items-center justify-between">
             <span className="text-xs-compact tracking-wider text-panel-muted">aspect ratio</span>
-            <div className="flex gap-1" role="radiogroup" aria-label="Aspect ratio">
-              {ASPECT_RATIO_OPTIONS.map((ratio) => (
-                <button
-                  key={ratio}
-                  type="button"
-                  role="radio"
-                  aria-checked={aspectRatio === ratio}
-                  onClick={() => handleAspectRatioChange(ratio)}
-                  className={cn(
-                    'rounded-sm border px-2 py-1 text-xs-compact transition-colors',
-                    aspectRatio === ratio
-                      ? 'border-foreground bg-foreground/10'
-                      : 'border-panel-border hover:border-foreground/50',
-                  )}
-                >
-                  {ratio}
-                </button>
-              ))}
-            </div>
+            <SegmentedControl
+              options={ASPECT_RATIO_OPTIONS}
+              value={aspectRatio}
+              onChange={handleAspectRatioChange}
+              aria-label="Aspect ratio"
+            />
           </div>
 
           <div role="status" aria-live="polite" className="sr-only">

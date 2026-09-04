@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useRef } from 'react'
+import { useCallback, useId, useRef } from 'react'
 
 import type { ActivityCluster } from '@/models/location'
 import { cn } from '@/lib/utils'
@@ -14,6 +14,8 @@ interface LocationSelectorProps {
 
 export function LocationSelector({ clusters, selectedClusterId, onClusterSelect }: LocationSelectorProps) {
   const listRef = useRef<HTMLDivElement>(null)
+  const idPrefix = useId()
+  const optionId = (index: number) => `${idPrefix}-${index}`
   const currentIndex = selectedClusterId ? clusters.findIndex((c) => c.id === selectedClusterId) : -1
 
   const handleKeyDown = useCallback(
@@ -44,28 +46,32 @@ export function LocationSelector({ clusters, selectedClusterId, onClusterSelect 
 
   return (
     <Panel title="locations">
+      {/* The list is the single Tab stop; options are not focusable themselves
+          and the active descendant tells assistive tech which one is current. */}
       <div
         ref={listRef}
-        className="max-h-[200px] space-y-0.5 overflow-y-auto p-3 focus:outline-hidden focus-visible:ring-1 focus-visible:ring-foreground/60 focus-visible:ring-inset"
+        className="max-h-[200px] space-y-0.5 overflow-y-auto p-3 focus-ring-inset"
         tabIndex={0}
         role="listbox"
         aria-label="Locations"
+        aria-activedescendant={currentIndex >= 0 ? optionId(currentIndex) : undefined}
         onKeyDown={handleKeyDown}
       >
-        {clusters.map((cluster) => (
-          <button
+        {clusters.map((cluster, index) => (
+          <div
             key={cluster.id}
-            type="button"
+            id={optionId(index)}
             role="option"
+            tabIndex={-1}
             aria-selected={selectedClusterId === cluster.id}
             onClick={() => onClusterSelect(cluster.id)}
             className={cn(
-              'flex w-full items-center rounded-sm px-2 py-1.5 text-left text-xs-compact tracking-wider transition-colors hover:bg-foreground/5',
+              'flex w-full cursor-pointer items-center rounded-sm px-2 py-1.5 text-left text-xs-compact tracking-wider transition-colors hover:bg-foreground/5',
               selectedClusterId === cluster.id && 'bg-foreground/10',
             )}
           >
             <span className="truncate">{cluster.displayName}</span>
-          </button>
+          </div>
         ))}
       </div>
     </Panel>

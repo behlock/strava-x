@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useRef } from 'react'
 import { ArrowRight, ArrowUpRight } from 'lucide-react'
 
+import { DialogCloseButton } from '@/components/ui'
 import { cn } from '@/lib/utils'
 import { useFocusTrap } from '@/hooks/use-focus-trap'
 
@@ -17,7 +18,7 @@ interface WelcomePanelProps {
 }
 
 const BUTTON =
-  'inline-flex min-h-11 w-full items-center gap-2 rounded-sm border px-3 py-2 text-left text-xs-compact tracking-wider transition-colors focus-visible:ring-1 focus-visible:ring-foreground focus-visible:ring-offset-1 focus-visible:ring-offset-panel focus-visible:outline-hidden md:min-h-0'
+  'focus-ring inline-flex min-h-11 w-full items-center gap-2 rounded-sm border px-3 py-2 text-left text-xs-compact tracking-wider transition-colors focus-visible:ring-offset-1 focus-visible:ring-offset-panel md:min-h-0'
 const BUTTON_ICON = 'size-3.5 shrink-0'
 
 export function WelcomePanel({ open, onDismiss, onConnect }: WelcomePanelProps) {
@@ -75,14 +76,7 @@ export function WelcomePanel({ open, onDismiss, onConnect }: WelcomePanelProps) 
           </Link>
         </div>
 
-        <button
-          type="button"
-          onClick={onDismiss}
-          aria-label="Close welcome panel"
-          className="absolute top-3 right-3 text-xs-compact text-panel-muted transition-colors hover:text-foreground focus-visible:ring-1 focus-visible:ring-foreground focus-visible:outline-hidden"
-        >
-          [x]
-        </button>
+        <DialogCloseButton onClick={onDismiss} aria-label="Close welcome panel" className="absolute top-3 right-3" />
       </div>
     </div>
   )
