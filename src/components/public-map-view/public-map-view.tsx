@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react'
 
 import type { Activity } from '@/models/activity'
 import { MapView } from '@/components/map-view'
-import { HEADER_LOGO_CLASS, HeaderBar, SetupPanel } from '@/components/ui'
+import { HEADER_LOGO_CLASS, HeaderBar, SetupPanel, Tooltip } from '@/components/ui'
 import { deserializeActivities, type SerializedActivity } from '@/lib/activities-serialize'
 
 interface PublicMapViewProps {
@@ -23,7 +23,17 @@ interface PublishedPayload {
 
 const SUPPORTED_PAYLOAD_VERSION = 1
 
-function PublicHeader({ displayName }: { displayName: string | null }) {
+function formatPublishedAt(iso: string): string {
+  const date = new Date(iso)
+  if (Number.isNaN(date.getTime())) return iso
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).toLowerCase()
+}
+
+function PublicHeader({ displayName, publishedAt }: { displayName: string | null; publishedAt: string | null }) {
+  const byline = displayName ? (
+    <span className="truncate text-xs-compact tracking-wider opacity-60">— published by {displayName}</span>
+  ) : null
+
   return (
     <HeaderBar
       logo={
@@ -31,8 +41,12 @@ function PublicHeader({ displayName }: { displayName: string | null }) {
           <Link href="/" className={HEADER_LOGO_CLASS}>
             strava—x
           </Link>
-          {displayName && (
-            <span className="truncate text-xs-compact tracking-wider opacity-60">— published by {displayName}</span>
+          {byline && publishedAt ? (
+            <Tooltip text={`last published ${formatPublishedAt(publishedAt)}`} align="start">
+              {byline}
+            </Tooltip>
+          ) : (
+            byline
           )}
         </div>
       }
@@ -43,6 +57,7 @@ function PublicHeader({ displayName }: { displayName: string | null }) {
 /** Read-only view of a published map, fetched straight from the blob CDN. */
 export function PublicMapView({ slug, blobUrl, displayName }: PublicMapViewProps) {
   const [activities, setActivities] = useState<Activity[] | null>(null)
+  const [publishedAt, setPublishedAt] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -57,6 +72,7 @@ export function PublicMapView({ slug, blobUrl, displayName }: PublicMapViewProps
         if (payload.version !== SUPPORTED_PAYLOAD_VERSION) {
           console.warn('[public-map-view] unknown payload version', payload.version)
         }
+        setPublishedAt(typeof payload.publishedAt === 'string' ? payload.publishedAt : null)
         setActivities(deserializeActivities(payload.activities))
       } catch (e) {
         if (cancelled) return
@@ -84,7 +100,7 @@ export function PublicMapView({ slug, blobUrl, displayName }: PublicMapViewProps
     <MapView
       activities={activities ?? []}
       loading={activities === null}
-      header={<PublicHeader displayName={displayName} />}
+      header={<PublicHeader displayName={displayName} publishedAt={publishedAt} />}
       setupPanel={<SetupPanel />}
       mode="public"
     />
