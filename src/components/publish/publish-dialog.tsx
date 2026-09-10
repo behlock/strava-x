@@ -212,7 +212,7 @@ function PublishDialogBody({
                 </button>
               </div>
               <p className="text-xs-compact text-panel-muted">
-                republishing replaces the snapshot with your latest {formatBytes(estimatedSizeBytes)} of activities
+                republishing replaces the snapshot with your latest activities
               </p>
 
               {error && <p className="text-xs-compact text-red-500">{ERROR_MESSAGES[error]}</p>}
