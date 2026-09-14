@@ -16,6 +16,32 @@ const FETCH_TIMEOUT_MS = 5000
 
 type LookupResult = { ok: true; name: string | null } | { ok: false }
 
+// Stable settlement labels from Nominatim's geocodejson address categories.
+// `district` / admin-level 8 polygons are skipped — those are boroughs.
+interface GeocodeJson {
+  features?: Array<{
+    properties?: {
+      geocoding?: {
+        city?: string
+        town?: string
+        village?: string
+        municipality?: string
+        locality?: string
+        county?: string
+        state?: string
+      }
+    }
+  }>
+}
+
+function pickCityName(data: GeocodeJson): string | null {
+  const g = data.features?.[0]?.properties?.geocoding
+  if (!g) return null
+  const name = g.city || g.town || g.village || g.municipality || g.locality || g.county || g.state || null
+  // OSM has no "London" polygon; the city-rank parent is Greater London.
+  return name === 'Greater London' ? 'London' : name
+}
+
 // Dedupes concurrent upstream calls for the same coordinate so a burst of
 // users hitting a cache-cold centroid only fires one Nominatim request.
 const inFlightLookups = new Map<string, Promise<LookupResult>>()
@@ -24,8 +50,11 @@ async function fetchUpstream(lat: string, lng: string): Promise<LookupResult> {
   const url = new URL(NOMINATIM_URL)
   url.searchParams.set('lat', lat)
   url.searchParams.set('lon', lng)
-  url.searchParams.set('format', 'json')
-  url.searchParams.set('zoom', '10')
+  // geocodejson at building zoom classifies the parent settlement as `city`.
+  // Nominatim's zoom=10 "city" rank matches OSM city-rank polygons, which in
+  // London / China are boroughs and districts (Westminster, Futian, …).
+  url.searchParams.set('format', 'geocodejson')
+  url.searchParams.set('zoom', '18')
 
   try {
     const upstream = await fetch(url, {
@@ -33,11 +62,8 @@ async function fetchUpstream(lat: string, lng: string): Promise<LookupResult> {
       signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
     })
     if (!upstream.ok) return { ok: false }
-    const data = (await upstream.json()) as {
-      address?: { city?: string; town?: string; village?: string; county?: string; state?: string }
-    }
-    const a = data.address ?? {}
-    return { ok: true, name: a.city || a.town || a.village || a.county || a.state || null }
+    const data = (await upstream.json()) as GeocodeJson
+    return { ok: true, name: pickCityName(data) }
   } catch {
     return { ok: false }
   }

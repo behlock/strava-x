@@ -7,7 +7,7 @@ import type { ActivityCluster } from '@/models/location'
 import { clusterActivities } from '@/lib/clusters'
 import { readLocalStorage, useLocalStorageItem, writeLocalStorage } from '@/hooks/use-local-storage'
 
-const GEOCODE_CACHE_KEY = 'strava-x-geocode-cache'
+const GEOCODE_CACHE_KEY = 'strava-x-geocode-cache-v2'
 // Nominatim's usage policy is ~1 request/second.
 const GEOCODE_THROTTLE_MS = 1000
 // After a failed lookup (or a 429) leave the key alone for a while instead of
@@ -55,7 +55,8 @@ interface GeocodeResult {
 // OpenStreetMap and lets the CDN cache repeat lookups.
 async function fetchCityName(lat: number, lng: number): Promise<GeocodeResult> {
   try {
-    const response = await fetch(`/api/geocode/reverse?lat=${lat}&lng=${lng}`)
+    // `v=2` busts the edge cache of the previous (borough/district) names.
+    const response = await fetch(`/api/geocode/reverse?lat=${lat}&lng=${lng}&v=2`)
     if (!response.ok) return { name: null, rateLimited: response.status === 429 }
     const data = (await response.json()) as { name?: string | null }
     return { name: data.name ?? null, rateLimited: false }
