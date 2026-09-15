@@ -4,7 +4,7 @@ import { useEffect, useMemo, useReducer } from 'react'
 
 import type { Activity } from '@/models/activity'
 import type { ActivityCluster } from '@/models/location'
-import { clusterActivities } from '@/lib/clusters'
+import { clusterActivities, mergeClustersByDisplayName } from '@/lib/clusters'
 import { readLocalStorage, useLocalStorageItem, writeLocalStorage } from '@/hooks/use-local-storage'
 
 const GEOCODE_CACHE_KEY = 'strava-x-geocode-cache-v2'
@@ -75,9 +75,9 @@ function retryAfter(key: string): number {
 }
 
 /**
- * Clusters activities by start location and progressively replaces the
- * coordinate-based names with reverse-geocoded city names. Resolved names are
- * cached in localStorage, which is also what drives re-renders here.
+ * Clusters activities by start location, replaces coordinate names with
+ * reverse-geocoded city names, then merges clusters that share a city.
+ * Resolved names are cached in localStorage, which also drives re-renders.
  */
 export function useActivityClusters(activities: Activity[]): ActivityCluster[] {
   const baseClusters = useMemo(() => clusterActivities(activities), [activities])
@@ -145,12 +145,13 @@ export function useActivityClusters(activities: Activity[]): ActivityCluster[] {
     }
   }, [pendingKeys, retryTick])
 
-  return useMemo(
-    () =>
-      baseClusters.map((cluster) => {
-        const name = names[cacheKeyFor(cluster)]
-        return name ? { ...cluster, displayName: name } : cluster
-      }),
-    [baseClusters, names],
-  )
+  return useMemo(() => {
+    const labeled = baseClusters.map((cluster) => {
+      const name = names[cacheKeyFor(cluster)]
+      // City-keyed id so the selection survives when a second blob geocodes
+      // to the same name and the two rows collapse into one.
+      return name ? { ...cluster, displayName: name, id: `city:${name}` } : cluster
+    })
+    return mergeClustersByDisplayName(labeled)
+  }, [baseClusters, names])
 }
