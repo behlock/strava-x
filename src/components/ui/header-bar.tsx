@@ -21,7 +21,7 @@ export function HeaderBar({ logo, status, children, className }: HeaderBarProps)
   return (
     <header
       className={cn(
-        'flex items-center justify-between border-b border-panel-border bg-panel/90 px-4 py-3 backdrop-blur-md',
+        'flex items-center justify-between border-b border-panel-border bg-panel px-4 py-3 backdrop-blur-md md:bg-panel/90',
         className,
       )}
     >

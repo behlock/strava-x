@@ -180,7 +180,7 @@ export function ActivityMap({
   const isDark = resolvedTheme === 'dark'
 
   return (
-    <div ref={containerRef} className="size-full">
+    <div ref={containerRef} className={isDark ? 'size-full' : 'light-map size-full'}>
       <Map
         ref={mapRef}
         style={{ width: '100%', height: '100%' }}

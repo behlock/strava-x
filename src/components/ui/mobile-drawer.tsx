@@ -131,7 +131,7 @@ export function MobileDrawer({
     <div
       ref={containerRef}
       className={cn(
-        'fixed right-0 bottom-0 left-0 z-20 rounded-t-lg border-t border-panel-border bg-panel/95 backdrop-blur-md',
+        'fixed right-0 bottom-0 left-0 z-20 rounded-t-lg border-t border-panel-border bg-panel backdrop-blur-md',
         !isDragging && 'transition-all duration-300 ease-out',
         isExpanded ? 'max-h-[80vh]' : 'max-h-14',
       )}
