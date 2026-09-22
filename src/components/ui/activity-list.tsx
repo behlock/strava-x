@@ -32,6 +32,15 @@ function formatDate(date: Date | undefined): string {
 // height on every breakpoint. Sized for the taller mobile rows (py-4).
 const ROW_HEIGHT = 56
 
+function scrollIndexIntoView(parent: HTMLElement, index: number) {
+  const start = index * ROW_HEIGHT
+  const end = start + ROW_HEIGHT
+  const top = parent.scrollTop
+  const bottom = top + parent.clientHeight
+  if (start < top) parent.scrollTop = start
+  else if (end > bottom) parent.scrollTop = end - parent.clientHeight
+}
+
 export function ActivityList({
   activities,
   highlightedActivityId,
@@ -42,15 +51,25 @@ export function ActivityList({
 }: ActivityListProps) {
   const parentRef = useRef<HTMLDivElement>(null)
   const selectedIndexRef = useRef(-1)
+  const pointerRef = useRef<{ x: number; y: number } | null>(null)
+  const pointerLockRef = useRef<{ x: number; y: number } | null>(null)
+  const listIdentityRef = useRef(activities)
   const idPrefix = useId()
   const rowId = (activityId: string) => `${idPrefix}-${activityId}`
 
   const sortedActivities = useMemo(() => sortActivitiesByDateDesc(activities), [activities])
 
-  // Reset keyboard selection when the list changes.
   useEffect(() => {
-    selectedIndexRef.current = -1
-  }, [sortedActivities])
+    const listChanged = listIdentityRef.current !== activities
+    listIdentityRef.current = activities
+    if (highlightedActivityId) {
+      const index = sortedActivities.findIndex((activity) => activity.id === highlightedActivityId)
+      if (index >= 0) selectedIndexRef.current = index
+      else if (listChanged) selectedIndexRef.current = -1
+      return
+    }
+    if (listChanged || selectedIndexRef.current >= sortedActivities.length) selectedIndexRef.current = -1
+  }, [activities, highlightedActivityId, sortedActivities])
 
   const virtualizer = useVirtualizer({
     count: sortedActivities.length,
@@ -59,33 +78,61 @@ export function ActivityList({
     overscan: 5,
   })
 
+  const handlePointerMove = (e: React.PointerEvent) => {
+    const lock = pointerLockRef.current
+    pointerRef.current = { x: e.clientX, y: e.clientY }
+    if (!lock) return
+    if (Number.isNaN(lock.x)) {
+      if (e.movementX !== 0 || e.movementY !== 0) pointerLockRef.current = null
+      return
+    }
+    const dx = e.clientX - lock.x
+    const dy = e.clientY - lock.y
+    if (dx * dx + dy * dy > 9) pointerLockRef.current = null
+  }
+
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
       if (sortedActivities.length === 0) return
-      const moveTo = (index: number) => {
-        e.preventDefault()
-        selectedIndexRef.current = index
-        const activity = sortedActivities[index]
-        onActivityHover(activity.id)
-        onActivityNavigate(activity)
-        virtualizer.scrollToIndex(index, { align: 'auto' })
+      if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp' && e.key !== 'Enter') return
+      e.preventDefault()
+
+      const highlightedIndex = highlightedActivityId
+        ? sortedActivities.findIndex((activity) => activity.id === highlightedActivityId)
+        : -1
+      const remembered = selectedIndexRef.current
+      const current =
+        highlightedIndex >= 0
+          ? highlightedIndex
+          : remembered >= 0 && remembered < sortedActivities.length
+            ? remembered
+            : -1
+
+      if (e.key === 'Enter') {
+        const selected = sortedActivities[current]
+        if (selected) onActivityClick(selected)
+        return
       }
-      switch (e.key) {
-        case 'ArrowDown':
-          moveTo(Math.min(selectedIndexRef.current + 1, sortedActivities.length - 1))
-          break
-        case 'ArrowUp':
-          moveTo(Math.max(selectedIndexRef.current - 1, 0))
-          break
-        case 'Enter': {
-          e.preventDefault()
-          const selected = sortedActivities[selectedIndexRef.current]
-          if (selected) onActivityClick(selected)
-          break
-        }
-      }
+
+      const next =
+        e.key === 'ArrowDown'
+          ? Math.min(current < 0 ? 0 : current + 1, sortedActivities.length - 1)
+          : Math.max(current - 1, 0)
+      if (next === current) return
+
+      selectedIndexRef.current = next
+      pointerLockRef.current = pointerRef.current ?? { x: Number.NaN, y: Number.NaN }
+      const activity = sortedActivities[next]
+      onActivityHover(activity.id)
+      onActivityNavigate(activity)
+      const parent = parentRef.current
+      if (!parent) return
+      scrollIndexIntoView(parent, next)
+      requestAnimationFrame(() => {
+        if (selectedIndexRef.current === next) scrollIndexIntoView(parent, next)
+      })
     },
-    [sortedActivities, onActivityHover, onActivityNavigate, onActivityClick, virtualizer],
+    [sortedActivities, highlightedActivityId, onActivityHover, onActivityNavigate, onActivityClick],
   )
 
   if (loading) {
@@ -112,6 +159,10 @@ export function ActivityList({
         aria-label="Activities"
         aria-activedescendant={highlightedActivityId ? rowId(highlightedActivityId) : undefined}
         onKeyDown={handleKeyDown}
+        onPointerMove={handlePointerMove}
+        onMouseDown={() => {
+          parentRef.current?.focus({ preventScroll: true })
+        }}
       >
         {activities.length === 0 ? (
           <div className="p-3 text-center text-xs-compact text-panel-muted">no activities</div>
@@ -131,11 +182,20 @@ export function ActivityList({
                     isHighlighted ? 'bg-foreground/20' : 'hover:bg-foreground/5',
                   )}
                   style={{ height: row.size, transform: `translateY(${row.start}px)` }}
-                  onMouseEnter={() => {
+                  onMouseEnter={(e) => {
+                    pointerRef.current = { x: e.clientX, y: e.clientY }
+                    if (pointerLockRef.current) return
                     selectedIndexRef.current = row.index
                     onActivityHover(activity.id)
                   }}
-                  onMouseLeave={() => onActivityHover(null)}
+                  onMouseLeave={() => {
+                    if (pointerLockRef.current) return
+                    onActivityHover(null)
+                  }}
+                  onMouseDown={() => {
+                    pointerLockRef.current = null
+                    selectedIndexRef.current = row.index
+                  }}
                   onClick={() => onActivityClick(activity)}
                 >
                   <div
