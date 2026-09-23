@@ -45,4 +45,6 @@ node_modules
 
 # claude
 .claude
+AGENTS.md
+CLAUDE.md
 .env*.local
