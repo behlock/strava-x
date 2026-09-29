@@ -2,8 +2,6 @@
 
 ![strava-x](assets/runningMap.png)
 
-A spatial view of your Strava history.
-
 [Main website](https://strava-x.com) · [My map](https://strava-x.com/walid)
 
 strava-x puts your runs and rides on a single interactive map, making it easy to see where you've been, how your routes overlap, and which parts of a city you've explored.
