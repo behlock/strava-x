@@ -4,12 +4,12 @@ import Link from 'next/link'
 import { useRef } from 'react'
 import { ArrowRight, ArrowUpRight } from 'lucide-react'
 
-import { DialogCloseButton } from '@/components/ui'
+import { DialogCloseButton, Pill } from '@/components/ui'
 import { cn } from '@/lib/utils'
 import { useFocusTrap } from '@/hooks/use-focus-trap'
 
 /** The public map offered to first-time visitors who don't want to connect yet. */
-const DEMO_MAP = { href: '/walid', label: "check out walid's map" }
+const DEMO_MAP = { href: '/walid', owner: 'walid' }
 
 interface WelcomePanelProps {
   open: boolean
@@ -51,10 +51,6 @@ export function WelcomePanel({ open, onDismiss, onConnect }: WelcomePanelProps) 
           <h2 id="welcome-title" className="text-sm-compact tracking-wider">
             welcome to strava—x
           </h2>
-          <p className="text-xs-compact text-panel-muted">
-            a map of everything you&apos;ve recorded on strava. connect your account, or browse someone else&apos;s map
-            first
-          </p>
         </div>
 
         <div className="flex flex-col gap-2">
@@ -64,7 +60,7 @@ export function WelcomePanel({ open, onDismiss, onConnect }: WelcomePanelProps) 
             className={cn(BUTTON, 'border-foreground bg-foreground text-background hover:bg-foreground/85')}
           >
             <ArrowRight className={BUTTON_ICON} aria-hidden="true" />
-            connect strava
+            connect your strava
           </button>
           <Link
             href={DEMO_MAP.href}
@@ -72,7 +68,8 @@ export function WelcomePanel({ open, onDismiss, onConnect }: WelcomePanelProps) 
             className={cn(BUTTON, 'border-panel-border hover:border-foreground hover:bg-foreground/5')}
           >
             <ArrowUpRight className={BUTTON_ICON} aria-hidden="true" />
-            {DEMO_MAP.label}
+            <span className="flex-1">explore example map</span>
+            <Pill>{DEMO_MAP.owner}</Pill>
           </Link>
         </div>
 
