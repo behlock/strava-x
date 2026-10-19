@@ -20,19 +20,18 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
   )
 }
 
-/**
- * Picks the stored theme setting (light, dark or system), labelled with words
- * rather than icons. `system` follows the OS, so it is offered explicitly.
- */
+const THEME_OPTIONS = ['light', 'dark'] as const
+
+/** Shows the resolved theme so existing system preferences still have a selected option. */
 function ThemeSwitch() {
-  const { theme, themes, setTheme } = useTheme()
+  const { resolvedTheme, setTheme } = useTheme()
   // next-themes can't know the setting during SSR; show nothing selected until hydrated.
   const mounted = useMounted()
 
   return (
     <SegmentedControl
-      options={themes}
-      value={mounted ? (theme ?? null) : null}
+      options={THEME_OPTIONS}
+      value={mounted ? (resolvedTheme === 'dark' ? 'dark' : 'light') : null}
       onChange={setTheme}
       aria-label="Theme"
     />

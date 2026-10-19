@@ -138,7 +138,9 @@ export function ActivityList({
   if (loading) {
     return (
       <Panel title="activities" grow>
-        <PanelSkeleton rows={5} rowClassName="h-8 !w-full" />
+        <div className="min-h-0 flex-1 overflow-hidden" aria-hidden="true">
+          <PanelSkeleton rows={5} rowClassName="h-8 !w-full" />
+        </div>
       </Panel>
     )
   }
