@@ -4,7 +4,7 @@ Bring your Strava activities together on one interactive map.
 
 See familiar routes overlap, discover how much of a city you've explored, and share a map of the places you've been.
 
-![Strava activity routes displayed together on a map](assets/runningMap.png)
+![Demo of exploring Strava activities on an interactive map](assets/demo.gif)
 
 [Open strava-x](https://strava-x.com) · [Explore an example map](https://strava-x.com/walid)
 
