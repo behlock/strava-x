@@ -1,6 +1,6 @@
 # strava-x
 
-Bring your Strava activities together on one interactive map.
+Bring your Strava activities on an interactive map.
 
 See familiar routes overlap, discover how much of a city you've explored, and share a map of the places you've been.
 
