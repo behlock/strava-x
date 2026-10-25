@@ -9,7 +9,7 @@ import { cn } from '@/lib/utils'
 import { useFocusTrap } from '@/hooks/use-focus-trap'
 
 /** The public map offered to first-time visitors who don't want to connect yet. */
-const DEMO_MAP = { href: '/walid', owner: 'walid' }
+const DEMO_MAP = { href: '/walid' }
 
 interface WelcomePanelProps {
   open: boolean
@@ -24,9 +24,7 @@ const BUTTON_ICON = 'size-3.5 shrink-0'
 export function WelcomePanel({ open, onDismiss, onConnect }: WelcomePanelProps) {
   const dialogRef = useRef<HTMLDivElement>(null)
 
-  // Focus starts on the dialog itself so no ring shows on open; the first
-  // Tab lands on the primary action, since the close button comes last in
-  // DOM order.
+  // Focus starts on the dialog itself so no ring shows on open.
   useFocusTrap(dialogRef, { active: open, onEscape: onDismiss, initialFocus: dialogRef })
 
   if (!open) return null
@@ -47,10 +45,11 @@ export function WelcomePanel({ open, onDismiss, onConnect }: WelcomePanelProps) 
         tabIndex={-1}
         className="relative mx-4 w-full max-w-md space-y-5 rounded-sm border border-panel-border bg-panel p-5 focus:outline-hidden"
       >
-        <div className="space-y-2 pr-8">
+        <div className="flex items-center justify-between gap-4">
           <h2 id="welcome-title" className="text-sm-compact tracking-wider">
             welcome to strava—x
           </h2>
+          <DialogCloseButton onClick={onDismiss} aria-label="Close welcome panel" />
         </div>
 
         <div className="flex flex-col gap-2">
@@ -69,11 +68,9 @@ export function WelcomePanel({ open, onDismiss, onConnect }: WelcomePanelProps) 
           >
             <ArrowUpRight className={BUTTON_ICON} aria-hidden="true" />
             <span className="flex-1">explore example map</span>
-            <Pill>{DEMO_MAP.owner}</Pill>
+            <Pill>{DEMO_MAP.href}</Pill>
           </Link>
         </div>
-
-        <DialogCloseButton onClick={onDismiss} aria-label="Close welcome panel" className="absolute top-3 right-3" />
       </div>
     </div>
   )

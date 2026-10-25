@@ -6,20 +6,11 @@ import dynamic from 'next/dynamic'
 import { ACTIVITY_TYPES, type Activity, type ActivityFeatureCollection } from '@/models/activity'
 import type { LngLat } from '@/models/map'
 import type { ActivityMapRef } from '@/components/activity-map'
-import {
-  ActivityList,
-  AppShell,
-  FilterPanel,
-  LocateControl,
-  LocationSelector,
-  MapSkeleton,
-  StatsPanel,
-} from '@/components/ui'
+import { ActivityList, AppShell, FilterPanel, LocateControl, LocationSelector, MapSkeleton } from '@/components/ui'
 import { locateUser } from '@/lib/geolocation'
 import { useActivityClusters } from '@/hooks/use-activity-clusters'
 import { useIsMobile } from '@/hooks/use-media-query'
 import { type MapPositionMode, usePersistedMapPosition } from '@/hooks/use-persisted-map-position'
-import { useStatistics } from '@/hooks/use-statistics'
 
 const ActivityMap = dynamic(() => import('@/components/activity-map').then((mod) => mod.ActivityMap), {
   ssr: false,
@@ -28,7 +19,7 @@ const ActivityMap = dynamic(() => import('@/components/activity-map').then((mod)
 
 interface MapViewProps {
   activities: Activity[]
-  /** Show list/stats loading states (used during initial sync). */
+  /** Show activity list loading states (used during initial sync). */
   loading?: boolean
   header: ReactNode
   /** Settings panel (theme, account) shown alongside the map panels. */
@@ -137,7 +128,6 @@ export function MapView({
     [activities, hoveredFilterType],
   )
 
-  const statistics = useStatistics(activities)
   const { position: initialMapPosition, initialBounds, savePosition } = usePersistedMapPosition(allActivities, mode)
 
   const allGeoData = useMemo(
@@ -271,7 +261,6 @@ export function MapView({
           loading={loading}
         />
       }
-      statsPanel={<StatsPanel statistics={statistics} loading={loading} />}
       onDrawerHeightChange={handleDrawerHeightChange}
     >
       <ActivityMap

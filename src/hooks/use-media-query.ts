@@ -26,5 +26,7 @@ export function useMediaQuery(query: string): boolean {
 }
 
 export function useIsMobile(): boolean {
-  return !useMediaQuery('(min-width: 768px)')
+  // Query mobile directly so the server snapshot does not render a mobile
+  // drawer on desktop before hydration.
+  return useMediaQuery('(width < 768px)')
 }

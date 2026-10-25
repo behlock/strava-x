@@ -5,7 +5,7 @@ import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
 import { cn } from '@/lib/utils'
 import { PanelChromeContext } from './panel'
 
-type Section = 'filters' | 'locations' | 'activities' | 'stats' | 'setup'
+type Section = 'filters' | 'locations' | 'activities' | 'setup'
 
 export const DRAWER_COLLAPSED_HEIGHT = 56
 const SWIPE_THRESHOLD = 50
@@ -14,7 +14,6 @@ interface MobileDrawerProps {
   filterPanel?: ReactNode
   locationsPanel?: ReactNode
   activityList?: ReactNode
-  statsPanel?: ReactNode
   setupPanel?: ReactNode
   onHeightChange: (height: number) => void
 }
@@ -55,7 +54,6 @@ export function MobileDrawer({
   filterPanel,
   locationsPanel,
   activityList,
-  statsPanel,
   setupPanel,
   onHeightChange,
 }: MobileDrawerProps) {
@@ -65,7 +63,6 @@ export function MobileDrawer({
       { key: 'filters', content: filterPanel },
       { key: 'locations', content: locationsPanel },
       { key: 'activities', content: activityList },
-      { key: 'stats', content: statsPanel },
       { key: 'setup', content: setupPanel },
     ] as const satisfies readonly { key: Section; content: ReactNode }[]
   ).filter((section) => Boolean(section.content))
@@ -131,7 +128,7 @@ export function MobileDrawer({
     <div
       ref={containerRef}
       className={cn(
-        'fixed right-0 bottom-0 left-0 z-20 rounded-t-lg border-t border-panel-border bg-panel backdrop-blur-md',
+        'fixed right-0 bottom-0 left-0 z-20 rounded-t-lg border-t border-panel-border bg-panel backdrop-blur-md md:hidden',
         !isDragging && 'transition-all duration-300 ease-out',
         isExpanded ? 'max-h-[80vh]' : 'max-h-14',
       )}

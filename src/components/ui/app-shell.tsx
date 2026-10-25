@@ -13,10 +13,9 @@ interface AppShellProps {
   filterPanel: ReactNode
   locationsPanel: ReactNode
   activityList: ReactNode
-  statsPanel: ReactNode
   /** Settings panel; last in the left column on desktop, last drawer section on mobile. */
   setupPanel?: ReactNode
-  /** Floating map controls (e.g. locate), anchored bottom-right above the panels. */
+  /** Floating map controls (e.g. locate), anchored bottom-right above the mobile drawer. */
   mapControls?: ReactNode
   onDrawerHeightChange: (height: number) => void
 }
@@ -27,8 +26,8 @@ const EDGE_GAP = 16
 const STACK_MAX_BOTTOM = 'calc(100% - 120px)'
 
 /**
- * Full-screen map with floating panels: a left column and a bottom-right
- * stats panel on desktop, a bottom-sheet drawer on mobile.
+ * Full-screen map with floating panels: a left column on desktop and a
+ * bottom-sheet drawer on mobile.
  */
 export function AppShell({
   header,
@@ -37,7 +36,6 @@ export function AppShell({
   filterPanel,
   locationsPanel,
   activityList,
-  statsPanel,
   setupPanel,
   mapControls,
   onDrawerHeightChange,
@@ -70,7 +68,7 @@ export function AppShell({
       {showPanels && !isMobile && (
         // Scrolls on short viewports so the setup panel is always reachable;
         // the activity list keeps a floor height and takes any spare room.
-        <div className="absolute top-18 bottom-4 left-4 z-10 flex scrollbar-thin min-h-0 w-56 flex-col gap-3 overflow-x-hidden overflow-y-auto lg:w-64 xl:w-72">
+        <div className="absolute top-18 bottom-4 left-4 z-10 hidden scrollbar-thin min-h-0 w-56 flex-col gap-3 overflow-x-hidden overflow-y-auto md:flex lg:w-64 xl:w-72">
           {hasActivities && filterPanel}
           {hasActivities && locationsPanel}
           {hasActivities && <div className="flex min-h-40 flex-1 flex-col">{activityList}</div>}
@@ -78,15 +76,10 @@ export function AppShell({
         </div>
       )}
 
-      {/* Bottom-right stack: map controls above the stats panel on desktop,
-          above the drawer on mobile. The stack itself lets pointer events
-          through to the map; only its children catch them. */}
-      <div
-        className="pointer-events-none absolute right-4 z-10 flex w-64 flex-col items-end gap-3 lg:w-72 xl:w-80"
-        style={{ bottom: stackBottom }}
-      >
+      {/* Map controls sit above the drawer on mobile. The wrapper lets
+          pointer events through to the map; only the controls catch them. */}
+      <div className="pointer-events-none absolute right-4 z-10" style={{ bottom: stackBottom }}>
         {mapControls && <div className="pointer-events-auto">{mapControls}</div>}
-        {hasActivities && !isMobile && <div className="pointer-events-auto w-full">{statsPanel}</div>}
       </div>
 
       {showDrawer && (
@@ -94,7 +87,6 @@ export function AppShell({
           filterPanel={hasActivities ? filterPanel : null}
           locationsPanel={hasActivities ? locationsPanel : null}
           activityList={hasActivities ? activityList : null}
-          statsPanel={hasActivities ? statsPanel : null}
           setupPanel={setupPanel}
           onHeightChange={handleDrawerHeightChange}
         />
