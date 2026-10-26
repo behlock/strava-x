@@ -6,7 +6,15 @@ import dynamic from 'next/dynamic'
 import { ACTIVITY_TYPES, type Activity, type ActivityFeatureCollection } from '@/models/activity'
 import type { LngLat } from '@/models/map'
 import type { ActivityMapRef } from '@/components/activity-map'
-import { ActivityList, AppShell, FilterPanel, LocateControl, LocationSelector, MapSkeleton } from '@/components/ui'
+import {
+  ActivityList,
+  AppShell,
+  FilterPanel,
+  LocateControl,
+  LocationSelector,
+  MapSkeleton,
+  TimelinePanel,
+} from '@/components/ui'
 import { locateUser } from '@/lib/geolocation'
 import { useActivityClusters } from '@/hooks/use-activity-clusters'
 import { useIsMobile } from '@/hooks/use-media-query'
@@ -259,11 +267,18 @@ export function MapView({
           selectedActivityTypes={selectedActivityTypes}
           onActivityTypesChange={handleActivityTypesChange}
           activityCounts={activityCounts}
-          dateRange={dateRange}
-          selectedDate={selectedDate}
-          onDateChange={handleDateChange}
           onTypeHover={setHoveredFilterType}
         />
+      }
+      timelinePanel={
+        dateRange ? (
+          <TimelinePanel
+            key={`${dateRange.min.getTime()}-${dateRange.max.getTime()}`}
+            dateRange={dateRange}
+            selectedDate={selectedDate}
+            onDateChange={handleDateChange}
+          />
+        ) : null
       }
       locationsPanel={
         clusters.length > 0 || selectedLocation ? (

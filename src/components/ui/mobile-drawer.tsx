@@ -3,14 +3,15 @@
 import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
 
 import { cn } from '@/lib/utils'
-import { PanelChromeContext } from './panel'
+import { PanelChromeContext, PanelVisibilityContext } from './panel'
 
-type Section = 'activity types' | 'locations' | 'activities' | 'setup'
+type Section = 'timeline' | 'activity types' | 'locations' | 'activities' | 'setup'
 
 export const DRAWER_COLLAPSED_HEIGHT = 56
 const SWIPE_THRESHOLD = 50
 
 interface MobileDrawerProps {
+  timelinePanel?: ReactNode
   filterPanel?: ReactNode
   locationsPanel?: ReactNode
   activityList?: ReactNode
@@ -43,7 +44,9 @@ function CollapsibleSection({
       <div className={cn('overflow-hidden transition-all duration-200', isOpen ? 'max-h-[40vh]' : 'max-h-0')}>
         {/* A bounded flex column, so a growing panel (the activity list) fits
             inside it and scrolls itself instead of stretching this wrapper. */}
-        <div className="flex scrollbar-thin max-h-[40vh] flex-col overflow-y-auto px-1 pb-2">{children}</div>
+        <div className="flex scrollbar-thin max-h-[40vh] flex-col overflow-y-auto px-1 pb-2">
+          <PanelVisibilityContext value={isOpen}>{children}</PanelVisibilityContext>
+        </div>
       </div>
     </div>
   )
@@ -51,6 +54,7 @@ function CollapsibleSection({
 
 /** Bottom sheet holding the panels on small screens. Swipe or tap the handle to expand. */
 export function MobileDrawer({
+  timelinePanel,
   filterPanel,
   locationsPanel,
   activityList,
@@ -60,6 +64,7 @@ export function MobileDrawer({
   // Sections whose content is absent (e.g. no activities yet) are skipped.
   const sections = (
     [
+      { key: 'timeline', content: timelinePanel },
       { key: 'locations', content: locationsPanel },
       { key: 'activity types', content: filterPanel },
       { key: 'activities', content: activityList },
@@ -155,7 +160,7 @@ export function MobileDrawer({
       <PanelChromeContext value={false}>
         <div className={cn('overflow-hidden transition-all duration-300', isExpanded ? 'max-h-[70vh]' : 'max-h-0')}>
           {sections.map(({ key, content }) => (
-            <CollapsibleSection key={key} title={key} isOpen={openSection === key} onToggle={() => toggleSection(key)}>
+            <CollapsibleSection key={key} title={key} isOpen={isExpanded && openSection === key} onToggle={() => toggleSection(key)}>
               {content}
             </CollapsibleSection>
           ))}
