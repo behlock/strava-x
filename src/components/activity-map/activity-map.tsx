@@ -13,6 +13,7 @@ import { ACTIVITY_TYPE_COLORS, DEFAULT_ACTIVITY_COLOR } from '@/lib/activity-col
 import { config } from '@/lib/config'
 import { boundsOf } from '@/lib/geo-utils'
 import { applyMapTheme } from '@/lib/map-theme'
+import { routePaint } from '@/lib/route-paint'
 
 interface FitOptions {
   padding?: mapboxgl.PaddingOptions
@@ -88,6 +89,18 @@ export const ActivityMap = memo(function ActivityMap({
   // keyboard); programmatic moves (fitBounds/flyTo) have none.
   const hasUserMovedRef = useRef(false)
   const initialBoundsRef = useRef(initialBounds)
+
+  const hasVisibleHighlight = useMemo(
+    () =>
+      data.features.some(
+        ({ properties: p }) =>
+          p.id === highlightedActivityId &&
+          typeFilter.includes(p.type) &&
+          (dateCutoff === null || p.dateTs <= dateCutoff) &&
+          (!hoverType || p.type === hoverType),
+      ),
+    [data, highlightedActivityId, typeFilter, dateCutoff, hoverType],
+  )
 
   const frameInitialBounds = useCallback(() => {
     const bounds = initialBoundsRef.current
@@ -168,9 +181,9 @@ export const ActivityMap = memo(function ActivityMap({
   // The highlight obeys the same type/date filters so it disappears along
   // with its activity.
   const highlightFilter = useMemo((): mapboxgl.FilterSpecification => {
-    if (!highlightedActivityId) return ['==', ['get', 'id'], '']
+    if (!hasVisibleHighlight) return ['==', ['get', 'id'], '']
     return ['all', ['==', ['get', 'id'], highlightedActivityId], ...visibilityConditions(typeFilter, dateCutoff)]
-  }, [highlightedActivityId, typeFilter, dateCutoff])
+  }, [highlightedActivityId, hasVisibleHighlight, typeFilter, dateCutoff])
 
   // next-themes resolves the theme client-side; hold off until it's known so
   // Mapbox doesn't load one style and immediately swap to the other.
@@ -199,25 +212,29 @@ export const ActivityMap = memo(function ActivityMap({
             type="line"
             filter={layerFilter}
             layout={LINE_LAYOUT}
-            paint={{
-              'line-color': isDark ? '#D6D6D6' : '#262626',
-              'line-width': ['interpolate', ['linear'], ['zoom'], 5, 0.65, 12, 1.1, 16, 1.6],
-              'line-opacity': highlightedActivityId ? 0.15 : isDark ? 0.55 : 0.62,
-            }}
+            paint={routePaint(isDark, hasVisibleHighlight)}
           />
           <Layer
             id="highlighted-activity-casing"
             type="line"
             filter={highlightFilter}
             layout={LINE_LAYOUT}
-            paint={{ 'line-color': isDark ? '#181818' : '#454545', 'line-width': 4, 'line-opacity': 0.8 }}
+            paint={{
+              'line-color': isDark ? '#181818' : '#454545',
+              'line-width': ['interpolate', ['linear'], ['zoom'], 5, 3.5, 12, 4.5, 16, 6],
+              'line-opacity': 0.95,
+            }}
           />
           <Layer
             id="highlighted-activity-layer"
             type="line"
             filter={highlightFilter}
             layout={LINE_LAYOUT}
-            paint={{ 'line-color': HIGHLIGHT_COLOR, 'line-width': 2.3, 'line-opacity': 1 }}
+            paint={{
+              'line-color': HIGHLIGHT_COLOR,
+              'line-width': ['interpolate', ['linear'], ['zoom'], 5, 1.5, 12, 2.5, 16, 3.5],
+              'line-opacity': 1,
+            }}
           />
         </Source>
       </Map>
