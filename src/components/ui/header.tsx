@@ -69,7 +69,7 @@ export function Header({
           aria-busy={isStravaSyncing}
           aria-keyshortcuts={isStravaSyncing ? undefined : SHORTCUTS['publish-map'].aria}
           aria-label={isStravaSyncing ? 'Syncing activities' : currentSlug ? `Share map /${currentSlug}` : 'Share map'}
-          className="relative inline-flex min-h-11 max-w-[46vw] items-center justify-center rounded-full floating-control px-3 text-xs-compact tracking-wider text-foreground focus-ring disabled:cursor-wait sm:px-4 md:min-h-[35px] md:max-w-xs"
+          className="mobile-touch-target relative inline-flex min-h-8 max-w-[46vw] items-center justify-center rounded-full floating-control px-2.5 text-xs-compact tracking-wider text-foreground focus-ring disabled:cursor-wait md:min-h-[35px] md:max-w-xs md:px-4"
         >
           <span className={isStravaSyncing ? 'invisible truncate' : 'truncate'}>
             {currentSlug ? `/${currentSlug}` : 'share map'}

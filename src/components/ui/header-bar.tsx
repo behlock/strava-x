@@ -13,7 +13,7 @@ import { SHORTCUTS } from '@/lib/keyboard-shortcuts'
 
 /** Class for the brand mark on the far left; the element differs per page (button vs link). */
 export const HEADER_LOGO_CLASS =
-  'inline-flex min-h-11 shrink-0 items-center md:min-h-0 rounded-full text-base-compact font-medium tracking-tight md:-translate-y-px whitespace-nowrap transition-opacity hover:opacity-70'
+  'inline-flex min-h-11 shrink-0 items-center md:min-h-0 rounded-full text-lg-compact md:text-base-compact font-medium tracking-tight md:-translate-y-px whitespace-nowrap transition-opacity hover:opacity-70'
 
 interface HeaderBarProps {
   logo: ReactNode
@@ -79,13 +79,13 @@ export function HeaderBar({
           </Tooltip>
         )}
       </div>
-      <div className="flex shrink-0 items-center gap-2 md:gap-3">
+      <div className="flex shrink-0 items-center gap-3">
         {children}
         {onConnect && (
           <button
             type="button"
             onClick={onConnect}
-            className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-full bg-foreground px-4 text-xs-compact tracking-wider whitespace-nowrap text-background focus-ring transition-colors hover:bg-foreground/85 md:min-h-[35px]"
+            className="mobile-touch-target inline-flex min-h-8 shrink-0 items-center justify-center gap-2 rounded-full bg-foreground px-3 text-xs-compact tracking-wider whitespace-nowrap text-background focus-ring transition-colors hover:bg-foreground/85 md:min-h-[35px] md:px-4"
           >
             <ArrowRight className="size-3.5" aria-hidden="true" />
             connect strava
@@ -102,10 +102,9 @@ export function HeaderBar({
 }
 
 const CHIP_BASE =
-  'focus-ring floating-control inline-flex items-center justify-center rounded-full text-xs-compact tracking-wider whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-50'
-// 44px touch targets on mobile, compact 32px chips from md up.
-const CHIP_ICON = 'min-h-11 min-w-11 md:h-8 md:w-8 md:min-h-0 md:min-w-0'
-const CHIP_TEXT = 'min-h-11 px-3 md:h-8 md:min-h-0 md:px-2'
+  'focus-ring floating-control mobile-touch-target inline-flex items-center justify-center rounded-full text-xs-compact tracking-wider whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-50'
+const CHIP_ICON = 'size-8'
+const CHIP_TEXT = 'min-h-8 px-3 md:px-2'
 
 interface HeaderChipProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   /** Icon chips are square; text chips size to their label. */

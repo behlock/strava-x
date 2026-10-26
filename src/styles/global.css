@@ -101,6 +101,21 @@
   @apply border border-panel-border bg-control transition-colors hover:bg-control-hover;
 }
 
+@utility mobile-touch-target {
+  position: relative;
+  @media (width < 48rem) {
+    &::after {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: max(100%, 44px);
+      height: max(100%, 44px);
+      transform: translate(-50%, -50%);
+    }
+  }
+}
+
 @utility floating-sidebar {
   flex: 0 1 auto;
 }
@@ -158,6 +173,14 @@
   gap: 7px;
   opacity: 1;
   transition-timing-function: cubic-bezier(0.4, 0, 0.5, 1);
+}
+@media (width < 48rem) {
+  .profile-menu-reveal[data-open='true'] {
+    margin-right: 12px;
+  }
+  .profile-menu-items[data-open='true'] {
+    gap: 12px;
+  }
 }
 @media (prefers-reduced-motion: reduce) {
   .profile-menu-reveal,

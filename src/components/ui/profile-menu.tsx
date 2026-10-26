@@ -69,7 +69,7 @@ export function ProfileMenu({ onDisconnect, profilePhotoUrl }: ProfileMenuProps)
           setSettledOpen(false)
           setOpen((value) => !value)
         }}
-        className="relative flex size-11 shrink-0 items-center justify-center overflow-hidden rounded-full floating-control text-foreground focus-ring md:size-[35px]"
+        className="mobile-touch-target relative flex size-9 shrink-0 items-center justify-center rounded-full floating-control text-foreground focus-ring md:size-[35px]"
       >
         {showPhoto && (
           // Remote Strava photo URLs vary by athlete; load directly without an image proxy.
@@ -80,7 +80,7 @@ export function ProfileMenu({ onDisconnect, profilePhotoUrl }: ProfileMenuProps)
             onLoad={() => setLoadedPhotoUrl(profilePhotoUrl)}
             onError={() => setFailedPhotoUrl(profilePhotoUrl)}
             className={cn(
-              'absolute inset-0 size-full object-cover transition-[opacity,rotate] duration-300 ease-[cubic-bezier(0,0,0.58,1)] motion-reduce:transition-none',
+              'absolute inset-0 size-full rounded-full object-cover transition-[opacity,rotate] duration-300 ease-[cubic-bezier(0,0,0.58,1)] motion-reduce:transition-none',
               open
                 ? '-rotate-45 opacity-0'
                 : loadedPhotoUrl === profilePhotoUrl
@@ -103,7 +103,7 @@ export function ProfileMenu({ onDisconnect, profilePhotoUrl }: ProfileMenuProps)
         aria-hidden={!open}
         data-open={open}
         data-settled-open={settledOpen}
-        className="profile-menu-reveal absolute top-0 right-full shrink-0 rounded-full bg-panel md:static md:bg-transparent"
+        className="profile-menu-reveal absolute top-1/2 right-full shrink-0 -translate-y-1/2 rounded-full bg-panel md:static md:translate-y-0 md:bg-transparent"
         onTransitionEnd={(event) => {
           if (event.target === event.currentTarget && event.propertyName === 'max-width') setSettledOpen(open)
         }}
@@ -119,7 +119,7 @@ export function ProfileMenu({ onDisconnect, profilePhotoUrl }: ProfileMenuProps)
             <button
               type="button"
               onClick={() => choose(onDisconnect)}
-              className="min-h-11 shrink-0 rounded-full floating-control px-3 text-xs-compact tracking-wider whitespace-nowrap focus-ring sm:px-4 md:min-h-[35px]"
+              className="mobile-touch-target min-h-8 shrink-0 rounded-full floating-control px-2.5 text-xs-compact tracking-wider whitespace-nowrap focus-ring md:min-h-[35px] md:px-4"
             >
               disconnect
             </button>

@@ -139,7 +139,7 @@ export function MobileDrawer({
       </PanelChromeContext>
       <nav
         aria-label="Map controls"
-        className="pointer-events-auto flex shrink-0 touch-none items-stretch rounded-full border border-panel-border bg-panel p-1 shadow-lg"
+        className="pointer-events-auto flex shrink-0 touch-none items-stretch rounded-full border border-panel-border bg-panel p-px shadow-lg"
         onTouchStart={startGesture}
         onTouchMove={moveGesture}
         onTouchEnd={endGesture}
@@ -163,13 +163,18 @@ export function MobileDrawer({
               suppressClickRef.current = false
             }}
             className={cn(
-              'flex min-h-11 min-w-0 flex-1 items-center justify-center rounded-full px-0.5 py-1 text-center text-[11px] leading-4 whitespace-nowrap focus-ring-inset transition-colors min-[360px]:text-xs',
-              activeSection?.key === key
-                ? 'bg-selection text-selection-foreground'
-                : 'text-panel-muted hover:bg-foreground/5',
+              'group flex min-h-11 min-w-0 flex-1 items-center justify-center rounded-full px-0.5 text-center text-xs leading-4 whitespace-nowrap focus-ring-inset',
+              activeSection?.key === key ? 'text-selection-foreground' : 'text-panel-muted',
             )}
           >
-            {label}
+            <span
+              className={cn(
+                'flex h-8 w-full items-center justify-center rounded-full transition-colors',
+                activeSection?.key === key ? 'bg-selection' : 'group-hover:bg-foreground/5',
+              )}
+            >
+              {label}
+            </span>
           </button>
         ))}
       </nav>
