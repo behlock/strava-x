@@ -15,7 +15,7 @@ import {
   MapSkeleton,
   TimelinePanel,
 } from '@/components/ui'
-import { locateUser } from '@/lib/geolocation'
+import type { LatLng } from '@/lib/geolocation'
 import { useActivityClusters } from '@/hooks/use-activity-clusters'
 import { useIsMobile } from '@/hooks/use-media-query'
 import { type MapPositionMode, usePersistedMapPosition } from '@/hooks/use-persisted-map-position'
@@ -246,9 +246,13 @@ export function MapView({
     [clusters, computePadding, selectedLocation, selectedCluster],
   )
 
-  const handleLocate = useCallback(() => {
-    locateUser((position) => mapRef.current?.flyTo({ ...position, zoom: 12 }))
-  }, [])
+  const handleLocate = useCallback(
+    (position: LatLng) => {
+      if (!mapRef.current) throw new Error('the map is still loading. try again in a moment')
+      mapRef.current.flyTo({ ...position, zoom: 14 }, { padding: computePadding() })
+    },
+    [computePadding],
+  )
 
   const hasActivities = allActivities.length > 0
 
@@ -256,7 +260,7 @@ export function MapView({
     <AppShell
       header={header}
       hasActivities={hasActivities}
-      mapControls={<LocateControl onClick={handleLocate} />}
+      mapControls={<LocateControl onLocate={handleLocate} />}
       filterPanel={
         <FilterPanel
           activityTypes={ACTIVITY_TYPES}

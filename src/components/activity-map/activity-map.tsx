@@ -22,7 +22,7 @@ interface FitOptions {
 export interface ActivityMapRef {
   /** Frame the given coordinates. */
   fitToBounds: (coordinates: LngLat[], options?: FitOptions) => void
-  flyTo: (position: { latitude: number; longitude: number; zoom?: number }) => void
+  flyTo: (position: { latitude: number; longitude: number; zoom?: number }, options?: FitOptions) => void
   /** Frame the coordinates only if none of them are currently on screen. */
   ensureInView: (coordinates: LngLat[], options?: FitOptions) => void
 }
@@ -85,8 +85,7 @@ export const ActivityMap = memo(function ActivityMap({
   const containerRef = useRef<HTMLDivElement>(null)
   const isLoadedRef = useRef(false)
   const hasFramedRef = useRef(false)
-  // Set by the first move that carries a DOM event (drag, wheel, touch,
-  // keyboard); programmatic moves (fitBounds/flyTo) have none.
+  // Direct gestures and explicit navigation both take precedence over initial framing.
   const hasUserMovedRef = useRef(false)
   const initialBoundsRef = useRef(initialBounds)
 
@@ -142,6 +141,7 @@ export const ActivityMap = memo(function ActivityMap({
   }, [frameInitialBounds])
 
   const fitBounds = useCallback((bounds: MapBounds, options?: FitOptions) => {
+    hasUserMovedRef.current = true
     mapRef.current?.fitBounds(bounds, {
       padding: options?.padding ?? DEFAULT_PADDING,
       retainPadding: false,
@@ -157,8 +157,15 @@ export const ActivityMap = memo(function ActivityMap({
         const bounds = boundsOf(coordinates)
         if (bounds) fitBounds(bounds, options)
       },
-      flyTo: ({ latitude, longitude, zoom = 12 }) => {
-        mapRef.current?.flyTo({ center: [longitude, latitude], zoom, duration: 1000 })
+      flyTo: ({ latitude, longitude, zoom = 12 }, options) => {
+        hasUserMovedRef.current = true
+        mapRef.current?.flyTo({
+          center: [longitude, latitude],
+          zoom,
+          padding: options?.padding ?? 0,
+          retainPadding: false,
+          duration: 1000,
+        })
       },
       ensureInView: (coordinates, options) => {
         const bounds = boundsOf(coordinates)
