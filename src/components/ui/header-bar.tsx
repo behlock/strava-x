@@ -1,41 +1,108 @@
 'use client'
 
-import type { ButtonHTMLAttributes, ReactNode, Ref } from 'react'
+import { type ButtonHTMLAttributes, type ReactNode, type Ref, useContext } from 'react'
+import { ArrowRight, PanelLeft } from 'lucide-react'
 
 import { cn } from '@/lib/utils'
 import { Tooltip, type TooltipAlign } from './tooltip'
+import { ProfileMenu } from './profile-menu'
+import { ThemeSwitch } from './theme-switch'
+import { SidebarContext } from './sidebar-context'
+import { useKeyboardShortcut } from '@/hooks/use-keyboard-shortcut'
+import { SHORTCUTS } from '@/lib/keyboard-shortcuts'
 
 /** Class for the brand mark on the far left; the element differs per page (button vs link). */
-export const HEADER_LOGO_CLASS = 'text-base-compact font-medium tracking-tight transition-opacity hover:opacity-70'
+export const HEADER_LOGO_CLASS =
+  'inline-flex min-h-11 shrink-0 items-center md:min-h-0 rounded-full text-base-compact font-medium tracking-tight md:-translate-y-px whitespace-nowrap transition-opacity hover:opacity-70'
 
 interface HeaderBarProps {
   logo: ReactNode
-  /** Status indicators (sync spinner, errors) shown beside the logo. */
+  /** Status messages shown beside the logo. */
   status?: ReactNode
   /** Action chips, rendered right-aligned. */
   children?: ReactNode
   className?: string
+  onConnect?: () => void
+  onDisconnect?: () => void
+  profilePhotoUrl?: string | null
+  showProfileMenu?: boolean
 }
 
-export function HeaderBar({ logo, status, children, className }: HeaderBarProps) {
+export function HeaderBar({
+  logo,
+  status,
+  children,
+  className,
+  onConnect,
+  onDisconnect,
+  profilePhotoUrl,
+  showProfileMenu = Boolean(onDisconnect),
+}: HeaderBarProps) {
+  const sidebar = useContext(SidebarContext)
+  useKeyboardShortcut('toggle-ui', () => sidebar?.toggle(), Boolean(sidebar))
   return (
     <header
+      style={{
+        paddingTop: 'max(0.75rem, env(safe-area-inset-top, 0px))',
+        paddingLeft: 'max(1rem, env(safe-area-inset-left, 0px))',
+        paddingRight: 'max(1rem, env(safe-area-inset-right, 0px))',
+      }}
       className={cn(
-        'flex items-center justify-between border-b border-panel-border bg-panel px-4 py-3 backdrop-blur-md md:bg-panel/90',
+        'flex items-center justify-between gap-2 bg-linear-to-b from-background/90 to-transparent px-4 py-3',
         className,
       )}
     >
-      <div className="flex min-w-0 items-center gap-3">
-        {logo}
-        {status}
+      <div
+        className={cn(
+          'flex min-w-0 items-center gap-3',
+          sidebar && 'justify-between rounded-lg border border-panel-border bg-panel px-3 py-1.5',
+          sidebar?.open && 'w-56 lg:w-64 xl:w-72',
+        )}
+      >
+        <div className="flex min-w-0 items-center gap-3">
+          {logo}
+          {status}
+        </div>
+        {sidebar && (
+          <Tooltip text={sidebar.open ? 'hide sidebar' : 'show sidebar'} shortcut={SHORTCUTS['toggle-ui'].label}>
+            <button
+              type="button"
+              aria-label={sidebar.open ? 'Hide sidebar' : 'Show sidebar'}
+              aria-keyshortcuts={SHORTCUTS['toggle-ui'].aria}
+              aria-expanded={sidebar.open}
+              aria-controls={sidebar.controlsId}
+              onClick={sidebar.toggle}
+              className="flex size-8 shrink-0 items-center justify-center rounded-md focus-ring hover:bg-foreground/5"
+            >
+              <PanelLeft className="size-4" aria-hidden="true" />
+            </button>
+          </Tooltip>
+        )}
       </div>
-      <div className="flex items-center gap-1">{children}</div>
+      <div className="flex shrink-0 items-center gap-2 md:gap-3">
+        {children}
+        {onConnect && (
+          <button
+            type="button"
+            onClick={onConnect}
+            className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-full bg-foreground px-4 text-xs-compact tracking-wider whitespace-nowrap text-background focus-ring transition-colors hover:bg-foreground/85 md:min-h-[35px]"
+          >
+            <ArrowRight className="size-3.5" aria-hidden="true" />
+            connect strava
+          </button>
+        )}
+        {showProfileMenu ? (
+          <ProfileMenu onDisconnect={onDisconnect} profilePhotoUrl={profilePhotoUrl} />
+        ) : (
+          <ThemeSwitch />
+        )}
+      </div>
     </header>
   )
 }
 
 const CHIP_BASE =
-  'focus-ring inline-flex items-center justify-center rounded-sm border border-transparent text-xs-compact tracking-wider whitespace-nowrap transition-colors hover:border-panel-border hover:bg-foreground/5 disabled:cursor-not-allowed disabled:opacity-50'
+  'focus-ring floating-control inline-flex items-center justify-center rounded-full text-xs-compact tracking-wider whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-50'
 // 44px touch targets on mobile, compact 32px chips from md up.
 const CHIP_ICON = 'min-h-11 min-w-11 md:h-8 md:w-8 md:min-h-0 md:min-w-0'
 const CHIP_TEXT = 'min-h-11 px-3 md:h-8 md:min-h-0 md:px-2'

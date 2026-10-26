@@ -7,12 +7,13 @@ import type { ShareState, VerifiedSnapshot } from '@/lib/share-snapshot'
 import { deserializeActivities, type SerializedActivity } from '@/lib/activities-serialize'
 import type { ActivityMapRef } from '@/components/activity-map'
 import { MapView } from '@/components/map-view'
-import { Header, SetupPanel } from '@/components/ui'
+import { Header } from '@/components/ui'
 import { latestActivityStart } from '@/lib/activities'
 import { replaceActivities } from '@/lib/activities-db'
 import { config } from '@/lib/config'
 import { usePersistedActivities } from '@/hooks/use-persisted-activities'
 import { usePublish } from '@/hooks/use-publish'
+import { useStravaProfile } from '@/hooks/use-strava-profile'
 import { useStravaAuth } from '@/hooks/use-strava-auth'
 
 const STRAVA_AVAILABLE = Boolean(config.STRAVA_CLIENT_ID)
@@ -32,6 +33,8 @@ const TRANSIENT_RETRY_DELAY_MS = 5000
 export default function HomePage() {
   const { activities, setActivities, restore: restoreActivities, clear: clearActivities } = usePersistedActivities()
   const { isConnected: stravaConnected, connect, disconnect, getAccessToken, resolveAccessToken } = useStravaAuth()
+
+  const stravaProfile = useStravaProfile(stravaConnected, getAccessToken)
 
   const [isSyncing, setIsSyncing] = useState(false)
   const [syncError, setSyncError] = useState<string | null>(null)
@@ -246,13 +249,17 @@ export default function HomePage() {
     <Header
       onLogoClick={flyToLatestActivity}
       onPublishClick={openPublish}
+      currentSlug={currentSlug}
       hasActivities={hasActivities && sharingAvailable}
       stravaAvailable={STRAVA_AVAILABLE}
       stravaConnected={stravaConnected}
+      profilePhotoUrl={stravaProfile?.photoUrl}
+      mapUpdateError={mapUpdateError}
+      sharingAvailable={sharingAvailable}
       isStravaSyncing={isSyncing}
-      stravaError={syncError ?? mapUpdateError}
-      onStravaConnect={connect}
-      onStravaAbortSync={abortSync}
+      stravaError={syncError}
+      onStravaConnect={welcomeOpen ? undefined : connect}
+      onStravaDisconnect={handleDisconnect}
     />
   )
 
@@ -262,14 +269,13 @@ export default function HomePage() {
       loading={isSyncing}
       preferBusiestArea={stravaConnected}
       header={header}
-      setupPanel={<SetupPanel onDisconnect={stravaConnected ? handleDisconnect : undefined} />}
       externalMapRef={mapRef}
       overlays={
         <>
           <PublishDialog
-            currentSlug={currentSlug}
             open={publishOpen}
             onClose={() => setPublishOpen(false)}
+            currentSlug={currentSlug}
             isPublishing={isPublishing}
             routesVerified={routesVerified}
             onReconnect={connect}

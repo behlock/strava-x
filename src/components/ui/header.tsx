@@ -1,64 +1,79 @@
 'use client'
 
 import { Suspense } from 'react'
-import { ArrowRight, Loader2, Share2 } from 'lucide-react'
 
-import { HEADER_LOGO_CLASS, HeaderBar, HeaderChip } from './header-bar'
+import { HEADER_LOGO_CLASS, HeaderBar } from './header-bar'
 import { StravaAuthError } from './strava-auth-error'
+import { Tooltip } from './tooltip'
+import { useKeyboardShortcut } from '@/hooks/use-keyboard-shortcut'
+import { SHORTCUTS } from '@/lib/keyboard-shortcuts'
 
 interface HeaderProps {
   onLogoClick: () => void
   onPublishClick: () => void
+  currentSlug: string | null
+  mapUpdateError: string | null
+  sharingAvailable: boolean
   hasActivities: boolean
   stravaAvailable: boolean
   stravaConnected: boolean
+  profilePhotoUrl?: string | null
   isStravaSyncing: boolean
   stravaError: string | null
-  onStravaConnect: () => void
-  onStravaAbortSync: () => void
+  onStravaConnect?: () => void
+  onStravaDisconnect: () => void
 }
 
-/** Spinner chip beside the logo while activities stream in; click cancels. */
-function SyncSpinner({ onCancel }: { onCancel: () => void }) {
+function SyncFailed({ message, label = 'sync failed' }: { message: string; label?: string }) {
   return (
-    <HeaderChip
-      tooltip="syncing, click to cancel"
-      tooltipAlign="start"
-      onClick={onCancel}
-      aria-label="Cancel Strava sync"
-      className="text-panel-muted hover:text-foreground"
-    >
-      <Loader2 className="size-3.5 animate-spin" aria-hidden="true" />
-    </HeaderChip>
-  )
-}
-
-function SyncFailed({ message }: { message: string }) {
-  return (
-    <span
-      role="alert"
-      title={message}
-      aria-label={message}
-      className="text-xs-compact tracking-wider text-red-500 dark:text-red-400"
-    >
-      [!]<span className="ml-1 hidden md:inline">sync failed</span>
-    </span>
+    <Tooltip text={message}>
+      <span
+        role="alert"
+        tabIndex={0}
+        aria-label={message}
+        className="text-xs-compact tracking-wider text-red-500 dark:text-red-400"
+      >
+        [!]<span className="ml-1 hidden md:inline">{label}</span>
+      </span>
+    </Tooltip>
   )
 }
 
 export function Header({
   onLogoClick,
   onPublishClick,
+  currentSlug,
+  mapUpdateError,
+  sharingAvailable,
   hasActivities,
   stravaAvailable,
   stravaConnected,
+  profilePhotoUrl,
   isStravaSyncing,
   stravaError,
   onStravaConnect,
-  onStravaAbortSync,
+  onStravaDisconnect,
 }: HeaderProps) {
+  useKeyboardShortcut('publish-map', onPublishClick, hasActivities && stravaConnected)
+  const publishControl =
+    hasActivities && stravaConnected ? (
+      <Tooltip text="share map" shortcut={SHORTCUTS['publish-map'].label}>
+        <button
+          type="button"
+          onClick={onPublishClick}
+          aria-keyshortcuts={SHORTCUTS['publish-map'].aria}
+          aria-label={currentSlug ? `Share map /${currentSlug}` : 'Share map'}
+          className="inline-flex min-h-11 max-w-[46vw] items-center justify-center rounded-full floating-control px-3 text-xs-compact tracking-wider text-foreground focus-ring sm:px-4 md:min-h-[35px] md:max-w-xs"
+        >
+          <span className="truncate">{currentSlug ? `/${currentSlug}` : 'share map'}</span>
+        </button>
+      </Tooltip>
+    ) : null
   return (
     <HeaderBar
+      profilePhotoUrl={stravaConnected ? profilePhotoUrl : null}
+      onConnect={stravaAvailable && !stravaConnected ? onStravaConnect : undefined}
+      onDisconnect={stravaConnected ? onStravaDisconnect : undefined}
       logo={
         <button type="button" onClick={onLogoClick} className={HEADER_LOGO_CLASS}>
           strava—x
@@ -68,29 +83,26 @@ export function Header({
       // error at the same moment it disconnects, and still needs showing.
       status={
         <>
-          {isStravaSyncing && <SyncSpinner onCancel={onStravaAbortSync} />}
           {!isStravaSyncing && stravaError && <SyncFailed message={stravaError} />}
+          {!stravaError && !sharingAvailable ? (
+            <Tooltip text="public sharing is unavailable; your personal map is loaded">
+              <span tabIndex={0} className="text-xs-compact tracking-wider text-panel-muted">
+                sharing unavailable
+              </span>
+            </Tooltip>
+          ) : !stravaError && mapUpdateError ? (
+            <SyncFailed message={mapUpdateError} label="update failed" />
+          ) : null}
         </>
       }
     >
       {stravaAvailable && !stravaConnected && (
-        <>
-          <Suspense fallback={null}>
-            <StravaAuthError />
-          </Suspense>
-          <HeaderChip variant="text" onClick={onStravaConnect} aria-label="Connect Strava">
-            <ArrowRight className="size-4" aria-hidden="true" />
-            <span className="ml-1.5 hidden md:inline">connect strava</span>
-          </HeaderChip>
-        </>
+        <Suspense fallback={null}>
+          <StravaAuthError />
+        </Suspense>
       )}
 
-      {/* The one primary action; disconnect and theme live in the setup panel. */}
-      {hasActivities && stravaConnected && (
-        <HeaderChip tooltip="share" tooltipAlign="end" onClick={onPublishClick} aria-label="Share map">
-          <Share2 className="size-4" />
-        </HeaderChip>
-      )}
+      {publishControl}
     </HeaderBar>
   )
 }

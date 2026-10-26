@@ -40,5 +40,5 @@ export default async function PublicMapPage({ params }: PageProps) {
   const blobUrl = `/api/maps/${encodeURIComponent(slug)}`
   preload(blobUrl, { as: 'fetch', crossOrigin: 'anonymous' })
 
-  return <PublicMapView key={slug} slug={slug} blobUrl={blobUrl} displayName={row.athlete_display_name} />
+  return <PublicMapView key={slug} slug={slug} blobUrl={blobUrl} />
 }

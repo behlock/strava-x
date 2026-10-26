@@ -32,8 +32,6 @@ interface MapViewProps {
   /** Frame the complete library’s busiest area instead of restoring an old viewport. */
   preferBusiestArea?: boolean
   header: ReactNode
-  /** Settings panel (theme, account) shown alongside the map panels. */
-  setupPanel?: ReactNode
   /** Extra overlays (modals) rendered on top of the map. */
   overlays?: ReactNode
   /**
@@ -58,7 +56,6 @@ export function MapView({
   loading = false,
   preferBusiestArea = false,
   header,
-  setupPanel,
   overlays,
   externalMapRef,
   mode = 'own',
@@ -260,7 +257,6 @@ export function MapView({
       header={header}
       hasActivities={hasActivities}
       mapControls={<LocateControl onClick={handleLocate} />}
-      setupPanel={setupPanel}
       filterPanel={
         <FilterPanel
           activityTypes={ACTIVITY_TYPES}

@@ -1,39 +1,46 @@
 'use client'
 
+import { useStravaAuth } from '@/hooks/use-strava-auth'
+import { useStravaProfile } from '@/hooks/use-strava-profile'
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
 
 import type { Activity } from '@/models/activity'
 import { MapView } from '@/components/map-view'
-import { HEADER_LOGO_CLASS, HeaderBar, SetupPanel, Tooltip } from '@/components/ui'
+import { HEADER_LOGO_CLASS, HeaderBar, Pill, Tooltip } from '@/components/ui'
 import { loadPublishedMap } from '@/lib/published-map'
 
 interface PublicMapViewProps {
   slug: string
   blobUrl: string
-  displayName: string | null
 }
 
-function formatPublishedAt(iso: string): string {
+function formatUpdatedAt(iso: string): string {
   const date = new Date(iso)
   if (Number.isNaN(date.getTime())) return iso
-  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).toLowerCase()
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }).toLowerCase()
 }
 
-function PublicHeader({ displayName, publishedAt }: { displayName: string | null; publishedAt: string | null }) {
-  const byline = displayName ? (
-    <span className="truncate text-xs-compact tracking-wider opacity-60">— published by {displayName}</span>
-  ) : null
-
+function PublicHeader({ slug, updatedAt }: { slug: string; updatedAt: string | null }) {
+  const { isConnected, getAccessToken, disconnect } = useStravaAuth()
+  const profile = useStravaProfile(isConnected, getAccessToken)
+  const byline = (
+    <Pill tabIndex={updatedAt ? 0 : undefined} className="max-w-[24vw] min-w-0 shrink py-1 focus-ring">
+      <span className="truncate">/{slug}</span>
+    </Pill>
+  )
   return (
     <HeaderBar
+      showProfileMenu={isConnected}
+      profilePhotoUrl={profile?.photoUrl}
+      onDisconnect={isConnected ? disconnect : undefined}
       logo={
         <div className="flex min-w-0 items-center gap-3">
           <Link href="/" className={HEADER_LOGO_CLASS}>
             strava—x
           </Link>
-          {byline && publishedAt ? (
-            <Tooltip text={`updated ${formatPublishedAt(publishedAt)}`} align="start">
+          {updatedAt ? (
+            <Tooltip text={`updated ${formatUpdatedAt(updatedAt)}`} align="start">
               {byline}
             </Tooltip>
           ) : (
@@ -46,9 +53,9 @@ function PublicHeader({ displayName, publishedAt }: { displayName: string | null
 }
 
 /** Read-only view of a published map, loaded through the revocable sharing API. */
-export function PublicMapView({ slug, blobUrl, displayName }: PublicMapViewProps) {
+export function PublicMapView({ slug, blobUrl }: PublicMapViewProps) {
   const [activities, setActivities] = useState<Activity[] | null>(null)
-  const [publishedAt, setPublishedAt] = useState<string | null>(null)
+  const [updatedAt, setUpdatedAt] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -57,7 +64,7 @@ export function PublicMapView({ slug, blobUrl, displayName }: PublicMapViewProps
       try {
         const payload = await loadPublishedMap(blobUrl)
         if (cancelled) return
-        setPublishedAt(payload.updatedAt)
+        setUpdatedAt(payload.updatedAt)
         setActivities(payload.activities)
       } catch (e) {
         if (cancelled) return
@@ -85,8 +92,7 @@ export function PublicMapView({ slug, blobUrl, displayName }: PublicMapViewProps
     <MapView
       activities={activities ?? []}
       loading={activities === null}
-      header={<PublicHeader displayName={displayName} publishedAt={publishedAt} />}
-      setupPanel={<SetupPanel />}
+      header={<PublicHeader slug={slug} updatedAt={updatedAt} />}
       mode="public"
     />
   )
