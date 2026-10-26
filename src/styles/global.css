@@ -6,19 +6,19 @@
 @layer base {
   :root {
     /* Restrained neutral surfaces; colour belongs to the activity data. */
-    --background: hsl(0 0% 90%);
-    --foreground: hsl(0 0% 18%);
+    --background: #f5f5f5;
+    --foreground: #292929;
     --muted: hsl(0 0% 84%);
     --border: hsl(0 0% 72%);
 
-    --panel: hsl(0 0% 95%);
+    --panel: #fafafa;
     --panel-border: hsl(0 0% 72%);
-    --panel-muted: hsl(0 0% 38%);
+    --panel-muted: #626262;
     --control: hsl(0 0% 95%);
     --control-hover: hsl(0 0% 89%);
-    --selection: hsl(0 0% 83%);
+    --selection: #d5d5d5;
     --selection-foreground: hsl(0 0% 14%);
-    --selection-muted: hsl(0 0% 34%);
+    --selection-muted: #4d4d4d;
   }
 
   .dark {
@@ -32,7 +32,7 @@
     --panel-muted: hsl(0 0% 63%);
     --control: hsl(0 0% 12%);
     --control-hover: hsl(0 0% 18%);
-    --selection: hsl(0 0% 22%);
+    --selection: hsl(0 0% 27%);
     --selection-foreground: hsl(0 0% 92%);
     --selection-muted: hsl(0 0% 72%);
   }

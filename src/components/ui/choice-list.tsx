@@ -68,8 +68,10 @@ export function ChoiceList({ label, options, selectedId, onSelect, onHover, clas
           }}
           onMouseEnter={() => onHover?.(option.id)}
           className={cn(
-            'flex min-h-11 w-full cursor-pointer items-center justify-between gap-2 rounded-md px-2 py-1.5 text-left text-xs-compact tracking-wider transition-colors md:min-h-0',
-            selectedId === option.id ? 'bg-selection text-selection-foreground' : 'hover:bg-foreground/5',
+            'flex min-h-11 w-full cursor-pointer items-center justify-between gap-2 rounded-md border-l-2 px-2 py-1.5 text-left text-xs-compact tracking-wider transition-colors md:min-h-0',
+            selectedId === option.id
+              ? 'border-selection-foreground bg-selection font-medium text-selection-foreground'
+              : 'border-transparent hover:bg-control-hover',
           )}
         >
           <span className="min-w-0 truncate">{option.label}</span>

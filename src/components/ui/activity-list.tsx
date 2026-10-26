@@ -192,8 +192,8 @@ export function ActivityList({
                   className={cn(
                     'absolute top-0 left-2 w-[calc(100%-1rem)] cursor-pointer rounded-md transition-colors',
                     isHighlighted || isKeyboardTarget
-                      ? 'bg-selection text-selection-foreground'
-                      : 'hover:bg-foreground/5',
+                      ? 'bg-selection text-selection-foreground ring-1 ring-selection-muted/30 ring-inset'
+                      : 'hover:bg-control-hover',
                   )}
                   style={{ height: row.size, transform: `translateY(${row.start}px)` }}
                   onMouseEnter={(e) => {
