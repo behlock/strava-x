@@ -36,15 +36,29 @@ const request = () =>
       accessToken: 'token',
     }),
   })
-function syncRoute() {
+function syncRoute(getActivityVersion = async () => null) {
   return loadTs('src/app/api/activities/sync/route.ts', {
     '@/lib/api': api,
+    '@/lib/activity-sync-db': { getActivityVersion },
     '@/lib/sharing-db': {
       ensureShare: async () => ({ ...row }),
       shareState: (r) => ({ athleteId: r.athlete_id, slug: r.slug, revision: r.revision, fingerprint: r.fingerprint }),
     },
   }).POST
 }
+
+test('sync records the change version before downloading, so concurrent webhook changes remain pending', async (t) => {
+  let version = '123:4'
+  t.mock.method(globalThis, 'fetch', async (url) => {
+    version = '123:5'
+    return Response.json(new URL(url).searchParams.get('page') === '1' ? [item(1)] : [])
+  })
+  const result = await decoded(await syncRoute(async () => version)(request()))
+  assert.equal(result.sync.version, '123:4')
+  assert.ok(result.sync.syncedAt <= Date.now())
+  assert.equal(result.sync.fingerprint, result.snapshot.fingerprint)
+  assert.equal(version, '123:5')
+})
 async function decoded(response) {
   return JSON.parse(gunzipSync(Buffer.from(await response.arrayBuffer())).toString())
 }
@@ -176,6 +190,7 @@ test('missing sharing tables do not block personal sync or issue a publishable p
   )
   const { POST } = loadTs('src/app/api/activities/sync/route.ts', {
     '@/lib/api': api,
+    '@/lib/activity-sync-db': { getActivityVersion: async () => null },
     '@/lib/sharing-db': {
       ensureShare: async () => {
         throw Object.assign(new Error('relation map_shares does not exist'), { code: '42P01' })
@@ -201,6 +216,7 @@ test('failed personal sync without a sharing database still returns no partial l
   )
   const { POST } = loadTs('src/app/api/activities/sync/route.ts', {
     '@/lib/api': api,
+    '@/lib/activity-sync-db': { getActivityVersion: async () => null },
     '@/lib/sharing-db': {
       ensureShare: async () => {
         throw new Error('database unavailable')
@@ -238,6 +254,7 @@ test('sharing preparation failures preserve the complete personal library withou
   ]) {
     const { POST } = loadTs('src/app/api/activities/sync/route.ts', {
       '@/lib/api': api,
+      '@/lib/activity-sync-db': { getActivityVersion: async () => null },
       '@/lib/sharing-db': {
         ensureShare: async () => row,
         shareState: (r) => ({ athleteId: r.athlete_id, slug: r.slug, revision: r.revision }),

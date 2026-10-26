@@ -20,7 +20,12 @@ export function loadTs(entry, mocks = {}) {
       return require(name)
     }
     const { outputText } = ts.transpileModule(readFileSync(file, 'utf8'), {
-      compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true },
+      compilerOptions: {
+        module: ts.ModuleKind.CommonJS,
+        target: ts.ScriptTarget.ES2022,
+        jsx: ts.JsxEmit.ReactJSX,
+        esModuleInterop: true,
+      },
     })
     new Function('require', 'module', 'exports', outputText)(localRequire, mod, mod.exports)
     return mod.exports

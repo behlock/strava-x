@@ -1,6 +1,12 @@
 import type { Activity } from '@/models/activity'
 import { sortActivitiesByDateDesc } from '@/lib/activities'
 import { deserializeActivity, type SerializedActivity, serializeActivity } from '@/lib/activities-serialize'
+import type { ActivitySyncStamp } from '@/lib/activity-sync'
+
+export interface ActivityLibrary {
+  activities: Activity[]
+  sync: ActivitySyncStamp | null
+}
 
 const DB_NAME = 'strava-x'
 const DB_VERSION = 2
@@ -59,20 +65,26 @@ async function withStore<T>(mode: IDBTransactionMode, run: (store: IDBObjectStor
 }
 
 /** Replace one account's entire library atomically, including a successful empty sync. */
-export function replaceActivities(athleteId: number, activities: Activity[]): Promise<void> {
+export function replaceActivities(
+  athleteId: number,
+  activities: Activity[],
+  sync: ActivitySyncStamp | null = null,
+): Promise<void> {
   return withStore('readwrite', async (store) => {
-    store.put({ id: String(athleteId), activities: activities.map(serializeActivity) })
+    store.put({ id: String(athleteId), activities: activities.map(serializeActivity), sync })
   })
 }
 
 /** A verified account id is required; unscoped legacy rows are never restored. */
-export async function loadActivities(athleteId: number): Promise<Activity[]> {
+export async function loadActivities(athleteId: number): Promise<ActivityLibrary | null> {
   try {
     const row = (await withStore('readonly', (store) => awaitRequest(store.get(String(athleteId))))) as
-      { activities: SerializedActivity[] } | undefined
-    return sortActivitiesByDateDesc((row?.activities ?? []).map(deserializeActivity))
+      { activities: SerializedActivity[]; sync?: ActivitySyncStamp | null } | undefined
+    return row
+      ? { activities: sortActivitiesByDateDesc(row.activities.map(deserializeActivity)), sync: row.sync ?? null }
+      : null
   } catch {
-    return []
+    return null
   }
 }
 

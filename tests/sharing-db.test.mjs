@@ -41,6 +41,11 @@ async function query(sql) {
 const sql = async (parts, ...values) => {
   let text = parts.reduce((out, part, index) => out + part + (index < values.length ? literal(values[index]) : ''), '')
   text = text
+    .replace(
+      'SELECT version FROM athlete_activity_versions',
+      "SELECT json_build_object('version',version) FROM athlete_activity_versions",
+    )
+    .replace('RETURNING version', "RETURNING json_build_object('version',version)")
     .replace('SELECT * FROM changed', 'SELECT row_to_json(changed) FROM changed')
     .replaceAll('SELECT * FROM map_shares', 'SELECT row_to_json(map_shares) FROM map_shares')
     .replace(
@@ -50,6 +55,7 @@ const sql = async (parts, ...values) => {
   return query(text)
 }
 const db = loadTs('src/lib/sharing-db.ts', { '@neondatabase/serverless': { neon: () => sql } })
+const syncDb = loadTs('src/lib/activity-sync-db.ts', { '@neondatabase/serverless': { neon: () => sql } })
 const write = (slug, path) => ({
   slug,
   active: true,
@@ -105,5 +111,34 @@ test(
     // recreate it using a request captured before stopping.
     assert(await db.compareAndSwapShare(other, write('second', 'path-c')))
     assert.equal(await db.compareAndSwapShare(winner, write('second', 'late')), null)
+
+    await query('DROP TABLE IF EXISTS athlete_activity_versions')
+    await query(readFileSync('db/004_activity_sync_versions.sql', 'utf8'))
+    assert.equal(await syncDb.getActivityVersion(2), 'poll:0')
+    await syncDb.recordActivityChange(2, 'event-a', false)
+    assert.equal(await syncDb.getActivityVersion(2), 'poll:1')
+    await syncDb.recordActivityChange(2, 'event-a', false)
+    assert.equal(await syncDb.getActivityVersion(2), 'poll:1')
+    await syncDb.recordActivityChange(2, 'event-b', false)
+    assert.equal(await syncDb.getActivityVersion(2), 'poll:2')
+    assert.equal(await syncDb.getActivityVersion(4), 'poll:0')
+    // Revocation also covers published users who have not used the new cache yet.
+    await syncDb.recordActivityChange(3, 'revoked', true)
+    assert.equal(await db.findShareBySlug('second'), null)
+    assert((await db.cleanupCandidates()).some((item) => item.pathname === 'path-c'))
+    const pending = await db.ensureShare(5)
+    await syncDb.recordActivityChange(5, 'revoked-before-publish', true)
+    const revoked = await db.ensureShare(5)
+    assert.equal(revoked.revision, '1')
+    assert.equal(await db.compareAndSwapShare(pending, write('pending', 'pending-path')), null)
+    await syncDb.recordActivityChange(5, 'revoked-before-publish', true)
+    assert.equal((await db.ensureShare(5)).revision, revoked.revision)
+    const racing = await db.ensureShare(6)
+    const [, published] = await Promise.all([
+      syncDb.recordActivityChange(6, 'revoked-during-publish', true),
+      db.compareAndSwapShare(racing, write('racing', 'racing-path')),
+    ])
+    assert.equal(await db.findShareBySlug('racing'), null)
+    if (published) assert((await db.cleanupCandidates()).some((item) => item.pathname === 'racing-path'))
   },
 )

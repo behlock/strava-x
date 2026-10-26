@@ -10,6 +10,7 @@ import { MapView } from '@/components/map-view'
 import { Header } from '@/components/ui'
 import { latestActivityStart } from '@/lib/activities'
 import { replaceActivities } from '@/lib/activities-db'
+import { isActivityCacheFresh, type ActivitySyncStamp, type ActivitySyncStatus } from '@/lib/activity-sync'
 import { config } from '@/lib/config'
 import { usePersistedActivities } from '@/hooks/use-persisted-activities'
 import { usePublish } from '@/hooks/use-publish'
@@ -31,7 +32,7 @@ const STRAVA_UNREACHABLE_ERROR = 'strava is unreachable, try again'
 const TRANSIENT_RETRY_DELAY_MS = 5000
 
 export default function HomePage() {
-  const { activities, setActivities, restore: restoreActivities, clear: clearActivities } = usePersistedActivities()
+  const { activities, setLibrary, restore: restoreActivities, clear: clearActivities } = usePersistedActivities()
   const { isConnected: stravaConnected, connect, disconnect, getAccessToken, resolveAccessToken } = useStravaAuth()
 
   const stravaProfile = useStravaProfile(stravaConnected, getAccessToken)
@@ -71,11 +72,10 @@ export default function HomePage() {
   const [autoSyncAttempt, setAutoSyncAttempt] = useState(0)
 
   const syncFromStrava = useCallback(async () => {
-    syncAbortRef.current?.abort()
+    if (syncAbortRef.current && !syncAbortRef.current.signal.aborted) return
     const controller = new AbortController()
     syncAbortRef.current = controller
     const { signal } = controller
-    const sharingVersion = beginSync()
     const generation = sessionGenerationRef.current
     const isLive = () => !signal.aborted && generation === sessionGenerationRef.current
 
@@ -101,14 +101,35 @@ export default function HomePage() {
         }
         return
       }
-      setIsSyncing(true)
       setSyncError(null)
-      setMapUpdateError(null)
       // Account ownership must be known before any cached library is shown.
-      const share = await refreshCurrentSlug(signal).catch(() => undefined)
+      const [share, status] = await Promise.all([
+        refreshCurrentSlug(signal).catch(() => undefined),
+        fetch('/api/activities/status', {
+          method: 'POST',
+          signal,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ accessToken: auth.accessToken }),
+        })
+          .then(async (response) => (response.ok ? ((await response.json()) as ActivitySyncStatus) : null))
+          .catch(() => null),
+      ])
       if (!isLive()) return
-      if (share) await restoreActivities(share.athleteId, signal)
+      if (status && share && status.athleteId !== share.athleteId) return
+      const athleteId = status?.athleteId ?? share?.athleteId
+      const cached = athleteId ? await restoreActivities(athleteId, signal) : null
       if (!isLive()) return
+      if (
+        status &&
+        isActivityCacheFresh(cached?.sync, status) &&
+        (!share?.slug || cached?.sync?.fingerprint === share.fingerprint)
+      ) {
+        if (share) setSharingAvailable(true)
+        return
+      }
+      const sharingVersion = beginSync()
+      setIsSyncing(true)
+      setMapUpdateError(null)
       const response = await fetch('/api/activities/sync', {
         method: 'POST',
         signal,
@@ -124,11 +145,12 @@ export default function HomePage() {
         athleteId: number
         snapshot: VerifiedSnapshot | null
         share: ShareState | null
+        sync: ActivitySyncStamp
       }
-      if (!isLive() || (share && result.athleteId !== share.athleteId)) return
+      if (!isLive() || (athleteId && result.athleteId !== athleteId)) return
       const completed = deserializeActivities(result.activities)
-      setActivities(completed)
-      const save = replaceActivities(result.athleteId, completed)
+      setLibrary(result.athleteId, { activities: completed, sync: result.sync })
+      const save = replaceActivities(result.athleteId, completed, result.sync)
         .catch(() => {
           if (isLive()) setSyncError("activities loaded but couldn't be saved to browser storage")
         })
@@ -161,7 +183,7 @@ export default function HomePage() {
     }
   }, [
     resolveAccessToken,
-    setActivities,
+    setLibrary,
     disconnect,
     updatePublishedMap,
     beginSync,
@@ -216,6 +238,21 @@ export default function HomePage() {
     hasAutoSyncedRef.current = true
     void syncFromStrava()
   }, [stravaConnected, autoSyncAttempt, syncFromStrava])
+
+  useEffect(() => {
+    if (!stravaConnected) return
+    const check = () => {
+      if (document.visibilityState === 'visible') void syncFromStrava()
+    }
+    window.addEventListener('focus', check)
+    document.addEventListener('visibilitychange', check)
+    const timer = setInterval(check, 5 * 60_000)
+    return () => {
+      window.removeEventListener('focus', check)
+      document.removeEventListener('visibilitychange', check)
+      clearInterval(timer)
+    }
+  }, [stravaConnected, syncFromStrava])
 
   useEffect(() => {
     return () => {

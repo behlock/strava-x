@@ -6,6 +6,7 @@ import { canonicalSnapshot, publicActivities, type ShareState, type VerifiedSnap
 import { digest, signProof } from '@/lib/sharing-proof'
 import { fetchAllActivities } from '@/lib/strava'
 import type { Activity } from '@/models/activity'
+import { getActivityVersion } from '@/lib/activity-sync-db'
 
 export const runtime = 'nodejs'
 export const maxDuration = 300
@@ -19,6 +20,7 @@ export async function POST(req: NextRequest) {
   const auth = await authenticateAthlete(body.accessToken)
   if (!auth.ok) return jsonError(auth.error, auth.status)
   try {
+    const version = await getActivityVersion(auth.athlete.athleteId).catch(() => null)
     // Capture the revision BEFORE fetching, not after: a concurrent stop or
     // rename must invalidate this sync, even if the activity download is slow.
     let share: ShareState | null = null
@@ -66,6 +68,7 @@ export async function POST(req: NextRequest) {
       activities: serializeActivities(activities),
       share,
       snapshot,
+      sync: { version, syncedAt: Date.now(), fingerprint: snapshot?.fingerprint ?? null },
     })
     // Stream the response: full libraries can exceed a serverless buffered
     // response limit. Browser transparently decodes the gzip stream.
