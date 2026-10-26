@@ -5,39 +5,36 @@
 
 @layer base {
   :root {
-    /* Neutral gray light mode — mid-paper, not near-white */
-    --background: hsl(0 0% 86%);
-    --foreground: hsl(0 0% 14%);
-    --muted: hsl(0 0% 80%);
-    --border: hsl(0 0% 68%);
+    /* Restrained neutral surfaces; colour belongs to the activity data. */
+    --background: hsl(0 0% 90%);
+    --foreground: hsl(0 0% 18%);
+    --muted: hsl(0 0% 84%);
+    --border: hsl(0 0% 72%);
 
-    /* Floating panels */
-    --panel: hsl(0 0% 89%);
-    --panel-border: hsl(0 0% 68%);
-    --panel-muted: hsl(0 0% 36%);
-  }
-
-  /* Phones sit closer and usually run brighter; drop chrome another stop. */
-  @media (max-width: 767px) {
-    :root {
-      --background: hsl(0 0% 82%);
-      --muted: hsl(0 0% 76%);
-      --border: hsl(0 0% 62%);
-      --panel: hsl(0 0% 85%);
-      --panel-border: hsl(0 0% 62%);
-    }
+    --panel: hsl(0 0% 95%);
+    --panel-border: hsl(0 0% 72%);
+    --panel-muted: hsl(0 0% 38%);
+    --control: hsl(0 0% 95%);
+    --control-hover: hsl(0 0% 89%);
+    --selection: hsl(0 0% 83%);
+    --selection-foreground: hsl(0 0% 14%);
+    --selection-muted: hsl(0 0% 34%);
   }
 
   .dark {
-    /* Neutral gray dark mode */
-    --background: hsl(0 0% 4%);
-    --foreground: hsl(0 0% 95%);
-    --muted: hsl(0 0% 12%);
-    --border: hsl(0 0% 20%);
+    --background: hsl(0 0% 8%);
+    --foreground: hsl(0 0% 88%);
+    --muted: hsl(0 0% 15%);
+    --border: hsl(0 0% 25%);
 
-    --panel: hsl(0 0% 8%);
-    --panel-border: hsl(0 0% 20%);
-    --panel-muted: hsl(0 0% 60%);
+    --panel: hsl(0 0% 10%);
+    --panel-border: hsl(0 0% 25%);
+    --panel-muted: hsl(0 0% 63%);
+    --control: hsl(0 0% 12%);
+    --control-hover: hsl(0 0% 18%);
+    --selection: hsl(0 0% 22%);
+    --selection-foreground: hsl(0 0% 92%);
+    --selection-muted: hsl(0 0% 72%);
   }
 }
 
@@ -52,6 +49,11 @@
   --color-panel: var(--panel);
   --color-panel-border: var(--panel-border);
   --color-panel-muted: var(--panel-muted);
+  --color-control: var(--control);
+  --color-control-hover: var(--control-hover);
+  --color-selection: var(--selection);
+  --color-selection-foreground: var(--selection-foreground);
+  --color-selection-muted: var(--selection-muted);
 
   --text-xs-compact: 10px;
   --text-xs-compact--line-height: 14px;
@@ -64,10 +66,11 @@
   --text-lg-compact: 14px;
   --text-lg-compact--line-height: 20px;
 
-  /* Square corners by design: only `rounded-lg` (and `rounded-full`) round anything. */
-  --radius-sm: 0px;
-  --radius-md: 0px;
-  --radius-lg: 2px;
+  /* A shared rounded scale for controls, panels, and dialogs. */
+  --radius-sm: 3px;
+  --radius-md: 4px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
 }
 
 @layer base {
@@ -93,7 +96,15 @@
   @apply focus-visible:ring-1 focus-visible:ring-foreground focus-visible:outline-hidden focus-visible:ring-inset;
 }
 
-/* Minimal scrollbar for scrolling panels */
+/* Solid floating controls stay legible against map tiles in either theme. */
+@utility floating-control {
+  @apply border border-panel-border bg-control transition-colors hover:bg-control-hover;
+}
+
+@utility floating-sidebar {
+  flex: 0 1 auto;
+}
+
 @utility scrollbar-thin {
   scrollbar-width: thin;
   &::-webkit-scrollbar {
@@ -105,7 +116,7 @@
   }
   &::-webkit-scrollbar-thumb {
     background: var(--panel-border);
-    border-radius: 0;
+    border-radius: 9999px;
   }
   &::-webkit-scrollbar-thumb:hover {
     background: var(--panel-muted);
@@ -119,12 +130,166 @@
   display: none;
 }
 
-/* light-v11 land is near-white; pull it toward the chrome so the screen isn't a lamp. */
-.light-map .mapboxgl-canvas {
-  filter: brightness(0.96);
+.profile-menu-reveal {
+  max-width: 0;
+  margin-right: 0;
+  overflow: hidden;
+  transition:
+    max-width 400ms cubic-bezier(0.25, 0.1, 0.25, 1),
+    margin-right 400ms cubic-bezier(0.25, 0.1, 0.25, 1);
 }
-@media (max-width: 767px) {
-  .light-map .mapboxgl-canvas {
-    filter: brightness(0.87);
+.profile-menu-reveal[data-open='true'] {
+  max-width: 350px;
+  margin-right: 7px;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.5, 1);
+}
+/* Let tooltips and shadows escape after the horizontal reveal finishes. */
+.profile-menu-reveal[data-settled-open='true'] {
+  overflow: visible;
+}
+.profile-menu-items {
+  gap: 0;
+  opacity: 0;
+  transition:
+    opacity 400ms cubic-bezier(0.25, 0.1, 0.25, 1),
+    gap 400ms cubic-bezier(0.25, 0.1, 0.25, 1);
+}
+.profile-menu-items[data-open='true'] {
+  gap: 7px;
+  opacity: 1;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.5, 1);
+}
+@media (prefers-reduced-motion: reduce) {
+  .profile-menu-reveal,
+  .profile-menu-items {
+    transition: none;
+  }
+  .profile-menu-reveal {
+    overflow: visible;
+  }
+}
+
+/* Keep phone controls readable without changing the compact desktop layout. */
+@media (width < 48rem) {
+  .text-xs-compact {
+    font-size: 12px;
+    line-height: 18px;
+  }
+  .text-sm-compact {
+    font-size: 14px;
+    line-height: 20px;
+  }
+  .text-base-compact {
+    font-size: 16px;
+    line-height: 24px;
+  }
+  .text-lg-compact {
+    font-size: 18px;
+    line-height: 26px;
+  }
+}
+
+.collapsible-panel {
+  transition:
+    min-height 200ms ease,
+    flex-grow 200ms ease;
+}
+.collapsible-panel-body {
+  grid-template-rows: 1fr;
+  opacity: 1;
+  visibility: visible;
+  transition:
+    grid-template-rows 200ms ease,
+    opacity 160ms ease,
+    visibility 200ms;
+}
+.collapsible-panel[data-expanded='false'] > .collapsible-panel-body {
+  grid-template-rows: 0fr;
+  opacity: 0;
+  visibility: hidden;
+}
+
+/* Sections share one grid cell so a crossfade never stacks two sheets.
+   Browsers without discrete transitions simply hide the outgoing section. */
+.mobile-sheet {
+  opacity: 1;
+  transform: translateY(0);
+  transition:
+    opacity 160ms ease-out,
+    transform 180ms ease-out,
+    display 180ms allow-discrete;
+}
+.mobile-sheet[hidden] {
+  display: none;
+  opacity: 0;
+  transform: translateY(8px);
+  pointer-events: none;
+}
+.mobile-sheet-slot[data-switching='true'] .mobile-sheet {
+  transform: none;
+}
+@starting-style {
+  .mobile-sheet:not([hidden]) {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  .mobile-sheet-slot[data-switching='true'] .mobile-sheet:not([hidden]) {
+    transform: none;
+  }
+}
+/* Avoid reserving a gap above the navigation when the sheet is closed. */
+.mobile-sheet-slot[data-open='false'] {
+  margin-bottom: -0.5rem;
+}
+
+@keyframes dialog-backdrop-enter {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes dialog-surface-enter {
+  from {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+.dialog-backdrop-enter {
+  animation: dialog-backdrop-enter 160ms ease-out;
+}
+.dialog-surface-enter {
+  animation: dialog-surface-enter 160ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.copy-feedback > span {
+  transition:
+    opacity 140ms ease-out,
+    transform 140ms ease-out;
+}
+.copy-feedback-success,
+.copy-feedback[data-copied='true'] .copy-feedback-original {
+  opacity: 0;
+  transform: scale(0.8);
+}
+.copy-feedback[data-copied='true'] .copy-feedback-success {
+  opacity: 1;
+  transform: scale(1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .collapsible-panel,
+  .collapsible-panel-body,
+  .mobile-sheet,
+  .copy-feedback > span {
+    transition: none;
+  }
+  .dialog-backdrop-enter,
+  .dialog-surface-enter {
+    animation: none;
   }
 }

@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next'
 import { JetBrains_Mono } from 'next/font/google'
 import Script from 'next/script'
+import { preconnect } from 'react-dom'
 import { ThemeProvider } from 'next-themes'
 
 import '@/styles/global.css'
@@ -15,6 +16,7 @@ const jetbrainsMono = JetBrains_Mono({
 
 export const viewport: Viewport = {
   colorScheme: 'light dark',
+  viewportFit: 'cover',
   themeColor: [
     { media: '(prefers-color-scheme: light)', color: '#d9d9d9' },
     { media: '(prefers-color-scheme: dark)', color: '#141414' },
@@ -52,15 +54,12 @@ export const metadata: Metadata = {
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
+  preconnect('https://api.mapbox.com', { crossOrigin: 'anonymous' })
   return (
     <html lang="en" className={jetbrainsMono.variable} suppressHydrationWarning>
       <body className="h-full">
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
-          {config.STATS_TRACKING_URL && (
-            // crossOrigin="anonymous" keeps credentials off the request, so a
-            // compromise of the analytics origin can't exfiltrate cookies.
-            <Script src={config.STATS_TRACKING_URL} crossOrigin="anonymous" />
-          )}
+          {config.STATS_TRACKING_URL && <Script src={config.STATS_TRACKING_URL} crossOrigin="anonymous" />}
           {children}
         </ThemeProvider>
       </body>

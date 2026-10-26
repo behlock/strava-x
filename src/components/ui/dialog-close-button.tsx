@@ -2,6 +2,8 @@
 
 import type { ButtonHTMLAttributes, Ref } from 'react'
 
+import { X } from 'lucide-react'
+
 import { cn } from '@/lib/utils'
 
 interface DialogCloseButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
@@ -9,21 +11,18 @@ interface DialogCloseButtonProps extends ButtonHTMLAttributes<HTMLButtonElement>
   ref?: Ref<HTMLButtonElement>
 }
 
-/**
- * The `[x]` in a dialog's corner. Reads as text but has a 44px hit area on
- * touch screens; the negative margins keep the glyph where the text would sit.
- */
+/** A quiet close control with a generous touch target. */
 export function DialogCloseButton({ className, ...props }: DialogCloseButtonProps) {
   return (
     <button
       type="button"
       className={cn(
-        '-m-2 inline-flex min-h-11 min-w-11 items-center justify-center p-2 text-xs-compact text-panel-muted focus-ring transition-colors hover:text-foreground md:min-h-0 md:min-w-0',
+        '-m-2 inline-flex min-h-11 min-w-11 items-center justify-center rounded-full p-2 text-xs-compact text-panel-muted transition-colors hover:bg-foreground/5 hover:text-foreground focus-visible:bg-foreground/10 focus-visible:text-foreground focus-visible:outline-hidden md:min-h-0 md:min-w-0',
         className,
       )}
       {...props}
     >
-      [x]
+      <X className="size-4" aria-hidden="true" />
     </button>
   )
 }
