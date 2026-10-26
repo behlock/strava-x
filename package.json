@@ -12,8 +12,8 @@
     "typecheck": "tsc --noEmit",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "clear-cache": "rm -rf node_modules package-lock.json .next",
-    "prepare": "husky"
+    "prepare": "husky",
+    "test": "node --test tests/*.test.mjs"
   },
   "lint-staged": {
     "*.{ts,tsx,js,mjs}": [
@@ -30,7 +30,7 @@
     "clsx": "^2.1.1",
     "lucide-react": "^1.39.0",
     "mapbox-gl": "^3.29.0",
-    "next": "^16.3.4",
+    "next": "^16.4.3",
     "next-themes": "^0.4.6",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
@@ -38,20 +38,25 @@
     "tailwind-merge": "^3.6.0"
   },
   "devDependencies": {
-    "@eslint/js": "^9.39.5",
     "@tailwindcss/postcss": "^4.3.3",
     "@types/geojson": "^7946.0.16",
     "@types/node": "^26.4.1",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.5",
     "eslint": "^9.39.5",
-    "eslint-config-next": "^16.3.4",
+    "eslint-config-next": "^16.4.3",
     "eslint-config-prettier": "^10.1.8",
+    "fake-indexeddb": "^6.2.6",
     "husky": "^9.1.7",
     "lint-staged": "^17.4.1",
     "prettier": "^3.9.6",
     "prettier-plugin-tailwindcss": "^0.8.1",
     "tailwindcss": "^4.3.3",
     "typescript": "^6.0.3"
+  },
+  "overrides": {
+    "@vercel/cli-config": {
+      "zod": "^4.6.6"
+    }
   }
 }

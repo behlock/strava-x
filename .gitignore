@@ -48,3 +48,7 @@ node_modules
 AGENTS.md
 CLAUDE.md
 .env*.local
+
+# Local agent skills
+/.agents/
+/skills-lock.json
