@@ -2,9 +2,8 @@ import type { Activity } from '@/models/activity'
 import type { SerializedActivity } from '@/lib/activities-serialize'
 
 /** Deliberate allowlist: never serialize arbitrary imported/cached properties. */
-export function publicActivities(activities: Activity[], routesVerified: boolean): SerializedActivity[] {
+export function publicActivities(activities: Activity[]): SerializedActivity[] {
   return activities
-    .filter((activity) => activity.visibility === 'everyone')
     .map((activity) => ({
       id: activity.id,
       type: activity.type,
@@ -12,14 +11,13 @@ export function publicActivities(activities: Activity[], routesVerified: boolean
       date: activity.date?.toISOString().slice(0, 10),
       distance: activity.distance,
       elevationGain: activity.elevationGain,
-      feature:
-        routesVerified && activity.feature
-          ? {
-              type: 'Feature' as const,
-              geometry: { type: 'LineString' as const, coordinates: activity.feature.geometry.coordinates },
-              properties: {},
-            }
-          : null,
+      feature: activity.feature
+        ? {
+            type: 'Feature' as const,
+            geometry: { type: 'LineString' as const, coordinates: activity.feature.geometry.coordinates },
+            properties: {},
+          }
+        : null,
     }))
     .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
 }
@@ -84,7 +82,6 @@ export interface VerifiedSnapshot {
   athleteId: number
   revision: string
   expiresAt: number
-  routesVerified: boolean
 }
 export interface ShareState {
   athleteId: number

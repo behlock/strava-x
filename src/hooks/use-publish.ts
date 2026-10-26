@@ -40,7 +40,6 @@ export function usePublish({ getAccessToken }: { getAccessToken: () => Promise<s
   // Ownership and proofs are session-only. Never trust a globally cached address.
   const [currentSlug, setCurrentSlug] = useState<string | null>(null)
   const [isPublishing, setIsPublishing] = useState(false)
-  const [routesVerified, setRoutesVerified] = useState<boolean | null>(null)
   const state = useRef<ShareState | null>(null)
   const snapshot = useRef<VerifiedSnapshot | null>(null)
   const generation = useRef(0)
@@ -82,16 +81,7 @@ export function usePublish({ getAccessToken }: { getAccessToken: () => Promise<s
       if (writing.current) return { error: 'busy' }
       const before = state.current
       if (!before) return { error: 'sync_required' }
-      const verified = snapshot.current
-      if (action === 'create' || action === 'update') {
-        if (
-          !verified ||
-          verified.expiresAt <= Date.now() ||
-          verified.athleteId !== before.athleteId ||
-          verified.revision !== before.revision
-        )
-          return { error: 'sync_required' }
-      }
+      let verified = snapshot.current
       if (signal?.aborted) return { error: 'cancelled' }
       writing.current = true
       const version = ++generation.current
@@ -100,6 +90,36 @@ export function usePublish({ getAccessToken }: { getAccessToken: () => Promise<s
         const accessToken = await getAccessToken()
         if (!accessToken) return { error: 'strava_auth_failed' }
         if (signal?.aborted || version !== generation.current) return { error: 'cancelled' }
+        if (
+          (action === 'create' || action === 'update') &&
+          (!verified ||
+            verified.expiresAt <= Date.now() ||
+            verified.athleteId !== before.athleteId ||
+            verified.revision !== before.revision)
+        ) {
+          const response = await fetch('/api/activities/sync', {
+            method: 'POST',
+            signal,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ accessToken }),
+          })
+          if (signal?.aborted || version !== generation.current) return { error: 'cancelled' }
+          if (!response.ok) return { error: 'sync_required' }
+          const result = (await response.json()) as { snapshot: VerifiedSnapshot | null; share: ShareState | null }
+          if (signal?.aborted || version !== generation.current) return { error: 'cancelled' }
+          if (!result.share || !result.snapshot) return { error: 'sync_required' }
+          if (
+            result.share.athleteId !== before.athleteId ||
+            result.share.revision !== before.revision ||
+            result.snapshot.athleteId !== before.athleteId ||
+            result.snapshot.revision !== before.revision
+          ) {
+            await refreshCurrentSlug(signal).catch(() => {})
+            return { error: 'publication_changed' }
+          }
+          verified = result.snapshot
+          snapshot.current = verified
+        }
         const content =
           action === 'create' || action === 'update'
             ? {
@@ -124,6 +144,8 @@ export function usePublish({ getAccessToken }: { getAccessToken: () => Promise<s
         })
         if (!res.ok) {
           const data = await res.json().catch(() => null)
+          if (version === generation.current && ['sync_required', 'invalid_snapshot'].includes(data?.error))
+            snapshot.current = null
           if (res.status === 409 && version === generation.current) {
             snapshot.current = null
             await refreshCurrentSlug(signal).catch(() => {})
@@ -181,7 +203,6 @@ export function usePublish({ getAccessToken }: { getAccessToken: () => Promise<s
     snapshot.current = null
     state.current = null
     setCurrentSlug(null)
-    setRoutesVerified(null)
   }, [])
   const beginSync = useCallback(() => {
     snapshot.current = null
@@ -193,7 +214,6 @@ export function usePublish({ getAccessToken }: { getAccessToken: () => Promise<s
       if (state.current?.athleteId === next.athleteId && BigInt(state.current.revision) > BigInt(next.revision)) return
       acceptState(next)
       snapshot.current = verified
-      setRoutesVerified(verified.routesVerified)
       if (!next.slug) return
       return mutate('update', undefined, signal)
     },
@@ -205,7 +225,6 @@ export function usePublish({ getAccessToken }: { getAccessToken: () => Promise<s
   )
   return {
     currentSlug,
-    routesVerified,
     isPublishing,
     publish,
     unpublish,

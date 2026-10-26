@@ -3,7 +3,7 @@ import { authenticateAthlete, enforceRateLimit, isAccessToken, jsonError, readJs
 import { serializeActivities } from '@/lib/activities-serialize'
 import { ensureShare, shareState } from '@/lib/sharing-db'
 import { canonicalSnapshot, publicActivities, type ShareState, type VerifiedSnapshot } from '@/lib/share-snapshot'
-import { digest, hasSafeRouteGrant, signProof } from '@/lib/sharing-proof'
+import { digest, signProof } from '@/lib/sharing-proof'
 import { fetchAllActivities } from '@/lib/strava'
 import type { Activity } from '@/models/activity'
 
@@ -14,7 +14,7 @@ export const maxDuration = 300
 export async function POST(req: NextRequest) {
   const limited = enforceRateLimit(req, 'activities-sync', { windowMs: 60_000, max: 6 })
   if (limited) return limited
-  const body = await readJsonBody<{ accessToken?: unknown; routeAccessProof?: unknown }>(req)
+  const body = await readJsonBody<{ accessToken?: unknown }>(req)
   if (!isAccessToken(body?.accessToken)) return jsonError('missing_access_token')
   const auth = await authenticateAthlete(body.accessToken)
   if (!auth.ok) return jsonError(auth.error, auth.status)
@@ -38,8 +38,7 @@ export async function POST(req: NextRequest) {
     let snapshot: VerifiedSnapshot | null = null
     if (share) {
       try {
-        const routesVerified = hasSafeRouteGrant(body.routeAccessProof, body.accessToken)
-        const publicSnapshot = publicActivities(activities, routesVerified)
+        const publicSnapshot = publicActivities(activities)
         const canonical = canonicalSnapshot(publicSnapshot)
         if (Buffer.byteLength(canonical) <= 25 * 1024 * 1024) {
           const fingerprint = digest(canonical)
@@ -56,7 +55,6 @@ export async function POST(req: NextRequest) {
             athleteId: share.athleteId,
             revision: share.revision,
             expiresAt,
-            routesVerified,
           }
         }
       } catch {

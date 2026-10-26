@@ -3,6 +3,8 @@ import type { LngLat } from '@/models/map'
 
 const STRAVA_API = 'https://www.strava.com/api/v3'
 const PER_PAGE = 200
+const PAGE_CONCURRENCY = 3
+const MAX_PAGES = 250
 const MAX_RETRIES = 3
 const BASE_BACKOFF_MS = 1000
 
@@ -156,17 +158,39 @@ interface FetchOptions {
 
 /** Fetch the complete library; never treat a failed page as the end of the list. */
 export async function fetchAllActivities(accessToken: string, { onBatch, signal }: FetchOptions = {}): Promise<void> {
-  for (let page = 1; ; page++) {
-    if (page > 250) throw new Error('strava_library_too_large')
-    const url = `${STRAVA_API}/athlete/activities?per_page=${PER_PAGE}&page=${page}`
-    const res = await fetchWithRetry(url, accessToken, signal)
-    const raw = (await res.json()) as unknown
-    if (!Array.isArray(raw)) throw new Error('strava_invalid_response')
-    if (raw.length === 0) break
-
-    const batch = (raw as StravaSummaryActivity[]).map(summaryToActivity)
-    onBatch?.(batch)
-
-    if (raw.length < PER_PAGE) break
+  const controller = new AbortController()
+  const fetchSignal = signal ? AbortSignal.any([signal, controller.signal]) : controller.signal
+  let page = 1
+  let concurrency = 1
+  try {
+    while (page <= MAX_PAGES) {
+      fetchSignal.throwIfAborted()
+      const count = Math.min(concurrency, MAX_PAGES - page + 1)
+      const requests = Array.from({ length: count }, async (_, offset) => {
+        try {
+          const url = `${STRAVA_API}/athlete/activities?per_page=${PER_PAGE}&page=${page + offset}`
+          const res = await fetchWithRetry(url, accessToken, fetchSignal)
+          const raw: unknown = await res.json()
+          if (!Array.isArray(raw)) throw new Error('strava_invalid_response')
+          return { batch: (raw as StravaSummaryActivity[]).map(summaryToActivity) }
+        } catch (error) {
+          return { error }
+        }
+      })
+      // Consume in page order; speculative requests past the end are cancelled.
+      for (const request of requests) {
+        const result = await request
+        fetchSignal.throwIfAborted()
+        if ('error' in result) throw result.error
+        if (result.batch.length === 0) return
+        onBatch?.(result.batch)
+        // Short pages are not necessarily final. Confirm with an empty page.
+        concurrency = result.batch.length < PER_PAGE ? 1 : PAGE_CONCURRENCY
+      }
+      page += count
+    }
+    throw new Error('strava_library_too_large')
+  } finally {
+    controller.abort()
   }
 }

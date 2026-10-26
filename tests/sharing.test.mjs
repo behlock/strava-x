@@ -4,7 +4,7 @@ import { loadTs } from './load-ts.mjs'
 
 process.env.STRAVA_CLIENT_SECRET = 'isolated-test-secret'
 const { mutateShare } = loadTs('src/lib/sharing-service.ts')
-const { digest, signProof, hasSafeRouteGrant, safeRouteScope } = loadTs('src/lib/sharing-proof.ts')
+const { digest, signProof } = loadTs('src/lib/sharing-proof.ts')
 const { publicActivities, canonicalSnapshot } = loadTs('src/lib/share-snapshot.ts')
 const activity = (id = '1', visibility = 'everyone') => ({
   id,
@@ -25,7 +25,7 @@ const activity = (id = '1', visibility = 'everyone') => ({
     properties: { secret: 'not public' },
   },
 })
-const payload = (items = [activity()]) => publicActivities(items, true)
+const payload = (items = [activity()]) => publicActivities(items)
 function signed(activities, revision = '0', athleteId = 1, expiresAt = Date.now() + 60_000) {
   return signProof(
     'snapshot',
@@ -123,35 +123,24 @@ function holdNextUpload(f) {
   return { ready, release }
 }
 
-test('only Everyone is shared, unknown legacy records fail closed, times/properties are removed', () => {
-  const result = publicActivities(
-    [
-      activity('1'),
-      activity('2', 'followers_only'),
-      activity('3', 'only_me'),
-      activity('4', 'unknown'),
-      { ...activity('5'), visibility: undefined },
-    ],
-    true,
-  )
-  assert.equal(result.length, 1)
-  assert.equal(result[0].date, '2026-10-25')
-  assert.deepEqual(result[0].feature.properties, {})
-  assert.equal(result[0].visibility, undefined)
-  assert.equal(publicActivities([activity()], false)[0].feature, null)
-})
-test('narrow scope proofs are tied to the token and expire; broad or missing scopes cannot expose routes', () => {
-  assert.equal(safeRouteScope('read activity:read'), true)
-  for (const scope of [undefined, 'read', 'read activity:read_all', 'activity:read activity:read_all'])
-    assert.equal(safeRouteScope(scope), false)
-  const proof = signProof('route-access', { token: digest('token-a') }, Date.now() + 10000)
-  assert.equal(hasSafeRouteGrant(proof, 'token-a'), true)
-  assert.equal(hasSafeRouteGrant(proof, 'token-b'), false)
-  assert.equal(hasSafeRouteGrant(proof + 'bad', 'token-a'), false)
-  assert.equal(
-    hasSafeRouteGrant(signProof('route-access', { token: digest('token-a') }, Date.now() - 1), 'token-a'),
-    false,
-  )
+test('sharing includes all imported routes but strips exact times and extra properties', () => {
+  const activities = [
+    activity('1'),
+    activity('2', 'followers_only'),
+    activity('3', 'only_me'),
+    activity('4', 'unknown'),
+    { ...activity('5'), visibility: undefined },
+    { ...activity('6'), feature: null },
+  ]
+  const result = publicActivities(activities)
+  assert.equal(result.length, activities.length)
+  for (const [index, item] of result.entries()) {
+    assert.equal(item.date, '2026-10-25')
+    assert.equal(item.visibility, undefined)
+    assert.deepEqual(item.feature?.geometry, activities[index].feature?.geometry)
+    if (item.feature) assert.deepEqual(item.feature.properties, {})
+  }
+  assert.equal(result[5].feature, null)
 })
 test('tampered, expired, wrong-account and unverified snapshots are rejected before upload', async () => {
   for (const proof of [

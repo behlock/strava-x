@@ -1,6 +1,7 @@
 'use client'
 
 import { Suspense } from 'react'
+import { LoaderCircle } from 'lucide-react'
 
 import { HEADER_LOGO_CLASS, HeaderBar } from './header-bar'
 import { StravaAuthError } from './strava-auth-error'
@@ -54,18 +55,26 @@ export function Header({
   onStravaConnect,
   onStravaDisconnect,
 }: HeaderProps) {
-  useKeyboardShortcut('publish-map', onPublishClick, hasActivities && stravaConnected)
+  useKeyboardShortcut('publish-map', onPublishClick, hasActivities && stravaConnected && !isStravaSyncing)
   const publishControl =
-    hasActivities && stravaConnected ? (
-      <Tooltip text="share map" shortcut={SHORTCUTS['publish-map'].label}>
+    (hasActivities || isStravaSyncing) && stravaConnected ? (
+      <Tooltip
+        text={isStravaSyncing ? 'syncing activities' : 'share map'}
+        shortcut={isStravaSyncing ? undefined : SHORTCUTS['publish-map'].label}
+      >
         <button
           type="button"
           onClick={onPublishClick}
-          aria-keyshortcuts={SHORTCUTS['publish-map'].aria}
-          aria-label={currentSlug ? `Share map /${currentSlug}` : 'Share map'}
-          className="inline-flex min-h-11 max-w-[46vw] items-center justify-center rounded-full floating-control px-3 text-xs-compact tracking-wider text-foreground focus-ring sm:px-4 md:min-h-[35px] md:max-w-xs"
+          disabled={isStravaSyncing}
+          aria-busy={isStravaSyncing}
+          aria-keyshortcuts={isStravaSyncing ? undefined : SHORTCUTS['publish-map'].aria}
+          aria-label={isStravaSyncing ? 'Syncing activities' : currentSlug ? `Share map /${currentSlug}` : 'Share map'}
+          className="relative inline-flex min-h-11 max-w-[46vw] items-center justify-center rounded-full floating-control px-3 text-xs-compact tracking-wider text-foreground focus-ring disabled:cursor-wait sm:px-4 md:min-h-[35px] md:max-w-xs"
         >
-          <span className="truncate">{currentSlug ? `/${currentSlug}` : 'share map'}</span>
+          <span className={isStravaSyncing ? 'invisible truncate' : 'truncate'}>
+            {currentSlug ? `/${currentSlug}` : 'share map'}
+          </span>
+          {isStravaSyncing && <LoaderCircle className="absolute size-4 motion-safe:animate-spin" aria-hidden="true" />}
         </button>
       </Tooltip>
     ) : null

@@ -1,4 +1,3 @@
-import { digest, signProof } from '@/lib/sharing-proof'
 import type { NextRequest, NextResponse } from 'next/server'
 
 import {
@@ -6,7 +5,6 @@ import {
   STRAVA_CONNECTED_COOKIE,
   STRAVA_OAUTH_STATE_COOKIE,
   STRAVA_REFRESH_COOKIE,
-  STRAVA_ROUTE_GRANT_COOKIE,
 } from '@/lib/cookies'
 
 // OAuth must start on the callback origin so its host-scoped state cookie survives.
@@ -49,21 +47,13 @@ export function clearOAuthStateCookie(res: NextResponse): void {
   res.cookies.set(STRAVA_OAUTH_STATE_COOKIE, '', { path: OAUTH_STATE_COOKIE_PATH, maxAge: 0 })
 }
 
-export function setSessionCookies(res: NextResponse, refreshToken: string, routesVerified = false): void {
+export function setSessionCookies(res: NextResponse, refreshToken: string): void {
   const base = { secure: isProduction(), sameSite: 'lax', path: '/', maxAge: SESSION_COOKIE_MAX_AGE } as const
   res.cookies.set(STRAVA_REFRESH_COOKIE, refreshToken, { ...base, httpOnly: true })
   res.cookies.set(STRAVA_CONNECTED_COOKIE, '1', base)
-  res.cookies.set(
-    STRAVA_ROUTE_GRANT_COOKIE,
-    routesVerified
-      ? signProof('refresh-grant', { token: digest(refreshToken) }, Date.now() + SESSION_COOKIE_MAX_AGE * 1000)
-      : '',
-    { ...base, httpOnly: true, maxAge: routesVerified ? SESSION_COOKIE_MAX_AGE : 0 },
-  )
 }
 
 export function clearSessionCookies(res: NextResponse): void {
-  res.cookies.set(STRAVA_ROUTE_GRANT_COOKIE, '', { path: '/', maxAge: 0 })
   res.cookies.set(STRAVA_REFRESH_COOKIE, '', { path: '/', maxAge: 0 })
   res.cookies.set(STRAVA_CONNECTED_COOKIE, '', { path: '/', maxAge: 0 })
 }

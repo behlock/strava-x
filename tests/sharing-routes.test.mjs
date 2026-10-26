@@ -4,7 +4,7 @@ import { gunzipSync } from 'node:zlib'
 import { loadTs } from './load-ts.mjs'
 
 process.env.STRAVA_CLIENT_SECRET = 'isolated-test-secret'
-const { signProof, digest } = loadTs('src/lib/sharing-proof.ts')
+const { digest } = loadTs('src/lib/sharing-proof.ts')
 const api = {
   authenticateAthlete: async () => ({ ok: true, athlete: { athleteId: 7 } }),
   enforceRateLimit: () => null,
@@ -34,7 +34,6 @@ const request = () =>
     method: 'POST',
     body: JSON.stringify({
       accessToken: 'token',
-      routeAccessProof: signProof('route-access', { token: digest('token') }, Date.now() + 60000),
     }),
   })
 function syncRoute() {
@@ -50,8 +49,9 @@ async function decoded(response) {
   return JSON.parse(gunzipSync(Buffer.from(await response.arrayBuffer())).toString())
 }
 
-test('sync signs only public data; owner library retains visibility; captures revision before network I/O', async (t) => {
-  t.mock.method(globalThis, 'fetch', async () => {
+test('sync signs every imported route without a scope proof; captures revision before network I/O', async (t) => {
+  t.mock.method(globalThis, 'fetch', async (url) => {
+    if (new URL(url).searchParams.get('page') !== '1') return Response.json([])
     row.revision = '5'
     return Response.json([
       item(1),
@@ -60,18 +60,17 @@ test('sync signs only public data; owner library retains visibility; captures re
       { ...item(4), visibility: undefined, private: false },
     ])
   })
-  // Explicit absence of visibility cannot be inferred from private:false.
   const result = await decoded(await syncRoute()(request()))
   assert.equal(result.share.revision, '4')
   assert.equal(result.activities.length, 4)
   assert.equal(result.activities[1].visibility, 'followers_only')
-  assert.equal(result.snapshot.activities.length, 1)
+  assert.equal(result.snapshot.activities.length, 4)
   assert.equal(
     result.snapshot.activities.some((a) => a.id === 'strava-2'),
-    false,
+    true,
   )
   assert.equal(result.snapshot.activities[0].date, '2026-10-25')
-  assert.equal(result.snapshot.routesVerified, true)
+  assert.ok(result.snapshot.activities.every((activity) => activity.feature.geometry.coordinates.length > 1))
   assert.equal(row.revision, '5')
 })
 test('failure on a later page returns no partial snapshot or publishable proof', async (t) => {
@@ -84,7 +83,7 @@ test('failure on a later page returns no partial snapshot or publishable proof',
   const response = await syncRoute()(request())
   assert.equal(response.status, 502)
   assert.deepEqual(await response.json(), { error: 'strava_unauthorized' })
-  assert.equal(calls, 2)
+  assert.equal(calls, 4)
 })
 test('successful empty sync yields a valid empty snapshot instead of retaining old routes', async (t) => {
   t.mock.method(globalThis, 'fetch', async () => Response.json([]))
@@ -172,7 +171,9 @@ test('public storage failures fail closed with an uncached service error', async
 })
 
 test('missing sharing tables do not block personal sync or issue a publishable proof', async (t) => {
-  t.mock.method(globalThis, 'fetch', async () => Response.json([item(1), item(2, 'only_me')]))
+  t.mock.method(globalThis, 'fetch', async (url) =>
+    Response.json(new URL(url).searchParams.get('page') === '1' ? [item(1), item(2, 'only_me')] : []),
+  )
   const { POST } = loadTs('src/app/api/activities/sync/route.ts', {
     '@/lib/api': api,
     '@/lib/sharing-db': {
@@ -225,7 +226,9 @@ test('sharing status returns a controlled service error when the database is una
 })
 
 test('sharing preparation failures preserve the complete personal library without issuing a proof', async (t) => {
-  t.mock.method(globalThis, 'fetch', async () => Response.json([item(1)]))
+  t.mock.method(globalThis, 'fetch', async (url) =>
+    Response.json(new URL(url).searchParams.get('page') === '1' ? [item(1)] : []),
+  )
   const actual = loadTs('src/lib/share-snapshot.ts')
   for (const canonicalSnapshot of [
     () => 'x'.repeat(25 * 1024 * 1024 + 1),

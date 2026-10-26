@@ -15,8 +15,6 @@ interface PublishDialogProps {
   onClose: () => void
   currentSlug: string | null
   suggestedAddress?: string
-  routesVerified: boolean | null
-  onReconnect: () => void
   isPublishing: boolean
   estimatedSizeBytes: number
   publish: (slug: string) => Promise<{ error: PublishError } | { slug: string }>
@@ -25,9 +23,9 @@ interface PublishDialogProps {
 }
 
 const ERROR_MESSAGES: Record<PublishError, string> = {
-  sync_required: 'reload to finish a fresh Strava sync before sharing',
+  sync_required: 'could not refresh your activities, try sharing again',
   sharing_not_configured: 'sharing storage is not configured yet',
-  invalid_snapshot: 'this update could not be verified, reload and sync again',
+  invalid_snapshot: 'this update could not be verified, try sharing again',
   invalid_slug: 'use 2–30 lowercase letters, numbers or dashes',
   slug_reserved: 'that address is reserved, pick another',
   slug_taken: 'someone else already uses that address',
@@ -88,8 +86,6 @@ function PublishDialogBody({
   suggestedAddress,
   isPublishing,
   estimatedSizeBytes,
-  routesVerified,
-  onReconnect,
   publish,
   unpublish,
   checkSlug,
@@ -213,19 +209,8 @@ function PublishDialogBody({
             if (canSubmit) void handlePublish()
           }}
         >
-          {routesVerified === false && (
-            <p className="text-xs-compact text-panel-muted">
-              Routes are hidden until you{' '}
-              <button type="button" onClick={onReconnect} className="underline underline-offset-2">
-                reconnect Strava
-              </button>{' '}
-              with privacy protection.
-            </p>
-          )}
           {!currentSlug && (
-            <p className="text-xs-compact text-panel-muted">
-              Only activities visible to Everyone on Strava are shared.
-            </p>
+            <p className="text-xs-compact text-panel-muted">Anyone with this link can view your activity map.</p>
           )}
           <label className="sr-only" htmlFor="map-address">
             Map link
@@ -233,10 +218,11 @@ function PublishDialogBody({
           <div className="rounded-lg border border-panel-border bg-control py-1 pr-1 pl-3 focus-within:border-foreground/50">
             <div className="flex items-center">
               <span
-                className="max-w-[50%] min-w-0 truncate text-base-compact text-panel-muted md:text-sm-compact"
+                className="max-w-[50%] min-w-0 truncate text-[12px] leading-5 text-panel-muted md:text-sm-compact"
                 title={`${origin}/`}
               >
-                {`${origin}/`}
+                <span className="md:hidden">{`${origin.replace(/^https?:\/\/(?:www\.)?/, '')}/`}</span>
+                <span className="hidden md:inline">{`${origin}/`}</span>
               </span>
               <span
                 className={cn(
