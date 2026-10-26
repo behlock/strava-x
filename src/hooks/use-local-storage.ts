@@ -1,17 +1,35 @@
 'use client'
 
-import { useSyncExternalStore } from 'react'
+import { useCallback, useSyncExternalStore } from 'react'
 
 // Writes made through `writeLocalStorage` notify same-tab subscribers; the
 // native `storage` event covers other tabs.
-const listeners = new Set<() => void>()
+const listeners = new Map<string, Set<() => void>>()
 
-function subscribe(listener: () => void): () => void {
-  listeners.add(listener)
-  window.addEventListener('storage', listener)
+function notifyKey(key: string | null) {
+  if (key === null) {
+    for (const group of listeners.values()) for (const listener of group) listener()
+  } else {
+    for (const listener of listeners.get(key) ?? []) listener()
+  }
+}
+
+function handleStorage(event: StorageEvent) {
+  if (event.storageArea === window.localStorage) notifyKey(event.key)
+}
+
+function subscribe(key: string, listener: () => void): () => void {
+  if (listeners.size === 0) window.addEventListener('storage', handleStorage)
+  let group = listeners.get(key)
+  if (!group) {
+    group = new Set()
+    listeners.set(key, group)
+  }
+  group.add(listener)
   return () => {
-    listeners.delete(listener)
-    window.removeEventListener('storage', listener)
+    group.delete(listener)
+    if (group.size === 0) listeners.delete(key)
+    if (listeners.size === 0) window.removeEventListener('storage', handleStorage)
   }
 }
 
@@ -33,7 +51,7 @@ export function writeLocalStorage(key: string, value: string | null): void {
   } catch {
     // localStorage can be full or disabled (private mode); callers treat it as best-effort.
   }
-  for (const listener of listeners) listener()
+  notifyKey(key)
 }
 
 const getServerSnapshot = () => null
@@ -43,5 +61,9 @@ const getServerSnapshot = () => null
  * server rendering and hydration, then the live value.
  */
 export function useLocalStorageItem(key: string): string | null {
-  return useSyncExternalStore(subscribe, () => readLocalStorage(key), getServerSnapshot)
+  return useSyncExternalStore(
+    useCallback((listener) => subscribe(key, listener), [key]),
+    () => readLocalStorage(key),
+    getServerSnapshot,
+  )
 }
