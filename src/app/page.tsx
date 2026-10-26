@@ -260,6 +260,7 @@ export default function HomePage() {
     <MapView
       activities={activities}
       loading={isSyncing}
+      preferBusiestArea={stravaConnected}
       header={header}
       setupPanel={<SetupPanel onDisconnect={stravaConnected ? handleDisconnect : undefined} />}
       externalMapRef={mapRef}

@@ -97,7 +97,7 @@ export function ActivityMap({
     const bounds = initialBoundsRef.current
     if (hasFramedRef.current || hasUserMovedRef.current || !isLoadedRef.current || !bounds || !mapRef.current) return
     hasFramedRef.current = true
-    mapRef.current.fitBounds(bounds, { padding: DEFAULT_PADDING, maxZoom: 12, duration: 0 })
+    mapRef.current.fitBounds(bounds, { padding: DEFAULT_PADDING, retainPadding: false, maxZoom: 12, duration: 0 })
   }, [])
 
   // Bounds that show up after the map loaded still get framed (once).
@@ -133,7 +133,12 @@ export function ActivityMap({
   }, [frameInitialBounds])
 
   const fitBounds = useCallback((bounds: MapBounds, options?: FitOptions) => {
-    mapRef.current?.fitBounds(bounds, { padding: options?.padding ?? DEFAULT_PADDING, duration: 500, maxZoom: 16 })
+    mapRef.current?.fitBounds(bounds, {
+      padding: options?.padding ?? DEFAULT_PADDING,
+      retainPadding: false,
+      duration: 500,
+      maxZoom: 16,
+    })
   }, [])
 
   useImperativeHandle(

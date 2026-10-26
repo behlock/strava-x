@@ -21,6 +21,8 @@ interface MapViewProps {
   activities: Activity[]
   /** Show activity list loading states (used during initial sync). */
   loading?: boolean
+  /** Frame the complete library’s busiest area instead of restoring an old viewport. */
+  preferBusiestArea?: boolean
   header: ReactNode
   /** Settings panel (theme, account) shown alongside the map panels. */
   setupPanel?: ReactNode
@@ -46,6 +48,7 @@ const MOBILE_MAX_VERTICAL_RATIO = 0.8
 export function MapView({
   activities: allActivities,
   loading = false,
+  preferBusiestArea = false,
   header,
   setupPanel,
   overlays,
@@ -128,7 +131,11 @@ export function MapView({
     [activities, hoveredFilterType],
   )
 
-  const { position: initialMapPosition, initialBounds, savePosition } = usePersistedMapPosition(allActivities, mode)
+  const {
+    position: initialMapPosition,
+    initialBounds,
+    savePosition,
+  } = usePersistedMapPosition(preferBusiestArea && loading ? [] : allActivities, mode, preferBusiestArea)
 
   const allGeoData = useMemo(
     (): ActivityFeatureCollection => ({
