@@ -1,19 +1,22 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { Check, Copy } from 'lucide-react'
 
 import { DialogCloseButton } from '@/components/ui'
 import { cn } from '@/lib/utils'
 import { normalizeSlug } from '@/lib/slug'
+import { useMounted } from '@/hooks/use-mounted'
 import { useFocusTrap } from '@/hooks/use-focus-trap'
 import type { CheckResult, PublishError } from '@/hooks/use-publish'
 
 interface PublishDialogProps {
   open: boolean
   onClose: () => void
+  currentSlug: string | null
+  suggestedAddress?: string
   routesVerified: boolean | null
   onReconnect: () => void
-  currentSlug: string | null
   isPublishing: boolean
   estimatedSizeBytes: number
   publish: (slug: string) => Promise<{ error: PublishError } | { slug: string }>
@@ -37,21 +40,15 @@ const ERROR_MESSAGES: Record<PublishError, string> = {
   cancelled: 'update cancelled, try again',
 }
 
-const SIZE_WARN_BYTES = 10 * 1024 * 1024
 const SIZE_HARD_LIMIT_BYTES = 25 * 1024 * 1024
 const CHECK_DEBOUNCE_MS = 300
 const SUCCESS_PILL_MS = 2500
 const COPIED_PILL_MS = 2000
 
-const BUTTON = 'focus-ring min-h-11 rounded-sm px-3 py-2 text-xs-compact tracking-wider transition-colors md:min-h-0'
-const BUTTON_OUTLINE = `${BUTTON} border border-panel-border hover:border-foreground hover:bg-foreground/5 disabled:opacity-50`
-const BUTTON_DANGER = `${BUTTON} border border-red-500/50 text-red-500 hover:bg-red-500/10 disabled:opacity-50`
-
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`
-  return `${(bytes / 1024 / 1024).toFixed(1)} MB`
-}
+const BUTTON =
+  'focus-ring inline-flex min-h-11 items-center justify-center gap-2 rounded-full px-3 py-2 text-xs-compact tracking-wider transition-colors md:min-h-0'
+const BUTTON_OUTLINE = `${BUTTON} floating-control disabled:opacity-50`
+const BUTTON_DANGER = `${BUTTON} border border-panel-border text-red-600 hover:bg-red-500/10 disabled:opacity-50 dark:text-red-400`
 
 function checkMessage(reason: string | undefined): string {
   switch (reason) {
@@ -87,17 +84,18 @@ export function PublishDialog({ open, onClose, ...props }: PublishDialogProps) {
 
 function PublishDialogBody({
   onClose,
-  routesVerified,
-  onReconnect,
   currentSlug,
+  suggestedAddress,
   isPublishing,
   estimatedSizeBytes,
+  routesVerified,
+  onReconnect,
   publish,
   unpublish,
   checkSlug,
 }: Omit<PublishDialogProps, 'open'>) {
-  const [slugInput, setSlugInput] = useState(currentSlug ?? '')
-  const [editingSlug, setEditingSlug] = useState(!currentSlug)
+  const [slugInput, setSlugInput] = useState<string | null>(null)
+  const addressInput = slugInput ?? currentSlug ?? suggestedAddress ?? ''
   // Latest availability result, tagged with the slug it was computed for so
   // stale answers are ignored.
   const [lastCheck, setLastCheck] = useState<{ slug: string; result: CheckResult } | null>(null)
@@ -106,8 +104,11 @@ function PublishDialogBody({
   const [confirmingUnpublish, setConfirmingUnpublish] = useState(false)
   const [showSuccess, setShowSuccess] = useState(false)
 
-  const normalized = normalizeSlug(slugInput)
-  const publishedUrl = typeof window !== 'undefined' && currentSlug ? `${window.location.origin}/${currentSlug}` : null
+  const mounted = useMounted()
+  const origin = mounted ? window.location.origin : ''
+  const normalized = normalizeSlug(addressInput)
+  const editingSlug = !currentSlug || normalized !== currentSlug
+  const publishedUrl = origin && currentSlug ? `${origin}/${currentSlug}` : null
 
   useTimeout(
     showSuccess,
@@ -143,7 +144,7 @@ function PublishDialogBody({
       setError(result.error)
       return
     }
-    setEditingSlug(false)
+    setSlugInput(null)
     setShowSuccess(true)
   }, [publish, normalized])
 
@@ -167,41 +168,51 @@ function PublishDialogBody({
     }
   }, [publishedUrl])
 
-  // Escape closes, Tab stays inside, focus starts on the close button and
-  // returns to the trigger on close. The body only mounts while open.
+  // Focus the dialog on open; Tab reaches the controls and Escape closes.
+  // The body only mounts while open and restores focus to its trigger on close.
   const dialogRef = useRef<HTMLDivElement>(null)
-  const closeButtonRef = useRef<HTMLButtonElement>(null)
-  useFocusTrap(dialogRef, { active: true, onEscape: onClose, initialFocus: closeButtonRef })
+  useFocusTrap(dialogRef, { active: true, onEscape: onClose, initialFocus: dialogRef })
 
-  // Declared after the trap so that, when the slug is being edited, the
-  // input wins the initial focus.
+  // First-time sharing starts in the address field; existing links stay unfocused.
   const inputRef = useRef<HTMLInputElement>(null)
   useEffect(() => {
-    if (editingSlug) inputRef.current?.focus()
-  }, [editingSlug])
+    if (!currentSlug) inputRef.current?.focus()
+  }, [currentSlug])
 
   const tooLarge = estimatedSizeBytes > SIZE_HARD_LIMIT_BYTES
-  const sizeWarn = estimatedSizeBytes > SIZE_WARN_BYTES
-  const canSubmit = !isPublishing && !tooLarge && typeof check === 'object' && check !== null && check.available
+  const addressAvailable = typeof check === 'object' && check !== null && check.available
+  const addressUnavailable = typeof check === 'object' && check !== null && !check.available
+  const canSubmit = !isPublishing && !tooLarge && addressAvailable
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="absolute inset-0 bg-background/80 backdrop-blur-md" onClick={onClose} aria-hidden="true" />
+      <div
+        className="dialog-backdrop-enter absolute inset-0 bg-background/50 backdrop-blur-xs"
+        onClick={onClose}
+        aria-hidden="true"
+      />
       <div
         ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby="publish-dialog-title"
-        className="relative mx-4 w-full max-w-md rounded-sm border border-panel-border bg-panel"
+        tabIndex={-1}
+        className="dialog-surface-enter relative mx-4 flex max-h-[calc(100dvh-2rem)] w-full max-w-md flex-col overflow-hidden rounded-xl border border-panel-border bg-panel focus:outline-hidden"
       >
-        <div className="flex items-center justify-between border-b border-panel-border px-4 py-3">
+        <div className="flex shrink-0 items-center justify-between gap-3 border-b border-panel-border/40 px-4 py-3">
           <span id="publish-dialog-title" className="text-sm-compact tracking-wider">
-            [publish]
+            share map
           </span>
-          <DialogCloseButton ref={closeButtonRef} onClick={onClose} aria-label="Close publish dialog" />
+          <DialogCloseButton onClick={onClose} aria-label="Close share map dialog" />
         </div>
 
-        <div className="space-y-4 p-4">
+        <form
+          className="min-h-0 space-y-3 overflow-y-auto overscroll-contain p-4"
+          onSubmit={(event) => {
+            event.preventDefault()
+            if (canSubmit) void handlePublish()
+          }}
+        >
           {routesVerified === false && (
             <p className="text-xs-compact text-panel-muted">
               Routes are hidden until you{' '}
@@ -216,138 +227,159 @@ function PublishDialogBody({
               Only activities visible to Everyone on Strava are shared.
             </p>
           )}
-
-          {currentSlug && !editingSlug ? (
-            <div className="space-y-3">
-              <div className="flex items-center justify-between gap-2">
-                <p className="text-xs-compact tracking-wider text-panel-muted">your map is published at</p>
-                {showSuccess && (
-                  <span role="status" className="text-xs-compact tracking-wider text-green-500">
-                    [✓] published
-                  </span>
+          <label className="sr-only" htmlFor="map-address">
+            Map link
+          </label>
+          <div className="rounded-lg border border-panel-border bg-control py-1 pr-1 pl-3 focus-within:border-foreground/50">
+            <div className="flex items-center">
+              <span
+                className="max-w-[50%] min-w-0 truncate text-base-compact text-panel-muted md:text-sm-compact"
+                title={`${origin}/`}
+              >
+                {`${origin}/`}
+              </span>
+              <span
+                className={cn(
+                  'ml-1 inline-grid min-h-11 min-w-0 grid-cols-[minmax(0,1fr)] items-center rounded-full border px-2 py-1 text-base-compact tracking-normal transition-colors md:min-h-0 md:text-sm-compact md:tracking-normal',
+                  addressAvailable || showSuccess
+                    ? 'border-green-600/50 bg-green-600/10 text-green-700 focus-within:border-green-600 hover:bg-green-600/15 dark:border-green-400/50 dark:bg-green-400/10 dark:text-green-400 dark:focus-within:border-green-400'
+                    : 'border-panel-border bg-selection/60 focus-within:border-foreground/50 focus-within:bg-selection hover:bg-selection',
+                  (isPublishing || confirmingUnpublish) && 'opacity-60',
                 )}
-              </div>
-              <div className="flex items-center gap-2">
-                <code className="flex-1 rounded-sm border border-panel-border bg-background px-3 py-2 text-sm-compact break-all">
-                  {publishedUrl}
-                </code>
-                <button type="button" onClick={handleCopy} className={BUTTON_OUTLINE}>
-                  {copied ? '[copied]' : '[copy]'}
+              >
+                <span
+                  aria-hidden="true"
+                  className="invisible col-start-1 row-start-1 min-w-0 overflow-hidden pr-[2px] whitespace-pre"
+                >
+                  {addressInput || suggestedAddress || 'your-name'}
+                </span>
+                <input
+                  id="map-address"
+                  ref={inputRef}
+                  type="text"
+                  size={1}
+                  value={addressInput}
+                  disabled={isPublishing || confirmingUnpublish}
+                  onChange={(event) => {
+                    setSlugInput(event.target.value.toLowerCase())
+                    setError(null)
+                    setShowSuccess(false)
+                    setCopied(false)
+                  }}
+                  placeholder={suggestedAddress ?? 'your-name'}
+                  inputMode="text"
+                  autoComplete="off"
+                  autoCapitalize="off"
+                  spellCheck={false}
+                  aria-describedby={editingSlug || error ? 'map-address-status' : undefined}
+                  aria-invalid={addressUnavailable || undefined}
+                  className="col-start-1 row-start-1 w-full min-w-0 appearance-none rounded-none border-0 bg-transparent p-0 placeholder:text-panel-muted/60 focus:outline-hidden"
+                />
+              </span>
+              {currentSlug && !editingSlug && (
+                <button
+                  type="button"
+                  onClick={handleCopy}
+                  aria-label={copied ? 'Link copied' : 'Copy map link'}
+                  className="ml-auto flex size-11 shrink-0 items-center justify-center rounded-full focus-ring transition-colors hover:bg-foreground/5 md:size-8"
+                >
+                  <span
+                    className="copy-feedback relative size-3.5"
+                    data-copied={copied || showSuccess}
+                    aria-hidden="true"
+                  >
+                    <span className="copy-feedback-original absolute inset-0">
+                      <Copy className="size-3.5" />
+                    </span>
+                    <span className="copy-feedback-success absolute inset-0 text-green-600 dark:text-green-400">
+                      <Check className="size-3.5" />
+                    </span>
+                  </span>
                 </button>
-              </div>
-
-              {error && <p className="text-xs-compact text-red-500">{ERROR_MESSAGES[error]}</p>}
-
-              {confirmingUnpublish ? (
-                <div className="flex items-center gap-2 border-t border-panel-border pt-2">
-                  <span className="flex-1 text-xs-compact text-panel-muted">unpublish this map?</span>
-                  <button
-                    type="button"
-                    onClick={() => setConfirmingUnpublish(false)}
-                    disabled={isPublishing}
-                    className={BUTTON_OUTLINE}
-                  >
-                    cancel
-                  </button>
-                  <button type="button" onClick={handleUnpublish} disabled={isPublishing} className={BUTTON_DANGER}>
-                    {isPublishing ? '[…]' : '[x] confirm'}
-                  </button>
-                </div>
-              ) : (
-                <div className="flex gap-2 border-t border-panel-border pt-2">
-                  <button
-                    type="button"
-                    onClick={() => setEditingSlug(true)}
-                    disabled={isPublishing}
-                    className={cn(BUTTON_OUTLINE, 'flex-1')}
-                  >
-                    [/] change slug
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setConfirmingUnpublish(true)}
-                    disabled={isPublishing}
-                    className={cn(BUTTON_DANGER, 'flex-1')}
-                  >
-                    [x] unpublish
-                  </button>
-                </div>
               )}
             </div>
-          ) : (
-            <div className="space-y-3">
-              <label className="block space-y-2">
-                <span className="text-xs-compact tracking-wider text-panel-muted">choose a slug</span>
-                <div className="flex items-center overflow-hidden rounded-sm border border-panel-border bg-background">
-                  <span className="px-3 text-xs-compact text-panel-muted select-none">/</span>
-                  <input
-                    ref={inputRef}
-                    type="text"
-                    value={slugInput}
-                    onChange={(e) => setSlugInput(e.target.value.toLowerCase())}
-                    placeholder="walid"
-                    inputMode="text"
-                    autoComplete="off"
-                    autoCapitalize="off"
-                    spellCheck={false}
-                    className="min-h-11 flex-1 bg-transparent px-0 py-2 text-sm-compact placeholder:text-panel-muted/60 focus:outline-hidden md:min-h-0"
-                  />
-                </div>
-              </label>
-
-              <div className="min-h-5 text-xs-compact" aria-live="polite">
-                {check === 'checking' && <span className="text-panel-muted">checking…</span>}
-                {check && check !== 'checking' && check.available && (
-                  <span className="text-green-500">{check.ownedByMe ? 'this is your current slug' : 'available'}</span>
-                )}
-                {check && check !== 'checking' && !check.available && (
-                  <span className="text-red-500">{checkMessage(check.reason)}</span>
-                )}
-              </div>
-
-              <p className="text-xs-compact text-panel-muted">
-                upload size: {formatBytes(estimatedSizeBytes)}
-                {sizeWarn && !tooLarge && ' — this may take a moment'}
-                {tooLarge && ' — over the 25 MB limit, publishing is disabled'}
-              </p>
-
-              {error && <p className="text-xs-compact text-red-500">{ERROR_MESSAGES[error]}</p>}
-
-              <div className="flex gap-2 border-t border-panel-border pt-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (currentSlug) {
-                      setEditingSlug(false)
-                      setSlugInput(currentSlug)
-                      setError(null)
-                    } else {
-                      onClose()
-                    }
-                  }}
-                  disabled={isPublishing}
-                  className={BUTTON_OUTLINE}
-                >
-                  cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={handlePublish}
-                  disabled={!canSubmit}
-                  className={cn(
-                    BUTTON,
-                    'flex-1 border',
-                    canSubmit
-                      ? 'border-foreground bg-foreground/10 hover:bg-foreground/20'
-                      : 'cursor-not-allowed border-panel-border opacity-50',
-                  )}
-                >
-                  {isPublishing ? '[…] publishing' : '[↑] publish'}
-                </button>
-              </div>
+            <div
+              id="map-address-status"
+              className={
+                error || addressUnavailable || (editingSlug && tooLarge)
+                  ? 'w-full py-1 pr-2 text-xs-compact text-red-500'
+                  : 'sr-only'
+              }
+              aria-live="polite"
+            >
+              {error
+                ? ERROR_MESSAGES[error]
+                : addressUnavailable
+                  ? checkMessage(check.reason)
+                  : editingSlug && tooLarge
+                    ? 'over the 25 MB limit, sharing is disabled'
+                    : copied
+                      ? 'Link copied'
+                      : showSuccess
+                        ? 'Link updated'
+                        : check === 'checking'
+                          ? 'Checking availability'
+                          : addressAvailable
+                            ? 'Address available'
+                            : ''}
             </div>
+          </div>
+
+          {editingSlug ? (
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <button
+                type="button"
+                onClick={() => {
+                  if (currentSlug) {
+                    setSlugInput(null)
+                    setError(null)
+                  } else onClose()
+                }}
+                disabled={isPublishing}
+                className={BUTTON_OUTLINE}
+              >
+                cancel
+              </button>
+              <button
+                type="submit"
+                disabled={!canSubmit}
+                className={cn(
+                  BUTTON,
+                  'flex-1 border',
+                  canSubmit
+                    ? 'border-foreground bg-foreground/10 hover:bg-foreground/20'
+                    : 'cursor-not-allowed border-panel-border opacity-50',
+                )}
+              >
+                {currentSlug ? (isPublishing ? 'updating…' : 'update link') : isPublishing ? 'sharing…' : 'share map'}
+              </button>
+            </div>
+          ) : confirmingUnpublish ? (
+            <div className="flex flex-wrap items-center gap-2 pt-1">
+              <span className="flex-1 text-xs-compact text-panel-muted">stop sharing this map?</span>
+              <button
+                type="button"
+                onClick={() => setConfirmingUnpublish(false)}
+                disabled={isPublishing}
+                className={BUTTON_OUTLINE}
+              >
+                cancel
+              </button>
+              <button type="button" onClick={handleUnpublish} disabled={isPublishing} className={BUTTON_DANGER}>
+                {isPublishing ? 'stopping…' : 'stop sharing'}
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setConfirmingUnpublish(true)}
+              disabled={isPublishing}
+              className={cn(BUTTON_DANGER, 'w-full')}
+            >
+              stop sharing
+            </button>
           )}
-        </div>
+        </form>
       </div>
     </div>
   )

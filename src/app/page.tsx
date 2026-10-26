@@ -276,6 +276,7 @@ export default function HomePage() {
             open={publishOpen}
             onClose={() => setPublishOpen(false)}
             currentSlug={currentSlug}
+            suggestedAddress={stravaProfile?.suggestedAddress}
             isPublishing={isPublishing}
             routesVerified={routesVerified}
             onReconnect={connect}
