@@ -17,7 +17,6 @@ import { useWelcomePanel } from '@/hooks/use-welcome-panel'
 
 const STRAVA_AVAILABLE = Boolean(config.STRAVA_CLIENT_ID)
 
-const ExportModal = dynamic(() => import('@/components/export').then((mod) => mod.ExportModal), { ssr: false })
 const PublishDialog = dynamic(() => import('@/components/publish').then((mod) => mod.PublishDialog), { ssr: false })
 const WelcomePanel = dynamic(() => import('@/components/welcome').then((mod) => mod.WelcomePanel), { ssr: false })
 
@@ -36,7 +35,6 @@ export default function HomePage() {
 
   const [isSyncing, setIsSyncing] = useState(false)
   const [syncError, setSyncError] = useState<string | null>(null)
-  const [exportOpen, setExportOpen] = useState(false)
   const [publishOpen, setPublishOpen] = useState(false)
   const mapRef = useRef<ActivityMapRef | null>(null)
 
@@ -206,7 +204,6 @@ export default function HomePage() {
   const header = (
     <Header
       onLogoClick={flyToLatestActivity}
-      onExportClick={() => setExportOpen(true)}
       onPublishClick={openPublish}
       hasActivities={hasActivities}
       stravaAvailable={STRAVA_AVAILABLE}
@@ -227,7 +224,6 @@ export default function HomePage() {
       externalMapRef={mapRef}
       overlays={
         <>
-          <ExportModal open={exportOpen} onClose={() => setExportOpen(false)} mapRef={mapRef} />
           <PublishDialog
             open={publishOpen}
             onClose={() => setPublishOpen(false)}

@@ -1,15 +1,13 @@
 'use client'
 
 import { Suspense } from 'react'
-import { ArrowRight, Loader2 } from 'lucide-react'
+import { ArrowRight, Loader2, Share2 } from 'lucide-react'
 
 import { HEADER_LOGO_CLASS, HeaderBar, HeaderChip } from './header-bar'
-import { ShareMenu } from './share-menu'
 import { StravaAuthError } from './strava-auth-error'
 
 interface HeaderProps {
   onLogoClick: () => void
-  onExportClick: () => void
   onPublishClick: () => void
   hasActivities: boolean
   stravaAvailable: boolean
@@ -50,7 +48,6 @@ function SyncFailed({ message }: { message: string }) {
 
 export function Header({
   onLogoClick,
-  onExportClick,
   onPublishClick,
   hasActivities,
   stravaAvailable,
@@ -89,7 +86,11 @@ export function Header({
       )}
 
       {/* The one primary action; disconnect and theme live in the setup panel. */}
-      {hasActivities && <ShareMenu onExport={onExportClick} onPublish={onPublishClick} canPublish={stravaConnected} />}
+      {hasActivities && stravaConnected && (
+        <HeaderChip tooltip="share" tooltipAlign="end" onClick={onPublishClick} aria-label="Share map">
+          <Share2 className="size-4" />
+        </HeaderChip>
+      )}
     </HeaderBar>
   )
 }

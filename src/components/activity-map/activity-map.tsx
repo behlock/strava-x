@@ -18,7 +18,6 @@ interface FitOptions {
 }
 
 export interface ActivityMapRef {
-  getCanvas: () => HTMLCanvasElement | null
   /** Frame the given coordinates. */
   fitToBounds: (coordinates: LngLat[], options?: FitOptions) => void
   flyTo: (position: { latitude: number; longitude: number; zoom?: number }) => void
@@ -140,7 +139,6 @@ export function ActivityMap({
   useImperativeHandle(
     ref,
     () => ({
-      getCanvas: () => mapRef.current?.getCanvas() ?? null,
       fitToBounds: (coordinates, options) => {
         const bounds = boundsOf(coordinates)
         if (bounds) fitBounds(bounds, options)
@@ -187,7 +185,6 @@ export function ActivityMap({
         initialViewState={initialPosition}
         mapboxAccessToken={config.MAPBOX_ACCESS_TOKEN}
         mapStyle={isDark ? config.MAPBOX_MAP_STYLE_DARK : config.MAPBOX_MAP_STYLE_LIGHT}
-        preserveDrawingBuffer
         onMove={handleMove}
         onMoveEnd={handleMoveEnd}
         onLoad={handleLoad}

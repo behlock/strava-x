@@ -28,7 +28,7 @@ interface MapViewProps {
   overlays?: ReactNode
   /**
    * Populated with the map handle so other parts of the page (e.g. the
-   * export modal) can drive the map directly.
+   * logo button) can drive the map directly.
    */
   externalMapRef?: React.RefObject<ActivityMapRef | null>
   /**
