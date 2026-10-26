@@ -3,17 +3,17 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import dynamic from 'next/dynamic'
 
+import type { ShareState, VerifiedSnapshot } from '@/lib/share-snapshot'
+import { deserializeActivities, type SerializedActivity } from '@/lib/activities-serialize'
 import type { ActivityMapRef } from '@/components/activity-map'
 import { MapView } from '@/components/map-view'
 import { Header, SetupPanel } from '@/components/ui'
-import { latestActivityStart, mergeActivities } from '@/lib/activities'
-import { saveActivities } from '@/lib/activities-db'
+import { latestActivityStart } from '@/lib/activities'
+import { replaceActivities } from '@/lib/activities-db'
 import { config } from '@/lib/config'
-import { fetchAllActivities } from '@/lib/strava'
 import { usePersistedActivities } from '@/hooks/use-persisted-activities'
 import { usePublish } from '@/hooks/use-publish'
 import { useStravaAuth } from '@/hooks/use-strava-auth'
-import { useWelcomePanel } from '@/hooks/use-welcome-panel'
 
 const STRAVA_AVAILABLE = Boolean(config.STRAVA_CLIENT_ID)
 
@@ -30,41 +30,34 @@ const STRAVA_UNREACHABLE_ERROR = 'strava is unreachable, try again'
 const TRANSIENT_RETRY_DELAY_MS = 5000
 
 export default function HomePage() {
-  const { activities, setActivities, isRestoring, clear: clearActivities } = usePersistedActivities()
+  const { activities, setActivities, restore: restoreActivities, clear: clearActivities } = usePersistedActivities()
   const { isConnected: stravaConnected, connect, disconnect, getAccessToken, resolveAccessToken } = useStravaAuth()
 
   const [isSyncing, setIsSyncing] = useState(false)
   const [syncError, setSyncError] = useState<string | null>(null)
+  const [mapUpdateError, setMapUpdateError] = useState<string | null>(null)
+  const [sharingAvailable, setSharingAvailable] = useState(true)
   const [publishOpen, setPublishOpen] = useState(false)
   const mapRef = useRef<ActivityMapRef | null>(null)
 
-  const { open: welcomeOpen, dismiss: dismissWelcome } = useWelcomePanel({
-    stravaConnected,
-    hasActivities: activities.length > 0,
-    isRestoring,
-  })
+  const welcomeOpen = !stravaConnected && activities.length === 0
 
   const {
     currentSlug,
+    routesVerified,
     isPublishing,
     estimatePayloadSize,
     checkSlug,
     publish,
     unpublish,
+    updatePublishedMap,
     refreshCurrentSlug,
+    beginSync,
     forgetCurrentSlug,
-  } = usePublish({ getAccessToken, activities })
-
-  // Rehydrate currentSlug from the server whenever the user becomes connected —
-  // covers new devices and cleared localStorage.
-  useEffect(() => {
-    if (stravaConnected) void refreshCurrentSlug()
-  }, [stravaConnected, refreshCurrentSlug])
-
-  // --- Strava sync ------------------------------------------------------------
+  } = usePublish({ getAccessToken })
 
   const syncAbortRef = useRef<AbortController | null>(null)
-  // IndexedDB writes started by `onBatch` that haven't settled; a disconnect
+  // Complete-library IndexedDB writes that haven't settled; a disconnect
   // waits for them before wiping the store.
   const pendingSavesRef = useRef(new Set<Promise<void>>())
   // Bumped by disconnect so callbacks from a sync that already finished (a
@@ -80,6 +73,7 @@ export default function HomePage() {
     const controller = new AbortController()
     syncAbortRef.current = controller
     const { signal } = controller
+    const sharingVersion = beginSync()
     const generation = sessionGenerationRef.current
     const isLive = () => !signal.aborted && generation === sessionGenerationRef.current
 
@@ -107,28 +101,55 @@ export default function HomePage() {
       }
       setIsSyncing(true)
       setSyncError(null)
-
-      const fetched = await fetchAllActivities(auth.accessToken, {
+      setMapUpdateError(null)
+      // Account ownership must be known before any cached library is shown.
+      const share = await refreshCurrentSlug(signal).catch(() => undefined)
+      if (!isLive()) return
+      if (share) await restoreActivities(share.athleteId, signal)
+      if (!isLive()) return
+      const response = await fetch('/api/activities/sync', {
+        method: 'POST',
         signal,
-        onBatch: (batch) => {
-          // Merge and persist page by page so an aborted sync keeps what it got.
-          setActivities((current) => mergeActivities(current, batch))
-          const save: Promise<void> = saveActivities(batch)
-            .catch(() => {
-              if (isLive()) setSyncError("activities loaded but couldn't be saved to browser storage")
-            })
-            .finally(() => {
-              pendingSavesRef.current.delete(save)
-            })
-          pendingSavesRef.current.add(save)
-        },
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ accessToken: auth.accessToken, routeAccessProof: auth.routeAccessProof }),
       })
-      if (!signal.aborted && fetched === 0) {
-        setSyncError('no strava activities found on this account')
+      if (!response.ok) {
+        const body = await response.json().catch(() => null)
+        throw new Error(body?.error ?? 'sync_failed')
+      }
+      const result = (await response.json()) as {
+        activities: SerializedActivity[]
+        athleteId: number
+        snapshot: VerifiedSnapshot | null
+        share: ShareState | null
+      }
+      if (!isLive() || (share && result.athleteId !== share.athleteId)) return
+      const completed = deserializeActivities(result.activities)
+      setActivities(completed)
+      const save = replaceActivities(result.athleteId, completed)
+        .catch(() => {
+          if (isLive()) setSyncError("activities loaded but couldn't be saved to browser storage")
+        })
+        .finally(() => pendingSavesRef.current.delete(save))
+      pendingSavesRef.current.add(save)
+      const canShare = Boolean(result.share && result.snapshot)
+      setSharingAvailable(canShare)
+      if (!result.share || !result.snapshot) {
+        forgetCurrentSlug()
+        return
+      }
+      // Includes an empty library: removed/private activities must disappear publicly too.
+      const update = await updatePublishedMap(result.snapshot, result.share, sharingVersion, signal)
+      if (
+        isLive() &&
+        update &&
+        'error' in update &&
+        !['busy', 'publication_changed', 'cancelled'].includes(update.error)
+      ) {
+        setMapUpdateError('your map could not be updated')
       }
     } catch (err) {
       if (signal.aborted || (err as Error)?.name === 'AbortError') return
-      console.error('Strava sync failed:', err)
       const code = err instanceof Error ? err.message : ''
       setSyncError(SYNC_ERRORS[code] ?? 'strava sync failed, try again')
       if (code === 'strava_unauthorized') disconnect()
@@ -136,7 +157,16 @@ export default function HomePage() {
       if (syncAbortRef.current === controller) syncAbortRef.current = null
       if (!signal.aborted) setIsSyncing(false)
     }
-  }, [resolveAccessToken, setActivities, disconnect])
+  }, [
+    resolveAccessToken,
+    setActivities,
+    disconnect,
+    updatePublishedMap,
+    beginSync,
+    refreshCurrentSlug,
+    restoreActivities,
+    forgetCurrentSlug,
+  ])
 
   const abortSync = useCallback(() => {
     syncAbortRef.current?.abort()
@@ -148,21 +178,33 @@ export default function HomePage() {
     setIsSyncing(false)
   }, [])
 
-  const handleDisconnect = useCallback(() => {
+  const clearSession = useCallback(() => {
     abortSync()
     sessionGenerationRef.current++
     hasAutoSyncedRef.current = false
     hasRetriedRef.current = false
-    disconnect()
+    setPublishOpen(false)
     setSyncError(null)
+    setMapUpdateError(null)
     // State empties right away; the store is wiped only once the page writes
     // still in flight have settled, so none of them can land after the wipe.
-    void clearActivities(Promise.allSettled([...pendingSavesRef.current]))
+    void clearActivities(Promise.allSettled([...pendingSavesRef.current])).catch(() => {})
     // Disconnecting doesn't unpublish on the server — the user may reconnect
     // later. But we drop the local "currentSlug" so the UI doesn't keep
     // claiming they own a slug we can no longer verify.
     forgetCurrentSlug()
-  }, [abortSync, disconnect, clearActivities, forgetCurrentSlug])
+  }, [abortSync, clearActivities, forgetCurrentSlug])
+
+  const handleDisconnect = useCallback(() => {
+    clearSession()
+    void disconnect()
+  }, [clearSession, disconnect])
+
+  const wasConnected = useRef(stravaConnected)
+  useEffect(() => {
+    if (wasConnected.current && !stravaConnected) clearSession()
+    wasConnected.current = stravaConnected
+  }, [stravaConnected, clearSession])
 
   // Sync once per connection: on page load with an existing session, and
   // after the OAuth callback lands the user back here. `autoSyncAttempt`
@@ -184,17 +226,16 @@ export default function HomePage() {
     }
   }, [])
 
-  // --- Header / overlays ------------------------------------------------------
-
-  const hasActivities = activities.length > 0 || isRestoring
+  const hasActivities = activities.length > 0 || Boolean(currentSlug)
 
   // Measured once as the dialog opens — not on every activities change while
   // it's up, which would re-serialize the whole library each time.
   const [estimatedSizeBytes, setEstimatedSizeBytes] = useState(0)
   const openPublish = useCallback(() => {
+    void refreshCurrentSlug().catch(() => {})
     setEstimatedSizeBytes(estimatePayloadSize())
     setPublishOpen(true)
-  }, [estimatePayloadSize])
+  }, [estimatePayloadSize, refreshCurrentSlug])
 
   const flyToLatestActivity = () => {
     const start = latestActivityStart(activities)
@@ -205,11 +246,11 @@ export default function HomePage() {
     <Header
       onLogoClick={flyToLatestActivity}
       onPublishClick={openPublish}
-      hasActivities={hasActivities}
+      hasActivities={hasActivities && sharingAvailable}
       stravaAvailable={STRAVA_AVAILABLE}
       stravaConnected={stravaConnected}
       isStravaSyncing={isSyncing}
-      stravaError={syncError}
+      stravaError={syncError ?? mapUpdateError}
       onStravaConnect={connect}
       onStravaAbortSync={abortSync}
     />
@@ -225,16 +266,18 @@ export default function HomePage() {
       overlays={
         <>
           <PublishDialog
+            currentSlug={currentSlug}
             open={publishOpen}
             onClose={() => setPublishOpen(false)}
-            currentSlug={currentSlug}
             isPublishing={isPublishing}
+            routesVerified={routesVerified}
+            onReconnect={connect}
             estimatedSizeBytes={estimatedSizeBytes}
             publish={publish}
             unpublish={unpublish}
             checkSlug={checkSlug}
           />
-          <WelcomePanel open={welcomeOpen} onDismiss={dismissWelcome} onConnect={connect} />
+          <WelcomePanel open={welcomeOpen} onConnect={connect} />
         </>
       }
     />

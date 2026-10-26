@@ -1,5 +1,3 @@
-// Helpers shared by the route handlers under src/app/api.
-
 import { type NextRequest, NextResponse } from 'next/server'
 
 import { clientKey, rateLimit, type RateLimitOptions } from '@/lib/rate-limit'
@@ -7,7 +5,7 @@ import { getAppUrl } from '@/lib/server-config'
 import { StravaAuthError, type VerifiedAthlete, verifyStravaToken } from '@/lib/strava-verify'
 
 export function jsonError(error: string, status = 400, extra?: Record<string, unknown>): NextResponse {
-  return NextResponse.json({ error, ...extra }, { status })
+  return NextResponse.json({ error, ...extra }, { status, headers: { 'Cache-Control': 'no-store' } })
 }
 
 /** Returns a 429 response when the caller is over the limit, otherwise `null`. */
@@ -20,12 +18,7 @@ export function enforceRateLimit(req: NextRequest, prefix: string, opts: RateLim
   )
 }
 
-// Fetch metadata headers are set by the browser and can't be forged by a
-// cross-site page. 'none' covers user-initiated navigations (address bar,
-// bookmarks). Older browsers that omit Sec-Fetch-Site still send Origin on
-// POST, which is checked against both the request's own origin and the
-// canonical app origin.
-/** True when the request was made from this app's own origin (a CSRF guard for cookie-authenticated mutations). */
+// CSRF guard for cookie-authenticated mutations, including browsers without Fetch Metadata.
 export function isSameOriginRequest(req: NextRequest): boolean {
   const site = req.headers.get('sec-fetch-site')
   if (site === 'same-origin' || site === 'none') return true
@@ -34,10 +27,30 @@ export function isSameOriginRequest(req: NextRequest): boolean {
   return origin === new URL(req.url).origin || origin === getAppUrl(req)
 }
 
-/** Parses a JSON body, returning `null` when it is missing or malformed. */
+/** Returns null when the byte limit is exceeded, including for chunked requests. */
+export async function readBoundedBody(req: NextRequest, limit: number): Promise<Buffer | null> {
+  const reader = req.body?.getReader()
+  if (!reader) return Buffer.alloc(0)
+  const chunks: Uint8Array[] = []
+  let size = 0
+  for (;;) {
+    const { done, value } = await reader.read()
+    if (done) break
+    size += value.byteLength
+    if (size > limit) {
+      await reader.cancel()
+      return null
+    }
+    chunks.push(value)
+  }
+  return Buffer.concat(chunks)
+}
+
+/** Parses a bounded JSON body; null means missing, oversized, or malformed. */
 export async function readJsonBody<T>(req: NextRequest): Promise<T | null> {
   try {
-    return (await req.json()) as T
+    const body = await readBoundedBody(req, 64 * 1024)
+    return body ? (JSON.parse(body.toString('utf8')) as T) : null
   } catch {
     return null
   }

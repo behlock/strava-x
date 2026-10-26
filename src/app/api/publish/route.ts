@@ -1,219 +1,78 @@
 import { gunzipSync } from 'node:zlib'
-import { type NextRequest, NextResponse } from 'next/server'
-import { del, list, put } from '@vercel/blob'
-
-import { authenticateAthlete, enforceRateLimit, isAccessToken, jsonError, readJsonBody } from '@/lib/api'
-import type { SerializedActivity } from '@/lib/activities-serialize'
-import { deleteByAthleteId, findByAthleteId, findBySlug, upsertPublishedMap } from '@/lib/db'
+import { after, type NextRequest, NextResponse } from 'next/server'
+import { authenticateAthlete, enforceRateLimit, isAccessToken, jsonError, readBoundedBody } from '@/lib/api'
+import { compareAndSwapShare, ensureShare, queueBlobCleanup, shareState } from '@/lib/sharing-db'
+import { mutateShare, SharingError } from '@/lib/sharing-service'
+import { drainBlobCleanup, writePrivateSnapshot } from '@/lib/sharing-storage'
 import { validateSlug } from '@/lib/slug'
 
 export const runtime = 'nodejs'
+const LIMIT = 25 * 1024 * 1024
 
-const PAYLOAD_HARD_LIMIT_BYTES = 25 * 1024 * 1024
-const PAYLOAD_VERSION = 1
-// Five minutes balances CDN benefit against unpublish recency — after a user
-// unpublishes, stale content on the edge clears within this window.
-const BLOB_CACHE_MAX_AGE_SECONDS = 5 * 60
-const MAX_DISPLAY_NAME_LENGTH = 100
-const MAX_ACTIVITIES = 50_000
-
-// Every blob an athlete owns lives under this prefix, which is what makes
-// the athlete-scoped rollback and unpublish sweeps safe.
-function blobPrefixFor(athleteId: number): string {
-  return `published/${athleteId}/`
-}
-
-function blobPathnameFor(athleteId: number, slug: string): string {
-  return `${blobPrefixFor(athleteId)}${slug}.json`
-}
-
-function isPlainObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
-// Cheap structural check mirroring SerializedActivity: a string id, and when
-// a feature is present, a GeoJSON-ish geometry with a coordinates array. The
-// payload is stored verbatim and rendered by the public page, so this keeps
-// junk (and a wrongly-typed 50k-element array) out of the blob.
-function isSerializedActivity(value: unknown): boolean {
-  if (!isPlainObject(value) || typeof value.id !== 'string') return false
-  const { feature } = value
-  if (feature === undefined || feature === null) return true
-  return isPlainObject(feature) && isPlainObject(feature.geometry) && Array.isArray(feature.geometry.coordinates)
-}
-
-interface PublishBody {
-  slug?: unknown
-  accessToken?: unknown
-  activities?: unknown
-  displayName?: unknown
-}
-
-// Vercel's serverless platform caps inbound bodies (~4.5 MB), so the activity
-// payload — which can comfortably exceed that — is gzipped client-side. We
-// also enforce a decompressed-size cap to bound zip-bomb risk before parsing.
-async function readPublishBody(req: NextRequest): Promise<PublishBody | NextResponse> {
-  const contentType = (req.headers.get('content-type') ?? '').toLowerCase()
-  let parsed: unknown
-  if (!contentType.includes('gzip')) {
-    parsed = await readJsonBody<unknown>(req)
-  } else {
-    try {
-      const compressed = Buffer.from(await req.arrayBuffer())
-      const decompressed = gunzipSync(compressed, { maxOutputLength: PAYLOAD_HARD_LIMIT_BYTES })
-      parsed = JSON.parse(decompressed.toString('utf8'))
-    } catch (e) {
-      return e instanceof RangeError ? jsonError('payload_too_large', 413) : jsonError('invalid_json')
-    }
-  }
-  // Both paths: valid JSON that isn't an object (null, an array, a string)
-  // can't be a publish body, and destructuring null would throw.
-  return isPlainObject(parsed) ? (parsed as PublishBody) : jsonError('invalid_json')
-}
-
-// POST /api/publish — body (gzip or JSON): { slug, accessToken, activities, displayName? }.
-export async function POST(req: NextRequest) {
-  const limited = enforceRateLimit(req, 'publish-post', { windowMs: 60_000, max: 10 })
+async function mutate(req: NextRequest, stopping: boolean) {
+  const limited = enforceRateLimit(req, 'sharing-write', { windowMs: 60_000, max: 15 })
   if (limited) return limited
-
-  const body = await readPublishBody(req)
-  if (body instanceof NextResponse) return body
-  const { slug: rawSlug, accessToken, activities, displayName } = body
-
-  if (typeof rawSlug !== 'string') return jsonError('invalid_slug')
-  const slugResult = validateSlug(rawSlug)
-  if (!slugResult.ok) return jsonError(slugResult.error === 'reserved' ? 'slug_reserved' : 'invalid_slug')
-  const slug = slugResult.slug
-
-  if (!isAccessToken(accessToken)) return jsonError('missing_access_token')
-  if (!Array.isArray(activities)) return jsonError('invalid_activities')
-  if (activities.length === 0) return jsonError('no_activities')
-  if (activities.length > MAX_ACTIVITIES) return jsonError('too_many_activities', 413)
-  if (!activities.every(isSerializedActivity)) return jsonError('invalid_activities')
-
-  // Verify the caller actually owns the athlete they're about to publish as.
-  const auth = await authenticateAthlete(accessToken)
-  if (!auth.ok) return jsonError(auth.error, auth.status)
-  const { athlete } = auth
-
-  // Reject the publish if the slug is already owned by a different athlete.
-  const existingBySlug = await findBySlug(slug)
-  if (existingBySlug && existingBySlug.athlete_id !== athlete.athleteId) return jsonError('slug_taken', 409)
-
-  // Caller-supplied displayName is bounded so it can't bloat the blob payload
-  // or break Open Graph scrapers. JSX escaping handles XSS at render time.
-  const normalizedDisplayName =
-    typeof displayName === 'string' ? displayName.trim().slice(0, MAX_DISPLAY_NAME_LENGTH) || null : null
-
-  // Stringify once — the string is needed for the upload anyway, and it
-  // doubles as the size check.
-  const payload = {
-    version: PAYLOAD_VERSION,
-    publishedAt: new Date().toISOString(),
-    displayName: normalizedDisplayName ?? athlete.displayName,
-    activities: activities as SerializedActivity[],
-  }
-  const json = JSON.stringify(payload)
-  const sizeBytes = Buffer.byteLength(json, 'utf8')
-  if (sizeBytes > PAYLOAD_HARD_LIMIT_BYTES) {
-    return jsonError('payload_too_large', 413, { sizeBytes, limit: PAYLOAD_HARD_LIMIT_BYTES })
-  }
-
-  // If this athlete already owns a publish, the old blob is cleaned up after
-  // the new write succeeds. Compare pathnames (not just slugs) so a
-  // pathname-format migration also cleans up.
-  const existingByAthlete = await findByAthleteId(athlete.athleteId)
-  const pathname = blobPathnameFor(athlete.athleteId, slug)
-  const oldPathname =
-    existingByAthlete && existingByAthlete.blob_pathname !== pathname ? existingByAthlete.blob_pathname : null
-
-  let blobUrl: string
+  let body: Record<string, unknown>
   try {
-    const result = await put(pathname, json, {
-      access: 'public',
-      contentType: 'application/json',
-      addRandomSuffix: false,
-      allowOverwrite: true,
-      cacheControlMaxAge: BLOB_CACHE_MAX_AGE_SECONDS,
-    })
-    blobUrl = result.url
-  } catch (e) {
-    console.error('[publish] blob put failed', e)
-    return jsonError('blob_write_failed', 502)
+    // Bound both compressed input and decompressed JSON, including chunked requests.
+    const input = await readBoundedBody(req, LIMIT)
+    if (!input) return jsonError('payload_too_large', 413)
+    const raw = req.headers.get('content-type')?.includes('gzip')
+      ? gunzipSync(input, { maxOutputLength: LIMIT })
+      : input
+    body = JSON.parse(raw.toString('utf8'))
+    if (!body || typeof body !== 'object' || Array.isArray(body)) return jsonError('invalid_json')
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException)?.code === 'ERR_BUFFER_TOO_LARGE') return jsonError('payload_too_large', 413)
+    return jsonError('invalid_json')
   }
-
-  try {
-    await upsertPublishedMap({
-      slug,
-      athleteId: athlete.athleteId,
-      athleteDisplayName: payload.displayName,
-      blobUrl,
-      blobPathname: pathname,
-      activityCount: activities.length,
-      sizeBytes,
-    })
-  } catch (e) {
-    console.error('[publish] db upsert failed', e)
-    // Best-effort rollback of the athlete's own blob — the pathname is
-    // athlete-scoped, so this can't delete anyone else's data even on a
-    // concurrent-publish race. Skipped on a same-slug republish: put() has
-    // overwritten the live blob in place, and deleting it would take down the
-    // previous publish that the DB row still points at.
-    if (pathname !== existingByAthlete?.blob_pathname) await del(pathname).catch(() => {})
-    const raced = await findBySlug(slug).catch(() => null)
-    if (raced && raced.athlete_id !== athlete.athleteId) return jsonError('slug_taken', 409)
-    return jsonError('db_write_failed', 502)
-  }
-
-  if (oldPathname) {
-    await del(oldPathname).catch((e) => console.warn('[publish] failed to delete old blob', oldPathname, e))
-  }
-
-  return NextResponse.json({ slug, url: `/${slug}`, blobUrl, activityCount: activities.length, sizeBytes })
-}
-
-interface UnpublishBody {
-  accessToken?: unknown
-}
-
-// DELETE /api/publish — body: { accessToken }.
-export async function DELETE(req: NextRequest) {
-  const limited = enforceRateLimit(req, 'publish-delete', { windowMs: 60_000, max: 10 })
-  if (limited) return limited
-
-  const body = await readJsonBody<UnpublishBody>(req)
-  if (!body) return jsonError('invalid_json')
   if (!isAccessToken(body.accessToken)) return jsonError('missing_access_token')
-
+  if (typeof body.revision !== 'string' || !/^\d{1,19}$/.test(body.revision))
+    return jsonError('publication_changed', 409)
+  const action = stopping ? 'stop' : body.action
+  if (action !== 'stop' && action !== 'create' && action !== 'update' && action !== 'rename')
+    return jsonError('invalid_action')
+  let slug: string | undefined
+  if (action === 'create' || action === 'rename') {
+    const checked = validateSlug(typeof body.slug === 'string' ? body.slug : '')
+    if (!checked.ok) return jsonError(checked.error === 'reserved' ? 'slug_reserved' : 'invalid_slug')
+    slug = checked.slug
+  }
   const auth = await authenticateAthlete(body.accessToken)
   if (!auth.ok) return jsonError(auth.error, auth.status)
-
-  const { athleteId } = auth.athlete
-
-  // DB row first, blob second: a failed blob delete then leaves a dangling
-  // public blob that the client is told to retry, rather than a live row
-  // pointing at nothing. On that retry the row is already gone, so fall back
-  // to sweeping the athlete-scoped prefix for whatever was left behind.
-  const deletedPathname = await deleteByAthleteId(athleteId)
-  const pathnames = deletedPathname ? [deletedPathname] : await listAthleteBlobs(athleteId)
-  if (pathnames.length === 0) return NextResponse.json({ ok: true, wasPublished: false })
-
   try {
-    await del(pathnames)
-  } catch (e) {
-    console.error('[unpublish] blob delete failed', pathnames, e)
-    return jsonError('blob_delete_failed', 502)
+    const row = await mutateShare(
+      { read: ensureShare, commit: compareAndSwapShare, upload: writePrivateSnapshot, discard: queueBlobCleanup },
+      {
+        athleteId: auth.athlete.athleteId,
+        displayName: auth.athlete.displayName,
+        revision: body.revision,
+        action,
+        slug,
+        activities: body.activities,
+        proof: body.proof,
+      },
+    )
+    return NextResponse.json(
+      {
+        ...shareState(row),
+        url: row.slug ? `/${row.slug}` : null,
+        activityCount: row.activity_count,
+        sizeBytes: row.size_bytes,
+      },
+      { headers: { 'Cache-Control': 'no-store' } },
+    )
+  } catch (error) {
+    if ((error as { code?: string })?.code === '23505') return jsonError('slug_taken', 409)
+    if (error instanceof SharingError)
+      return jsonError(error.message, error.message === 'publication_changed' ? 409 : 400)
+    if (error instanceof Error && error.message === 'sharing_not_configured') return jsonError(error.message, 503)
+    if (error instanceof Error && error.message === 'invalid_activities') return jsonError(error.message, 400)
+    console.error('[sharing] write failed')
+    return jsonError('sharing_failed', 502)
+  } finally {
+    after(() => drainBlobCleanup().catch(() => {}))
   }
-
-  return NextResponse.json({ ok: true, wasPublished: deletedPathname !== null })
 }
-
-async function listAthleteBlobs(athleteId: number): Promise<string[]> {
-  try {
-    const { blobs } = await list({ prefix: blobPrefixFor(athleteId) })
-    return blobs.map((blob) => blob.pathname)
-  } catch (e) {
-    console.warn('[unpublish] blob list failed', e)
-    return []
-  }
-}
+export const POST = (req: NextRequest) => mutate(req, false)
+export const DELETE = (req: NextRequest) => mutate(req, true)

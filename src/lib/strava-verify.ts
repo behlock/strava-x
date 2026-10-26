@@ -2,7 +2,8 @@
 // athlete's id by calling /api/v3/athlete. Used by the publish endpoints to
 // prove that a publisher actually controls the athlete they claim.
 
-import { createHash } from 'crypto'
+import { digest } from './sharing-proof'
+import { TtlCache } from './ttl-cache'
 
 interface StravaAthleteResponse {
   id: number
@@ -22,47 +23,12 @@ export class StravaAuthError extends Error {
   }
 }
 
-// Short-lived per-instance cache. Strava's athlete endpoint is rate-limited
-// (100 reads / 15min, 1000 / day) and the publish dialog can trigger several
-// token verifications in quick succession (slug-availability checks on every
-// keystroke). On Fluid Compute this cache survives across invocations on the
-// same instance, which is enough to absorb those bursts.
-//
-// Keys are sha256 hashes of the access token, not the token itself — a heap
-// snapshot of this process should not leak live bearer credentials. LRU
-// eviction caps memory so unbounded distinct tokens can't grow the cache.
-const VERIFY_TTL_MS = 5 * 60 * 1000
-const MAX_CACHE_SIZE = 500
-const verifyCache = new Map<string, { athlete: VerifiedAthlete; expiresAt: number }>()
-
-function hashToken(token: string): string {
-  return createHash('sha256').update(token).digest('hex')
-}
-
-function getCached(tokenHash: string): VerifiedAthlete | null {
-  const cached = verifyCache.get(tokenHash)
-  if (!cached) return null
-  if (cached.expiresAt <= Date.now()) {
-    verifyCache.delete(tokenHash)
-    return null
-  }
-  // Refresh recency for LRU.
-  verifyCache.delete(tokenHash)
-  verifyCache.set(tokenHash, cached)
-  return cached.athlete
-}
-
-function setCached(tokenHash: string, athlete: VerifiedAthlete) {
-  if (verifyCache.size >= MAX_CACHE_SIZE) {
-    const oldestKey = verifyCache.keys().next().value
-    if (oldestKey !== undefined) verifyCache.delete(oldestKey)
-  }
-  verifyCache.set(tokenHash, { athlete, expiresAt: Date.now() + VERIFY_TTL_MS })
-}
+// Hash keys avoid retaining bearer tokens; short TTL limits stale authorization.
+const verifyCache = new TtlCache<VerifiedAthlete>(500, 5 * 60_000)
 
 export async function verifyStravaToken(accessToken: string): Promise<VerifiedAthlete> {
-  const tokenHash = hashToken(accessToken)
-  const cached = getCached(tokenHash)
+  const tokenHash = digest(accessToken)
+  const cached = verifyCache.get(tokenHash)
   if (cached) return cached
 
   let res: Response
@@ -70,6 +36,7 @@ export async function verifyStravaToken(accessToken: string): Promise<VerifiedAt
     res = await fetch('https://www.strava.com/api/v3/athlete', {
       headers: { Authorization: `Bearer ${accessToken}` },
       cache: 'no-store',
+      signal: AbortSignal.timeout(10_000),
     })
   } catch {
     throw new StravaAuthError('network')
@@ -88,11 +55,16 @@ export async function verifyStravaToken(accessToken: string): Promise<VerifiedAt
     throw new StravaAuthError('malformed')
   }
 
-  if (typeof body.id !== 'number') throw new StravaAuthError('malformed')
+  if (!body || !Number.isSafeInteger(body.id) || body.id <= 0) throw new StravaAuthError('malformed')
 
-  const displayName = [body.firstname, body.lastname].filter(Boolean).join(' ').trim() || body.username?.trim() || null
+  const displayName =
+    [body.firstname, body.lastname]
+      .filter((value) => typeof value === 'string')
+      .join(' ')
+      .trim()
+      .slice(0, 100) || (typeof body.username === 'string' ? body.username.trim().slice(0, 100) : null)
 
   const athlete: VerifiedAthlete = { athleteId: body.id, displayName }
-  setCached(tokenHash, athlete)
+  verifyCache.set(tokenHash, athlete)
   return athlete
 }

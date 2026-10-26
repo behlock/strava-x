@@ -1,19 +1,4 @@
-// Applies the numbered SQL files in this directory that haven't run yet.
-//
-//   npm run migrate            apply pending migrations
-//   npm run migrate -- --status  list applied and pending, change nothing
-//
-// Runs automatically before `next build` on Vercel production deploys (see
-// `vercel-build` in package.json). Preview and development deploys skip it so
-// they never touch the production database. Each migration therefore has to
-// be compatible with the previously deployed code for the minute between
-// migrate and deploy — additive changes and index drops are; renames and
-// column drops need a two-step rollout.
-//
-// Bookkeeping lives in `schema_migrations`. The whole run is one transaction
-// behind an advisory lock, so concurrent builds serialise and a failure rolls
-// everything back. That also means a file can't use statements that refuse to
-// run inside a transaction (CREATE INDEX CONCURRENTLY, most ALTER TYPE).
+// Transactional migrations under an advisory lock; previews skip automatic migration.
 
 import { readdir, readFile } from 'node:fs/promises'
 import path from 'node:path'

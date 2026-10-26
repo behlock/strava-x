@@ -6,22 +6,13 @@ import { useEffect, useState } from 'react'
 import type { Activity } from '@/models/activity'
 import { MapView } from '@/components/map-view'
 import { HEADER_LOGO_CLASS, HeaderBar, SetupPanel, Tooltip } from '@/components/ui'
-import { deserializeActivities, type SerializedActivity } from '@/lib/activities-serialize'
+import { loadPublishedMap } from '@/lib/published-map'
 
 interface PublicMapViewProps {
   slug: string
   blobUrl: string
   displayName: string | null
 }
-
-interface PublishedPayload {
-  version: number
-  publishedAt?: string
-  displayName?: string | null
-  activities: SerializedActivity[]
-}
-
-const SUPPORTED_PAYLOAD_VERSION = 1
 
 function formatPublishedAt(iso: string): string {
   const date = new Date(iso)
@@ -42,7 +33,7 @@ function PublicHeader({ displayName, publishedAt }: { displayName: string | null
             strava—x
           </Link>
           {byline && publishedAt ? (
-            <Tooltip text={`last published ${formatPublishedAt(publishedAt)}`} align="start">
+            <Tooltip text={`updated ${formatPublishedAt(publishedAt)}`} align="start">
               {byline}
             </Tooltip>
           ) : (
@@ -54,7 +45,7 @@ function PublicHeader({ displayName, publishedAt }: { displayName: string | null
   )
 }
 
-/** Read-only view of a published map, fetched straight from the blob CDN. */
+/** Read-only view of a published map, loaded through the revocable sharing API. */
 export function PublicMapView({ slug, blobUrl, displayName }: PublicMapViewProps) {
   const [activities, setActivities] = useState<Activity[] | null>(null)
   const [publishedAt, setPublishedAt] = useState<string | null>(null)
@@ -64,16 +55,10 @@ export function PublicMapView({ slug, blobUrl, displayName }: PublicMapViewProps
     let cancelled = false
     ;(async () => {
       try {
-        const res = await fetch(blobUrl)
-        if (!res.ok) throw new Error(`fetch_failed_${res.status}`)
-        const payload = (await res.json()) as PublishedPayload
+        const payload = await loadPublishedMap(blobUrl)
         if (cancelled) return
-        if (!Array.isArray(payload.activities)) throw new Error('malformed_payload')
-        if (payload.version !== SUPPORTED_PAYLOAD_VERSION) {
-          console.warn('[public-map-view] unknown payload version', payload.version)
-        }
-        setPublishedAt(typeof payload.publishedAt === 'string' ? payload.publishedAt : null)
-        setActivities(deserializeActivities(payload.activities))
+        setPublishedAt(payload.updatedAt)
+        setActivities(payload.activities)
       } catch (e) {
         if (cancelled) return
         console.error('[public-map-view] failed to load payload', e)

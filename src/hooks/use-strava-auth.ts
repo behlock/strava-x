@@ -12,6 +12,7 @@ const LEGACY_STORAGE_KEYS = ['strava-x:tokens', 'strava-x:oauth_state']
 
 interface AccessToken {
   access_token: string
+  routeAccessProof?: string | null
   expires_at: number
 }
 
@@ -20,16 +21,14 @@ interface AccessToken {
  * is really gone (the refresh route answered 401/400); `unavailable` is a
  * transient failure (network, 5xx, 429, Strava down) worth retrying.
  */
-export type AccessTokenResult =
-  { status: 'ok'; accessToken: string } | { status: 'unauthenticated' } | { status: 'unavailable' }
+type AccessTokenResult =
+  | { status: 'ok'; accessToken: string; routeAccessProof?: string | null }
+  | { status: 'unauthenticated' }
+  | { status: 'unavailable' }
 
 type RefreshResult = { ok: true; token: AccessToken } | { ok: false; status: 'unauthenticated' | 'unavailable' }
 
-// --- Session store -----------------------------------------------------------
-// "Connected" is derived from the non-httpOnly flag cookie the callback sets
-// alongside the httpOnly refresh cookie. Cookies don't emit change events, so
-// the code paths that change them call `notifySessionChange()`.
-
+// Cookie changes notify subscribers explicitly; tab focus catches other-tab logout.
 const sessionListeners = new Set<() => void>()
 
 function subscribeSession(listener: () => void): () => void {
@@ -47,9 +46,6 @@ function notifySessionChange(): void {
 }
 
 function hasConnectedCookie(): boolean {
-  // Match the explicit value '1' rather than the bare name= prefix so an empty
-  // cookie (shouldn't happen — logout uses Max-Age=0 — but defensive) isn't
-  // mistaken for an active session.
   return document.cookie.split(';').some((c) => c.trim() === `${STRAVA_CONNECTED_COOKIE}=1`)
 }
 
@@ -75,11 +71,18 @@ async function refreshFromServer(): Promise<RefreshResult> {
       // 'strava_unavailable' — is Strava or the network having a moment.
       return { ok: false, status: res.status === 401 || res.status === 400 ? 'unauthenticated' : 'unavailable' }
     }
-    const body = (await res.json()) as { access_token?: unknown; expires_at?: unknown }
+    const body = (await res.json()) as {
+      access_token?: unknown
+      expires_at?: unknown
+      routeAccessProof?: string | null
+    }
     if (typeof body.access_token !== 'string' || typeof body.expires_at !== 'number') {
       return { ok: false, status: 'unavailable' }
     }
-    return { ok: true, token: { access_token: body.access_token, expires_at: body.expires_at } }
+    return {
+      ok: true,
+      token: { access_token: body.access_token, expires_at: body.expires_at, routeAccessProof: body.routeAccessProof },
+    }
   } catch {
     return { ok: false, status: 'unavailable' }
   }
@@ -125,33 +128,35 @@ export function useStravaAuth(): UseStravaAuth {
     // the round-trip; the server clears the httpOnly refresh cookie.
     document.cookie = `${STRAVA_CONNECTED_COOKIE}=; Max-Age=0; path=/`
     notifySessionChange()
-    // Logout only after any in-flight refresh has settled. The refresh
-    // response carries Set-Cookie for the rotated refresh token, and the
-    // browser applies it as soon as the headers arrive — so if logout raced
-    // ahead, the refresh's cookies would land last and silently re-open the
-    // session. Waiting makes logout's Max-Age=0 the final word on the cookie
-    // jar; the refresh result itself is discarded by the generation check in
-    // `resolveAccessToken`.
+    // Wait for refresh Set-Cookie before logout, otherwise it can restore the session.
     const inFlight = refreshInFlightRef.current ?? Promise.resolve()
     void inFlight
       .catch(() => {})
-      .then(() => fetch('/api/auth/strava/logout', { method: 'POST', credentials: 'same-origin' }))
+      .then(() => {
+        const logout = () => fetch('/api/auth/strava/logout', { method: 'POST', credentials: 'same-origin' })
+        return navigator.locks ? navigator.locks.request('strava-session', logout) : logout()
+      })
       .catch(() => {})
       .finally(notifySessionChange)
   }, [])
 
   const resolveAccessToken = useCallback(async (): Promise<AccessTokenResult> => {
+    if (!hasConnectedCookie()) {
+      tokenRef.current = null
+      return { status: 'unauthenticated' }
+    }
     const cached = tokenRef.current
     const now = Math.floor(Date.now() / 1000)
     if (cached && cached.expires_at > now + REFRESH_SKEW_SECONDS) {
-      return { status: 'ok', accessToken: cached.access_token }
+      return { status: 'ok', accessToken: cached.access_token, routeAccessProof: cached.routeAccessProof }
     }
 
-    // Dedupe concurrent refresh calls — Strava rotates the refresh_token on
-    // each successful refresh, so firing two in parallel invalidates the
-    // second one.
+    // Serialize token rotation within and across tabs.
     if (!refreshInFlightRef.current) {
-      refreshInFlightRef.current = refreshFromServer().finally(() => {
+      const refresh = navigator.locks
+        ? navigator.locks.request('strava-session', refreshFromServer)
+        : refreshFromServer()
+      refreshInFlightRef.current = refresh.finally(() => {
         refreshInFlightRef.current = null
       })
     }
@@ -167,7 +172,11 @@ export function useStravaAuth(): UseStravaAuth {
     // success the flag cookie is already present. Either way, resync the store.
     notifySessionChange()
     if (!refreshed.ok) return { status: refreshed.status }
-    return { status: 'ok', accessToken: refreshed.token.access_token }
+    return {
+      status: 'ok',
+      accessToken: refreshed.token.access_token,
+      routeAccessProof: refreshed.token.routeAccessProof,
+    }
   }, [])
 
   const getAccessToken = useCallback(async (): Promise<string | null> => {

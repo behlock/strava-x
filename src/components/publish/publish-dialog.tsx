@@ -11,6 +11,8 @@ import type { CheckResult, PublishError } from '@/hooks/use-publish'
 interface PublishDialogProps {
   open: boolean
   onClose: () => void
+  routesVerified: boolean | null
+  onReconnect: () => void
   currentSlug: string | null
   isPublishing: boolean
   estimatedSizeBytes: number
@@ -20,14 +22,19 @@ interface PublishDialogProps {
 }
 
 const ERROR_MESSAGES: Record<PublishError, string> = {
-  invalid_slug: 'slugs are 2–30 lowercase letters, numbers or dashes',
-  slug_reserved: 'that slug is reserved, pick another',
-  slug_taken: 'someone else already owns that slug',
+  sync_required: 'reload to finish a fresh Strava sync before sharing',
+  sharing_not_configured: 'sharing storage is not configured yet',
+  invalid_snapshot: 'this update could not be verified, reload and sync again',
+  invalid_slug: 'use 2–30 lowercase letters, numbers or dashes',
+  slug_reserved: 'that address is reserved, pick another',
+  slug_taken: 'someone else already uses that address',
   strava_auth_failed: 'strava session expired, reconnect to continue',
-  payload_too_large: 'your activities are too large to publish (25 MB limit)',
-  no_activities: 'sync some activities before publishing',
+  payload_too_large: 'your activities are too large to share (25 MB limit)',
   network: 'network error, try again',
-  server: 'publish failed on the server',
+  server: 'sharing failed on the server',
+  busy: 'another update is finishing, try again in a moment',
+  publication_changed: 'sharing changed in another tab, review the current address and try again',
+  cancelled: 'update cancelled, try again',
 }
 
 const SIZE_WARN_BYTES = 10 * 1024 * 1024
@@ -80,6 +87,8 @@ export function PublishDialog({ open, onClose, ...props }: PublishDialogProps) {
 
 function PublishDialogBody({
   onClose,
+  routesVerified,
+  onReconnect,
   currentSlug,
   isPublishing,
   estimatedSizeBytes,
@@ -193,6 +202,21 @@ function PublishDialogBody({
         </div>
 
         <div className="space-y-4 p-4">
+          {routesVerified === false && (
+            <p className="text-xs-compact text-panel-muted">
+              Routes are hidden until you{' '}
+              <button type="button" onClick={onReconnect} className="underline underline-offset-2">
+                reconnect Strava
+              </button>{' '}
+              with privacy protection.
+            </p>
+          )}
+          {!currentSlug && (
+            <p className="text-xs-compact text-panel-muted">
+              Only activities visible to Everyone on Strava are shared.
+            </p>
+          )}
+
           {currentSlug && !editingSlug ? (
             <div className="space-y-3">
               <div className="flex items-center justify-between gap-2">
@@ -211,9 +235,6 @@ function PublishDialogBody({
                   {copied ? '[copied]' : '[copy]'}
                 </button>
               </div>
-              <p className="text-xs-compact text-panel-muted">
-                republishing replaces the snapshot with your latest activities
-              </p>
 
               {error && <p className="text-xs-compact text-red-500">{ERROR_MESSAGES[error]}</p>}
 
@@ -234,14 +255,6 @@ function PublishDialogBody({
                 </div>
               ) : (
                 <div className="flex gap-2 border-t border-panel-border pt-2">
-                  <button
-                    type="button"
-                    onClick={handlePublish}
-                    disabled={isPublishing || tooLarge}
-                    className={cn(BUTTON_OUTLINE, 'flex-1')}
-                  >
-                    {isPublishing ? '[…] republishing' : '[↻] republish'}
-                  </button>
                   <button
                     type="button"
                     onClick={() => setEditingSlug(true)}

@@ -1,11 +1,8 @@
-// Per-instance fixed-window rate limiter. On Fluid Compute this state lives
-// inside each function instance, so the actual ceiling is (max * instances).
-// That's an intentional trade-off: avoids adding an external dependency for
-// what is otherwise abuse protection, not strict accounting.
+// Best-effort per-instance rate limit, not a distributed quota.
 
 interface Bucket {
   count: number
-  windowStart: number
+  expiresAt: number
 }
 
 const buckets = new Map<string, Bucket>()
@@ -21,21 +18,19 @@ export type RateLimitResult = { ok: true } | { ok: false; retryAfterSeconds: num
 export function rateLimit(key: string, opts: RateLimitOptions): RateLimitResult {
   const now = Date.now()
   let bucket = buckets.get(key)
-  if (!bucket || now - bucket.windowStart > opts.windowMs) {
-    bucket = { count: 0, windowStart: now }
+  if (!bucket || bucket.expiresAt <= now) {
+    bucket = { count: 0, expiresAt: now + opts.windowMs }
     buckets.set(key, bucket)
   }
   bucket.count++
 
   if (buckets.size > MAX_BUCKETS) {
-    for (const [k, b] of buckets) {
-      if (now - b.windowStart > opts.windowMs) buckets.delete(k)
-      if (buckets.size <= MAX_BUCKETS / 2) break
-    }
+    for (const [key, entry] of buckets) if (entry.expiresAt <= now) buckets.delete(key)
+    while (buckets.size > MAX_BUCKETS) buckets.delete(buckets.keys().next().value!)
   }
 
   if (bucket.count > opts.max) {
-    const retryAfterSeconds = Math.max(1, Math.ceil((opts.windowMs - (now - bucket.windowStart)) / 1000))
+    const retryAfterSeconds = Math.max(1, Math.ceil((bucket.expiresAt - now) / 1000))
     return { ok: false, retryAfterSeconds }
   }
   return { ok: true }
@@ -44,5 +39,5 @@ export function rateLimit(key: string, opts: RateLimitOptions): RateLimitResult 
 export function clientKey(req: Request, prefix: string): string {
   const forwarded = req.headers.get('x-forwarded-for')
   const ip = forwarded ? forwarded.split(',')[0].trim() : req.headers.get('x-real-ip') || 'unknown'
-  return `${prefix}:${ip}`
+  return `${prefix}:${ip.slice(0, 64)}`
 }

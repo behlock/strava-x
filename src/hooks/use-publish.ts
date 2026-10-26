@@ -1,13 +1,8 @@
 'use client'
 
 import { useCallback, useRef, useState } from 'react'
-
-import type { Activity } from '@/models/activity'
-import { serializeActivities } from '@/lib/activities-serialize'
 import { validateSlug } from '@/lib/slug'
-import { useLocalStorageItem, writeLocalStorage } from '@/hooks/use-local-storage'
-
-const CURRENT_SLUG_KEY = 'strava-x:published-slug'
+import type { ShareState, VerifiedSnapshot } from '@/lib/share-snapshot'
 
 const PUBLISH_ERRORS = [
   'invalid_slug',
@@ -15,186 +10,210 @@ const PUBLISH_ERRORS = [
   'slug_taken',
   'strava_auth_failed',
   'payload_too_large',
-  'no_activities',
   'network',
   'server',
+  'busy',
+  'publication_changed',
+  'cancelled',
+  'sync_required',
+  'sharing_not_configured',
+  'invalid_snapshot',
 ] as const
 export type PublishError = (typeof PUBLISH_ERRORS)[number]
-
-function isPublishError(value: unknown): value is PublishError {
-  return typeof value === 'string' && (PUBLISH_ERRORS as readonly string[]).includes(value)
-}
-
-export interface PublishResult {
-  slug: string
-  url: string
-  blobUrl: string
-  activityCount: number
-  sizeBytes: number
-}
-
 export interface CheckResult {
   available: boolean
   reason?: string
   ownedByMe?: boolean
 }
-
-interface UsePublishOptions {
-  getAccessToken: () => Promise<string | null>
-  activities: Activity[]
+export interface PublishResult extends ShareState {
+  slug: string
+  url: string
+  activityCount: number
+  sizeBytes: number
 }
+const errorCode = (value: unknown): PublishError =>
+  typeof value === 'string' && (PUBLISH_ERRORS as readonly string[]).includes(value)
+    ? (value as PublishError)
+    : 'server'
 
-// Activity payloads can exceed Vercel's ~4.5 MB serverless request body limit
-// uncompressed. CompressionStream is available in all modern browsers; if it
-// isn't, we fall back to plain JSON (and may 413 — but on supported browsers
-// gzip cuts the payload by ~5x for this data shape).
-async function gzipString(text: string): Promise<Blob> {
-  const stream = new Blob([text]).stream().pipeThrough(new CompressionStream('gzip'))
-  return new Response(stream).blob()
-}
-
-function slugError(error: 'invalid_format' | 'reserved'): PublishError {
-  return error === 'reserved' ? 'slug_reserved' : 'invalid_slug'
-}
-
-export function usePublish({ getAccessToken, activities }: UsePublishOptions) {
-  // Mirrors the server's record for this athlete; rehydrated by
-  // `refreshCurrentSlug` and cleared by `forgetCurrentSlug`.
-  const currentSlug = useLocalStorageItem(CURRENT_SLUG_KEY)
+export function usePublish({ getAccessToken }: { getAccessToken: () => Promise<string | null> }) {
+  // Ownership and proofs are session-only. Never trust a globally cached address.
+  const [currentSlug, setCurrentSlug] = useState<string | null>(null)
   const [isPublishing, setIsPublishing] = useState(false)
-
-  // Serializing the whole library is the expensive part of publishing, so
-  // the JSON is computed lazily and kept for as long as `activities` is the
-  // same array — the size estimate taken when the dialog opens and the
-  // upload that follows then share one string.
-  const serializedRef = useRef<{ activities: Activity[]; json: string } | null>(null)
-  const serializedActivitiesJson = useCallback((): string => {
-    const cached = serializedRef.current
-    if (cached && cached.activities === activities) return cached.json
-    const json = JSON.stringify(serializeActivities(activities))
-    serializedRef.current = { activities, json }
-    return json
-  }, [activities])
-
-  /** Rough size of the publish payload, so the dialog can warn before upload. */
-  const estimatePayloadSize = useCallback(
-    (): number => (activities.length === 0 ? 0 : new Blob([serializedActivitiesJson()]).size),
-    [activities, serializedActivitiesJson],
+  const [routesVerified, setRoutesVerified] = useState<boolean | null>(null)
+  const state = useRef<ShareState | null>(null)
+  const snapshot = useRef<VerifiedSnapshot | null>(null)
+  const generation = useRef(0)
+  const writing = useRef(false)
+  const acceptState = useCallback((next: ShareState) => {
+    state.current = next
+    setCurrentSlug(next.slug)
+  }, [])
+  const refreshCurrentSlug = useCallback(
+    async (signal?: AbortSignal) => {
+      const version = generation.current
+      const token = await getAccessToken()
+      if (!token || signal?.aborted) return
+      const res = await fetch('/api/publish/me', {
+        method: 'POST',
+        signal,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ accessToken: token }),
+        cache: 'no-store',
+      })
+      if (!res.ok) return
+      const next = (await res.json()) as ShareState
+      if (signal?.aborted || generation.current !== version) return
+      if (state.current?.athleteId === next.athleteId && BigInt(next.revision) < BigInt(state.current.revision)) return
+      if (snapshot.current?.athleteId !== next.athleteId || snapshot.current?.revision !== next.revision)
+        snapshot.current = null
+      acceptState(next)
+      return next
+    },
+    [getAccessToken, acceptState],
   )
 
-  const checkSlug = useCallback(
-    async (rawSlug: string): Promise<CheckResult> => {
-      const local = validateSlug(rawSlug)
-      if (!local.ok) return { available: false, reason: slugError(local.error) }
-
-      const token = await getAccessToken().catch(() => null)
+  const mutate = useCallback(
+    async (
+      action: 'create' | 'update' | 'rename' | 'stop',
+      slug?: string,
+      signal?: AbortSignal,
+    ): Promise<PublishResult | { error: PublishError }> => {
+      if (writing.current) return { error: 'busy' }
+      const before = state.current
+      if (!before) return { error: 'sync_required' }
+      const verified = snapshot.current
+      if (action === 'create' || action === 'update') {
+        if (
+          !verified ||
+          verified.expiresAt <= Date.now() ||
+          verified.athleteId !== before.athleteId ||
+          verified.revision !== before.revision
+        )
+          return { error: 'sync_required' }
+      }
+      if (signal?.aborted) return { error: 'cancelled' }
+      writing.current = true
+      const version = ++generation.current
+      setIsPublishing(true)
       try {
+        const accessToken = await getAccessToken()
+        if (!accessToken) return { error: 'strava_auth_failed' }
+        if (signal?.aborted || version !== generation.current) return { error: 'cancelled' }
+        const content =
+          action === 'create' || action === 'update'
+            ? {
+                proof: verified!.proof,
+                activities:
+                  action === 'update' && before.fingerprint === verified!.fingerprint
+                    ? undefined
+                    : verified!.activities,
+              }
+            : {}
+        const json = JSON.stringify({ accessToken, revision: before.revision, action, slug, ...content })
+        const gzip = typeof CompressionStream !== 'undefined'
+        const body = gzip
+          ? await new Response(new Blob([json]).stream().pipeThrough(new CompressionStream('gzip'))).blob()
+          : json
+        if (signal?.aborted || version !== generation.current) return { error: 'cancelled' }
+        const res = await fetch('/api/publish', {
+          method: action === 'stop' ? 'DELETE' : 'POST',
+          signal,
+          headers: { 'Content-Type': gzip ? 'application/gzip' : 'application/json' },
+          body,
+        })
+        if (!res.ok) {
+          const data = await res.json().catch(() => null)
+          if (res.status === 409 && version === generation.current) {
+            snapshot.current = null
+            await refreshCurrentSlug(signal).catch(() => {})
+          }
+          return { error: errorCode(data?.error) }
+        }
+        const next = (await res.json()) as PublishResult
+        if (!signal?.aborted && version === generation.current) {
+          acceptState(next)
+          // A proof is bound to exactly one revision, never rebase it silently.
+          if (next.revision !== before.revision) snapshot.current = null
+        }
+        return next
+      } catch {
+        return { error: signal?.aborted ? 'cancelled' : 'network' }
+      } finally {
+        writing.current = false
+        setIsPublishing(false)
+      }
+    },
+    [getAccessToken, acceptState, refreshCurrentSlug],
+  )
+
+  const publish = useCallback(
+    async (rawSlug: string) => {
+      const checked = validateSlug(rawSlug)
+      if (!checked.ok)
+        return { error: (checked.error === 'reserved' ? 'slug_reserved' : 'invalid_slug') as PublishError }
+      return mutate(state.current?.slug ? 'rename' : 'create', checked.slug)
+    },
+    [mutate],
+  )
+  const unpublish = useCallback(async (): Promise<{ ok: true } | { ok: false; error: PublishError }> => {
+    const result = await mutate('stop')
+    return 'error' in result ? { ok: false, error: result.error } : { ok: true }
+  }, [mutate])
+  const checkSlug = useCallback(
+    async (slug: string): Promise<CheckResult> => {
+      try {
+        const accessToken = await getAccessToken()
         const res = await fetch('/api/publish/check', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ slug: local.slug, accessToken: token ?? undefined }),
+          body: JSON.stringify({ slug, accessToken }),
         })
-        if (!res.ok) return { available: false, reason: 'server' }
-        return (await res.json()) as CheckResult
+        return res.ok ? await res.json() : { available: false, reason: 'server' }
       } catch {
         return { available: false, reason: 'network' }
       }
     },
     [getAccessToken],
   )
-
-  const publish = useCallback(
-    async (rawSlug: string): Promise<PublishResult | { error: PublishError }> => {
-      const local = validateSlug(rawSlug)
-      if (!local.ok) return { error: slugError(local.error) }
-      if (activities.length === 0) return { error: 'no_activities' }
-
-      const token = await getAccessToken()
-      if (!token) return { error: 'strava_auth_failed' }
-
-      setIsPublishing(true)
-      try {
-        // Splice the pre-serialized activities in rather than stringifying
-        // the whole body object, which would serialize the library again.
-        const json = `{"slug":${JSON.stringify(local.slug)},"accessToken":${JSON.stringify(token)},"activities":${serializedActivitiesJson()}}`
-        const supportsGzip = typeof CompressionStream !== 'undefined'
-        const res = await fetch('/api/publish', {
-          method: 'POST',
-          headers: { 'Content-Type': supportsGzip ? 'application/gzip' : 'application/json' },
-          body: supportsGzip ? await gzipString(json) : json,
-        })
-
-        if (!res.ok) {
-          const body = await res.json().catch(() => null)
-          const code = (body as { error?: unknown } | null)?.error
-          return { error: isPublishError(code) && code !== 'network' && code !== 'server' ? code : 'server' }
-        }
-
-        const result = (await res.json()) as PublishResult
-        writeLocalStorage(CURRENT_SLUG_KEY, result.slug)
-        return result
-      } catch {
-        return { error: 'network' }
-      } finally {
-        setIsPublishing(false)
-      }
+  const forgetCurrentSlug = useCallback(() => {
+    generation.current++
+    snapshot.current = null
+    state.current = null
+    setCurrentSlug(null)
+    setRoutesVerified(null)
+  }, [])
+  const beginSync = useCallback(() => {
+    snapshot.current = null
+    return generation.current
+  }, [])
+  const updatePublishedMap = useCallback(
+    async (verified: VerifiedSnapshot, next: ShareState, version: number, signal: AbortSignal) => {
+      if (signal.aborted || generation.current !== version || writing.current) return
+      if (state.current?.athleteId === next.athleteId && BigInt(state.current.revision) > BigInt(next.revision)) return
+      acceptState(next)
+      snapshot.current = verified
+      setRoutesVerified(verified.routesVerified)
+      if (!next.slug) return
+      return mutate('update', undefined, signal)
     },
-    [getAccessToken, activities, serializedActivitiesJson],
+    [acceptState, mutate],
   )
-
-  const unpublish = useCallback(async (): Promise<{ ok: true } | { ok: false; error: PublishError }> => {
-    const token = await getAccessToken()
-    if (!token) return { ok: false, error: 'strava_auth_failed' }
-
-    setIsPublishing(true)
-    try {
-      const res = await fetch('/api/publish', {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ accessToken: token }),
-      })
-      if (!res.ok) return { ok: false, error: 'server' }
-      writeLocalStorage(CURRENT_SLUG_KEY, null)
-      return { ok: true }
-    } catch {
-      return { ok: false, error: 'network' }
-    } finally {
-      setIsPublishing(false)
-    }
-  }, [getAccessToken])
-
-  // Call on Strava connect to rehydrate `currentSlug` from the server in case
-  // the user has a publish that isn't in this browser's localStorage (e.g.
-  // signed in on a new device, or cleared storage).
-  const refreshCurrentSlug = useCallback(async () => {
-    const token = await getAccessToken().catch(() => null)
-    if (!token) return
-    try {
-      const res = await fetch('/api/publish/me', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ accessToken: token }),
-      })
-      if (!res.ok) return
-      const body = (await res.json()) as { slug: string | null }
-      writeLocalStorage(CURRENT_SLUG_KEY, body.slug)
-    } catch {
-      // leave current state as-is
-    }
-  }, [getAccessToken])
-
-  // Called after Strava disconnect so the UI doesn't keep claiming the user
-  // owns a slug we can no longer verify.
-  const forgetCurrentSlug = useCallback(() => writeLocalStorage(CURRENT_SLUG_KEY, null), [])
-
+  const estimatePayloadSize = useCallback(
+    () => (snapshot.current ? new Blob([JSON.stringify(snapshot.current.activities)]).size : 0),
+    [],
+  )
   return {
     currentSlug,
+    routesVerified,
     isPublishing,
-    estimatePayloadSize,
-    checkSlug,
     publish,
     unpublish,
-    refreshCurrentSlug,
+    checkSlug,
     forgetCurrentSlug,
+    refreshCurrentSlug,
+    beginSync,
+    updatePublishedMap,
+    estimatePayloadSize,
   }
 }

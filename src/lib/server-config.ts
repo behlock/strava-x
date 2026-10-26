@@ -1,3 +1,4 @@
+import { digest, signProof } from '@/lib/sharing-proof'
 import type { NextRequest, NextResponse } from 'next/server'
 
 import {
@@ -5,18 +6,10 @@ import {
   STRAVA_CONNECTED_COOKIE,
   STRAVA_OAUTH_STATE_COOKIE,
   STRAVA_REFRESH_COOKIE,
+  STRAVA_ROUTE_GRANT_COOKIE,
 } from '@/lib/cookies'
 
-// Resolves the app's canonical origin. Prefers an explicit env var, then on
-// production Vercel deployments the project's stable production domain (so
-// Strava's single-registered-callback-domain rule is honored even when the
-// user lands on a per-deployment *.vercel.app URL), then the per-deployment
-// VERCEL_URL, then the incoming request's origin.
-//
-// Note this can differ from the host the request actually arrived on. The
-// OAuth state cookie is host-scoped, so /api/auth/strava/start redirects to
-// this origin before setting it — otherwise the callback (which Strava always
-// sends to the canonical origin) would never see the cookie.
+// OAuth must start on the callback origin so its host-scoped state cookie survives.
 export function getAppUrl(req?: NextRequest): string {
   const envUrl = process.env.NEXT_PUBLIC_APP_URL
   if (envUrl) return envUrl.replace(/\/$/, '')
@@ -45,8 +38,7 @@ export function setOAuthStateCookie(res: NextResponse, state: string): void {
   res.cookies.set(STRAVA_OAUTH_STATE_COOKIE, state, {
     httpOnly: true,
     secure: isProduction(),
-    // Must be 'lax' (not 'strict') so the cookie is sent when Strava bounces
-    // the user back via top-level GET navigation.
+    // Allow Strava's top-level GET callback to carry the state cookie.
     sameSite: 'lax',
     path: OAUTH_STATE_COOKIE_PATH,
     maxAge: 60 * 10,
@@ -57,16 +49,21 @@ export function clearOAuthStateCookie(res: NextResponse): void {
   res.cookies.set(STRAVA_OAUTH_STATE_COOKIE, '', { path: OAUTH_STATE_COOKIE_PATH, maxAge: 0 })
 }
 
-// Sets the httpOnly refresh cookie plus the non-httpOnly "connected" flag.
-// The client reads the flag to know a session exists without ever touching
-// the refresh token.
-export function setSessionCookies(res: NextResponse, refreshToken: string): void {
+export function setSessionCookies(res: NextResponse, refreshToken: string, routesVerified = false): void {
   const base = { secure: isProduction(), sameSite: 'lax', path: '/', maxAge: SESSION_COOKIE_MAX_AGE } as const
   res.cookies.set(STRAVA_REFRESH_COOKIE, refreshToken, { ...base, httpOnly: true })
   res.cookies.set(STRAVA_CONNECTED_COOKIE, '1', base)
+  res.cookies.set(
+    STRAVA_ROUTE_GRANT_COOKIE,
+    routesVerified
+      ? signProof('refresh-grant', { token: digest(refreshToken) }, Date.now() + SESSION_COOKIE_MAX_AGE * 1000)
+      : '',
+    { ...base, httpOnly: true, maxAge: routesVerified ? SESSION_COOKIE_MAX_AGE : 0 },
+  )
 }
 
 export function clearSessionCookies(res: NextResponse): void {
+  res.cookies.set(STRAVA_ROUTE_GRANT_COOKIE, '', { path: '/', maxAge: 0 })
   res.cookies.set(STRAVA_REFRESH_COOKIE, '', { path: '/', maxAge: 0 })
   res.cookies.set(STRAVA_CONNECTED_COOKIE, '', { path: '/', maxAge: 0 })
 }
