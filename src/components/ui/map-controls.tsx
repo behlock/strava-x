@@ -4,8 +4,7 @@ import { Locate } from 'lucide-react'
 
 import { Tooltip } from './tooltip'
 
-const CONTROL_CLASS =
-  'flex size-11 items-center justify-center rounded-sm border border-panel-border bg-panel/90 backdrop-blur-md transition-colors hover:bg-foreground/5 focus-ring md:size-9'
+const CONTROL_CLASS = 'flex size-11 items-center justify-center rounded-full floating-control focus-ring md:size-9'
 
 interface LocateControlProps {
   onClick: () => void

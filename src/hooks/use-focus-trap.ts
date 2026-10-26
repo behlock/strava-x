@@ -34,7 +34,10 @@ export function useFocusTrap(
     if (!container) return
 
     const previouslyFocused = document.activeElement as HTMLElement | null
-    const focusables = () => Array.from(container.querySelectorAll<HTMLElement>(FOCUSABLE))
+    const focusables = () =>
+      Array.from(container.querySelectorAll<HTMLElement>(FOCUSABLE)).filter(
+        (element) => element.getClientRects().length > 0 && !element.closest('[inert]'),
+      )
     ;(initialFocus?.current ?? focusables()[0] ?? container).focus()
 
     const handleKeyDown = (e: KeyboardEvent) => {

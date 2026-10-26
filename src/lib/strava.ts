@@ -8,13 +8,13 @@ const BASE_BACKOFF_MS = 1000
 
 interface StravaSummaryActivity {
   id: number
-  name: string
   distance: number // meters
   total_elevation_gain: number // meters
   start_date: string
+  visibility?: string
+  private?: boolean
   sport_type: string
   map?: {
-    id?: string
     summary_polyline?: string | null
   }
 }
@@ -53,7 +53,9 @@ function decodePolyline(encoded: string): LngLat[] {
     let shift = 0
     let b: number
     do {
+      if (index >= encoded.length || shift > 30) throw new Error('strava_invalid_polyline')
       b = encoded.charCodeAt(index++) - 63
+      if (b < 0 || b > 63) throw new Error('strava_invalid_polyline')
       result |= (b & 0x1f) << shift
       shift += 5
     } while (b >= 0x20)
@@ -69,6 +71,16 @@ function decodePolyline(encoded: string): LngLat[] {
 }
 
 function summaryToActivity(s: StravaSummaryActivity): Activity {
+  if (
+    !Number.isSafeInteger(s.id) ||
+    typeof s.sport_type !== 'string' ||
+    !Number.isFinite(Date.parse(s.start_date)) ||
+    !Number.isFinite(s.distance) ||
+    s.distance < 0 ||
+    !Number.isFinite(s.total_elevation_gain) ||
+    s.total_elevation_gain < 0
+  )
+    throw new Error('strava_invalid_response')
   const polyline = s.map?.summary_polyline
   let feature: ActivityFeature | null = null
   if (polyline) {
@@ -79,6 +91,12 @@ function summaryToActivity(s: StravaSummaryActivity): Activity {
   }
   return {
     id: `strava-${s.id}`,
+    visibility:
+      s.private === true
+        ? 'only_me'
+        : s.visibility === 'everyone' || s.visibility === 'followers_only' || s.visibility === 'only_me'
+          ? s.visibility
+          : 'unknown',
     type: mapSportType(s.sport_type),
     date: new Date(s.start_date),
     feature,
@@ -90,21 +108,26 @@ function summaryToActivity(s: StravaSummaryActivity): Activity {
 function sleep(ms: number, signal?: AbortSignal): Promise<void> {
   return new Promise((resolve, reject) => {
     if (signal?.aborted) return reject(new DOMException('Aborted', 'AbortError'))
-    const timer = setTimeout(resolve, ms)
-    signal?.addEventListener(
-      'abort',
-      () => {
-        clearTimeout(timer)
-        reject(new DOMException('Aborted', 'AbortError'))
-      },
-      { once: true },
-    )
+    const abort = () => {
+      clearTimeout(timer)
+      reject(new DOMException('Aborted', 'AbortError'))
+    }
+    const timer = setTimeout(() => {
+      signal?.removeEventListener('abort', abort)
+      resolve()
+    }, ms)
+    signal?.addEventListener('abort', abort, { once: true })
   })
 }
 
 async function fetchWithRetry(url: string, accessToken: string, signal?: AbortSignal): Promise<Response> {
   for (let attempt = 0; ; attempt++) {
-    const res = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` }, signal })
+    const timeout = AbortSignal.timeout(15_000)
+    const res = await fetch(url, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+      cache: 'no-store',
+      signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
+    })
     if (res.status === 401) throw new Error('strava_unauthorized')
     if (res.ok) return res
 
@@ -119,7 +142,7 @@ async function fetchWithRetry(url: string, accessToken: string, signal?: AbortSi
     const retryAfter = Number(res.headers.get('Retry-After'))
     const delay =
       isRateLimited && Number.isFinite(retryAfter) && retryAfter > 0
-        ? retryAfter * 1000
+        ? Math.min(retryAfter * 1000, 30_000)
         : BASE_BACKOFF_MS * 2 ** attempt
     await sleep(delay, signal)
   }
@@ -131,20 +154,19 @@ interface FetchOptions {
   signal?: AbortSignal
 }
 
-/** Pages through every activity on the account. Resolves with the total count fetched. */
-export async function fetchAllActivities(accessToken: string, { onBatch, signal }: FetchOptions = {}): Promise<number> {
-  let total = 0
+/** Fetch the complete library; never treat a failed page as the end of the list. */
+export async function fetchAllActivities(accessToken: string, { onBatch, signal }: FetchOptions = {}): Promise<void> {
   for (let page = 1; ; page++) {
+    if (page > 250) throw new Error('strava_library_too_large')
     const url = `${STRAVA_API}/athlete/activities?per_page=${PER_PAGE}&page=${page}`
     const res = await fetchWithRetry(url, accessToken, signal)
     const raw = (await res.json()) as unknown
-    if (!Array.isArray(raw) || raw.length === 0) break
+    if (!Array.isArray(raw)) throw new Error('strava_invalid_response')
+    if (raw.length === 0) break
 
     const batch = (raw as StravaSummaryActivity[]).map(summaryToActivity)
-    total += batch.length
     onBatch?.(batch)
 
     if (raw.length < PER_PAGE) break
   }
-  return total
 }

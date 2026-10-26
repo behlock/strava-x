@@ -1,7 +1,7 @@
 import { type NextRequest, NextResponse } from 'next/server'
 
 import { authenticateAthlete, enforceRateLimit, isAccessToken, readJsonBody } from '@/lib/api'
-import { findBySlug } from '@/lib/db'
+import { findShareBySlug, type ShareRow } from '@/lib/sharing-db'
 import { validateSlug } from '@/lib/slug'
 
 export const runtime = 'nodejs'
@@ -15,7 +15,7 @@ interface CheckBody {
 }
 
 function unavailable(reason: string, status = 200) {
-  return NextResponse.json({ available: false, reason }, { status })
+  return NextResponse.json({ available: false, reason }, { status, headers: { 'Cache-Control': 'no-store' } })
 }
 
 // POST /api/publish/check — body: { slug, accessToken? }.
@@ -38,8 +38,13 @@ export async function POST(req: NextRequest) {
   const slugResult = validateSlug(rawSlug)
   if (!slugResult.ok) return unavailable(slugResult.error === 'reserved' ? 'slug_reserved' : 'invalid_slug')
 
-  const existing = await findBySlug(slugResult.slug)
-  if (!existing) return NextResponse.json({ available: true })
+  let existing: ShareRow | null
+  try {
+    existing = await findShareBySlug(slugResult.slug)
+  } catch {
+    return unavailable('sharing_unavailable', 503)
+  }
+  if (!existing) return NextResponse.json({ available: true }, { headers: { 'Cache-Control': 'no-store' } })
 
   // Taken — unless it's taken by the caller themselves.
   if (!isAccessToken(accessToken)) return unavailable('slug_taken')
@@ -49,6 +54,7 @@ export async function POST(req: NextRequest) {
     return auth.error === 'strava_auth_failed' ? unavailable('auth_failed') : unavailable(auth.error, auth.status)
   }
 
-  if (existing.athlete_id === auth.athlete.athleteId) return NextResponse.json({ available: true, ownedByMe: true })
+  if (existing.athlete_id === auth.athlete.athleteId)
+    return NextResponse.json({ available: true, ownedByMe: true }, { headers: { 'Cache-Control': 'no-store' } })
   return unavailable('slug_taken')
 }

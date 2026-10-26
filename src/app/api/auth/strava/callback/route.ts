@@ -1,3 +1,5 @@
+import { isAccessToken } from '@/lib/api'
+import { safeRouteScope } from '@/lib/sharing-proof'
 import { timingSafeEqual } from 'node:crypto'
 import { type NextRequest, NextResponse } from 'next/server'
 
@@ -6,13 +8,10 @@ import { clearOAuthStateCookie, getAppUrl, getStravaCredentials, setSessionCooki
 
 export const runtime = 'nodejs'
 
-const REQUIRED_SCOPES = ['read', 'activity:read_all']
-
-// Constant-time string equality. timingSafeEqual throws when buffer lengths
-// differ, so the length guard runs first.
 function safeEqual(a: string, b: string): boolean {
-  if (a.length === 0 || a.length !== b.length) return false
-  return timingSafeEqual(Buffer.from(a), Buffer.from(b))
+  const left = Buffer.from(a),
+    right = Buffer.from(b)
+  return left.length > 0 && left.length === right.length && timingSafeEqual(left, right)
 }
 
 function failRedirect(origin: string, code: string): NextResponse {
@@ -27,7 +26,6 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   const code = searchParams.get('code')
   const error = searchParams.get('error')
-  const scope = searchParams.get('scope') ?? ''
   const state = searchParams.get('state') ?? ''
 
   if (error || !code) return failRedirect(origin, error ?? 'missing_code')
@@ -40,28 +38,30 @@ export async function GET(req: NextRequest) {
   const credentials = getStravaCredentials()
   if (!credentials) return failRedirect(origin, 'server_not_configured')
 
-  const granted = scope.split(',')
-  if (!REQUIRED_SCOPES.every((s) => granted.includes(s))) return failRedirect(origin, 'missing_scope')
-
-  const tokenRes = await fetch('https://www.strava.com/oauth/token', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      client_id: credentials.clientId,
-      client_secret: credentials.clientSecret,
-      code,
-      grant_type: 'authorization_code',
-    }),
-  })
-
-  if (!tokenRes.ok) {
-    const body = await tokenRes.text().catch(() => '')
-    console.error('[strava/callback] token exchange failed', tokenRes.status, body)
+  let tokenRes: Response
+  try {
+    tokenRes = await fetch('https://www.strava.com/oauth/token', {
+      method: 'POST',
+      cache: 'no-store',
+      signal: AbortSignal.timeout(15_000),
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        client_id: credentials.clientId,
+        client_secret: credentials.clientSecret,
+        code,
+        grant_type: 'authorization_code',
+      }),
+    })
+  } catch {
     return failRedirect(origin, 'token_exchange_failed')
   }
 
-  const token = (await tokenRes.json()) as { refresh_token?: unknown }
-  if (typeof token.refresh_token !== 'string') {
+  if (!tokenRes.ok) {
+    return failRedirect(origin, 'token_exchange_failed')
+  }
+
+  const token = (await tokenRes.json().catch(() => null)) as { refresh_token?: unknown; scope?: unknown } | null
+  if (!token || !isAccessToken(token.refresh_token)) {
     console.error('[strava/callback] invalid token response shape')
     return failRedirect(origin, 'invalid_token_response')
   }
@@ -70,7 +70,7 @@ export async function GET(req: NextRequest) {
   // short-lived access tokens by POSTing to /api/auth/strava/refresh, so no
   // token ever lands in the URL, history, or referer headers.
   const res = NextResponse.redirect(`${origin}/`)
-  setSessionCookies(res, token.refresh_token)
+  setSessionCookies(res, token.refresh_token, safeRouteScope(token.scope))
   clearOAuthStateCookie(res)
   return res
 }

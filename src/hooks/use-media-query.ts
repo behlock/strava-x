@@ -6,7 +6,7 @@ import { useCallback, useSyncExternalStore } from 'react'
  * SSR-safe media query hook using useSyncExternalStore.
  * Returns false on server, actual value on client.
  */
-export function useMediaQuery(query: string): boolean {
+function useMediaQuery(query: string): boolean {
   const subscribe = useCallback(
     (callback: () => void) => {
       const media = window.matchMedia(query)

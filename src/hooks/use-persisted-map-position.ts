@@ -33,8 +33,15 @@ function parsePosition(raw: string | null): MapPosition | null {
     const parsed = JSON.parse(raw) as Partial<MapPosition>
     if (
       typeof parsed.latitude === 'number' &&
+      Number.isFinite(parsed.latitude) &&
+      Math.abs(parsed.latitude) <= 90 &&
       typeof parsed.longitude === 'number' &&
-      typeof parsed.zoom === 'number'
+      Number.isFinite(parsed.longitude) &&
+      Math.abs(parsed.longitude) <= 180 &&
+      typeof parsed.zoom === 'number' &&
+      Number.isFinite(parsed.zoom) &&
+      parsed.zoom >= 0 &&
+      parsed.zoom <= 24
     ) {
       return { latitude: parsed.latitude, longitude: parsed.longitude, zoom: parsed.zoom }
     }
@@ -52,6 +59,7 @@ function parsePosition(raw: string | null): MapPosition | null {
 export function usePersistedMapPosition(
   activities: Activity[],
   mode: MapPositionMode = 'own',
+  preferBusiestArea = false,
 ): UsePersistedMapPositionResult {
   const isOwnMode = mode === 'own'
 
@@ -107,7 +115,7 @@ export function usePersistedMapPosition(
   }, [])
 
   return useMemo((): UsePersistedMapPositionResult => {
-    if (savedPosition) {
+    if (savedPosition && !preferBusiestArea) {
       return { position: savedPosition, initialBounds: null, savePosition }
     }
     if (busiestArea) {
@@ -121,5 +129,5 @@ export function usePersistedMapPosition(
       return { position: latestActivityPosition, initialBounds: null, savePosition }
     }
     return { position: DEFAULT_MAP_POSITION, initialBounds: null, savePosition }
-  }, [savedPosition, busiestArea, latestActivityPosition, savePosition])
+  }, [savedPosition, preferBusiestArea, busiestArea, latestActivityPosition, savePosition])
 }

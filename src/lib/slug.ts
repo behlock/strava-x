@@ -3,7 +3,7 @@ const SLUG_REGEX = /^[a-z0-9][a-z0-9-]{0,28}[a-z0-9]$/
 
 // Blocks slugs that would shadow existing top-level routes or look wrong in a URL bar.
 // Keep in sync with any new top-level App Router entries added under src/app.
-export const RESERVED_SLUGS = new Set([
+const RESERVED_SLUGS = new Set([
   'api',
   'auth',
   'publish',
@@ -49,4 +49,17 @@ export function validateSlug(input: string): { ok: true; slug: string } | { ok: 
   if (!SLUG_REGEX.test(slug)) return { ok: false, error: 'invalid_format' }
   if (RESERVED_SLUGS.has(slug)) return { ok: false, error: 'reserved' }
   return { ok: true, slug }
+}
+
+/** A readable address suggestion derived from the connected athlete's name. */
+export function suggestMapAddress(name: string): string {
+  const candidate = name
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 30)
+    .replace(/-+$/g, '')
+  return validateSlug(candidate).ok ? candidate : 'your-name'
 }

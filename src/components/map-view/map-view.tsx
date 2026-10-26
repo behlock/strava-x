@@ -6,7 +6,15 @@ import dynamic from 'next/dynamic'
 import { ACTIVITY_TYPES, type Activity, type ActivityFeatureCollection } from '@/models/activity'
 import type { LngLat } from '@/models/map'
 import type { ActivityMapRef } from '@/components/activity-map'
-import { ActivityList, AppShell, FilterPanel, LocateControl, LocationSelector, MapSkeleton } from '@/components/ui'
+import {
+  ActivityList,
+  AppShell,
+  FilterPanel,
+  LocateControl,
+  LocationSelector,
+  MapSkeleton,
+  TimelinePanel,
+} from '@/components/ui'
 import { locateUser } from '@/lib/geolocation'
 import { useActivityClusters } from '@/hooks/use-activity-clusters'
 import { useIsMobile } from '@/hooks/use-media-query'
@@ -21,14 +29,14 @@ interface MapViewProps {
   activities: Activity[]
   /** Show activity list loading states (used during initial sync). */
   loading?: boolean
+  /** Frame the complete library’s busiest area instead of restoring an old viewport. */
+  preferBusiestArea?: boolean
   header: ReactNode
-  /** Settings panel (theme, account) shown alongside the map panels. */
-  setupPanel?: ReactNode
   /** Extra overlays (modals) rendered on top of the map. */
   overlays?: ReactNode
   /**
    * Populated with the map handle so other parts of the page (e.g. the
-   * export modal) can drive the map directly.
+   * logo button) can drive the map directly.
    */
   externalMapRef?: React.RefObject<ActivityMapRef | null>
   /**
@@ -46,8 +54,8 @@ const MOBILE_MAX_VERTICAL_RATIO = 0.8
 export function MapView({
   activities: allActivities,
   loading = false,
+  preferBusiestArea = false,
   header,
-  setupPanel,
   overlays,
   externalMapRef,
   mode = 'own',
@@ -123,12 +131,11 @@ export function MapView({
     return counts
   }, [allActivities, isBeforeCutoff])
 
-  const displayedActivities = useMemo(
-    () => (hoveredFilterType ? activities.filter((a) => a.type === hoveredFilterType) : activities),
-    [activities, hoveredFilterType],
-  )
-
-  const { position: initialMapPosition, initialBounds, savePosition } = usePersistedMapPosition(allActivities, mode)
+  const {
+    position: initialMapPosition,
+    initialBounds,
+    savePosition,
+  } = usePersistedMapPosition(preferBusiestArea && loading ? [] : allActivities, mode, preferBusiestArea)
 
   const allGeoData = useMemo(
     (): ActivityFeatureCollection => ({
@@ -194,18 +201,39 @@ export function MapView({
     startTransition(() => setSelectedDate(date))
   }, [])
 
-  const clusters = useActivityClusters(activities)
-  const [selectedClusterId, setSelectedClusterId] = useState<string | null>(null)
-  // Fall back to the busiest cluster whenever the selection is filtered away.
-  const activeClusterId = clusters.some((c) => c.id === selectedClusterId)
-    ? selectedClusterId
-    : (clusters[0]?.id ?? null)
+  const clusters = useActivityClusters(allActivities, activities)
+  const [selectedLocation, setSelectedLocation] = useState<{ id: string; activityIds: string[] } | null>(null)
+  const selectedCluster =
+    clusters.find((cluster) => cluster.id === selectedLocation?.id) ??
+    (selectedLocation
+      ? clusters.find((cluster) => cluster.activityIds.some((id) => selectedLocation.activityIds.includes(id)))
+      : undefined)
+  // Retain the selected scope if the date/type filters temporarily remove its cluster.
+  const selectedActivityIds = useMemo(
+    () => (selectedLocation ? new Set((selectedCluster ?? selectedLocation).activityIds) : null),
+    [selectedCluster, selectedLocation],
+  )
+  const displayedActivities = useMemo(
+    () =>
+      activities.filter(
+        (activity) =>
+          (!selectedActivityIds || selectedActivityIds.has(activity.id)) &&
+          (!hoveredFilterType || activity.type === hoveredFilterType),
+      ),
+    [activities, selectedActivityIds, hoveredFilterType],
+  )
 
   const handleClusterSelect = useCallback(
-    (id: string) => {
+    (id: string | null, toggle = false) => {
+      setHighlightedActivityId(null)
+      if (hoverPanTimeoutRef.current) clearTimeout(hoverPanTimeoutRef.current)
+      if (id === null || (toggle && (selectedCluster?.id ?? selectedLocation?.id) === id)) {
+        setSelectedLocation(null)
+        return
+      }
       const target = clusters.find((c) => c.id === id)
       if (!target) return
-      setSelectedClusterId(id)
+      setSelectedLocation({ id, activityIds: target.activityIds })
       const { minLng, minLat, maxLng, maxLat } = target.bounds
       mapRef.current?.fitToBounds(
         [
@@ -215,7 +243,7 @@ export function MapView({
         { padding: computePadding() },
       )
     },
-    [clusters, computePadding],
+    [clusters, computePadding, selectedLocation, selectedCluster],
   )
 
   const handleLocate = useCallback(() => {
@@ -229,24 +257,31 @@ export function MapView({
       header={header}
       hasActivities={hasActivities}
       mapControls={<LocateControl onClick={handleLocate} />}
-      setupPanel={setupPanel}
       filterPanel={
         <FilterPanel
           activityTypes={ACTIVITY_TYPES}
           selectedActivityTypes={selectedActivityTypes}
           onActivityTypesChange={handleActivityTypesChange}
           activityCounts={activityCounts}
-          dateRange={dateRange}
-          selectedDate={selectedDate}
-          onDateChange={handleDateChange}
           onTypeHover={setHoveredFilterType}
         />
       }
+      timelinePanel={
+        dateRange ? (
+          <TimelinePanel
+            key={`${dateRange.min.getTime()}-${dateRange.max.getTime()}`}
+            dateRange={dateRange}
+            selectedDate={selectedDate}
+            onDateChange={handleDateChange}
+          />
+        ) : null
+      }
       locationsPanel={
-        clusters.length > 0 ? (
+        clusters.length > 0 || selectedLocation ? (
           <LocationSelector
             clusters={clusters}
-            selectedClusterId={activeClusterId}
+            totalActivityCount={activities.length}
+            selectedClusterId={selectedCluster?.id ?? selectedLocation?.id ?? null}
             onClusterSelect={handleClusterSelect}
           />
         ) : null
@@ -262,6 +297,13 @@ export function MapView({
         />
       }
       onDrawerHeightChange={handleDrawerHeightChange}
+      onSidebarVisibilityChange={(visible) => {
+        if (!visible) {
+          setHighlightedActivityId(null)
+          setHoveredFilterType(null)
+          if (hoverPanTimeoutRef.current) clearTimeout(hoverPanTimeoutRef.current)
+        }
+      }}
     >
       <ActivityMap
         ref={setMapRef}

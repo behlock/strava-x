@@ -1,0 +1,12 @@
+Urban-centre data attribution
+
+Derived from GHS Urban Centre Database 2025 (GHS-UCDB R2024A), version 1.2,
+European Commission, Joint Research Centre (JRC), GHSL.
+Copyright European Union. Reuse is authorised with acknowledgement of the source.
+
+Dataset: https://data.jrc.ec.europa.eu/dataset/1a338be6-7eaf-480c-9664-3a8ade88cbcd
+Source and reuse notice: https://human-settlement.emergency.copernicus.eu/download.php?ds=ucdb
+
+This application extracts city names and 2025 boundaries, rounds coordinates to
+three decimal places, and stores a compressed JSON index. The pinned source URL
+and checksum are recorded in scripts/build-urban-centres.py and the index.

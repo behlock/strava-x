@@ -1,0 +1,109 @@
+import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
+import { execFile } from 'node:child_process'
+import { promisify } from 'node:util'
+import test from 'node:test'
+import { loadTs } from './load-ts.mjs'
+
+const socket = process.env.SHARING_TEST_PG_SOCKET
+const exec = promisify(execFile)
+// This suite deliberately accepts only our disposable Unix socket, never a
+// database URL or ambient POSTGRES_URL (which may be production credentials).
+if (socket && !/^\/tmp\/strava-sharing-pg\.[a-zA-Z0-9]+$/.test(socket))
+  throw new Error('Use a disposable test database socket')
+const literal = (value) =>
+  value == null ? 'NULL' : typeof value === 'boolean' ? String(value) : "'" + String(value).replaceAll("'", "''") + "'"
+async function query(sql) {
+  const result = await exec('psql', [
+    '-X',
+    '-q',
+    '-A',
+    '-t',
+    '-v',
+    'ON_ERROR_STOP=1',
+    '-h',
+    socket,
+    '-p',
+    '55439',
+    '-U',
+    'sharing_test',
+    '-d',
+    'postgres',
+    '-c',
+    sql,
+  ])
+  return result.stdout
+    .trim()
+    .split('\n')
+    .filter(Boolean)
+    .map((line) => JSON.parse(line))
+}
+const sql = async (parts, ...values) => {
+  let text = parts.reduce((out, part, index) => out + part + (index < values.length ? literal(values[index]) : ''), '')
+  text = text
+    .replace('SELECT * FROM changed', 'SELECT row_to_json(changed) FROM changed')
+    .replaceAll('SELECT * FROM map_shares', 'SELECT row_to_json(map_shares) FROM map_shares')
+    .replace(
+      'SELECT pathname, store FROM sharing_blob_cleanup',
+      'SELECT row_to_json(sharing_blob_cleanup) FROM sharing_blob_cleanup',
+    )
+  return query(text)
+}
+const db = loadTs('src/lib/sharing-db.ts', { '@neondatabase/serverless': { neon: () => sql } })
+const write = (slug, path) => ({
+  slug,
+  active: true,
+  displayName: 'Test',
+  snapshotPath: path,
+  fingerprint: path,
+  activityCount: 1,
+  sizeBytes: 10,
+  updatedAt: '2026-10-25T12:00:00Z',
+})
+
+test(
+  'real Postgres: migration quarantine, competing CAS, tombstone, slug uniqueness, cleanup queue',
+  { skip: !socket },
+  async () => {
+    await query('DROP TABLE IF EXISTS sharing_blob_cleanup, map_shares, published_maps CASCADE')
+    await query(readFileSync('db/001_published_maps.sql', 'utf8'))
+    await query(
+      "INSERT INTO published_maps (slug,athlete_id,blob_url,blob_pathname,activity_count,size_bytes) VALUES ('legacy',1,'https://example.invalid/legacy.json','published/1/legacy.json',1,1)",
+    )
+    await query(readFileSync('db/003_safe_sharing.sql', 'utf8'))
+    const legacy = await db.findShareBySlug('legacy')
+    assert.equal(legacy.snapshot_path, null)
+    assert.equal((await db.cleanupCandidates())[0].store, 'legacy')
+    const initial = await db.ensureShare(2)
+    const results = await Promise.all([
+      db.compareAndSwapShare(initial, write('second', 'path-a')),
+      db.compareAndSwapShare(initial, write('second', 'path-b')),
+    ])
+    assert.equal(results.filter(Boolean).length, 1)
+    const winner = results.find(Boolean)
+    assert.equal(winner.revision, '1')
+    const other = await db.ensureShare(3)
+    await assert.rejects(db.compareAndSwapShare(other, write('second', 'path-c')), /duplicate key/)
+    const stopped = await db.compareAndSwapShare(winner, {
+      ...write(null, null),
+      active: false,
+      fingerprint: null,
+      activityCount: 0,
+      sizeBytes: 0,
+    })
+    assert.equal(stopped.revision, '2')
+    assert.equal(await db.findShareBySlug('second'), null)
+    assert.equal(await db.compareAndSwapShare(winner, write('second', 'stale')), null)
+    const queued = await db.cleanupCandidates()
+    assert(queued.some((item) => item.pathname === winner.snapshot_path && item.store === 'private'))
+    await db.queueBlobCleanup('orphan')
+    await db.queueBlobCleanup('orphan')
+    assert.equal((await db.cleanupCandidates()).filter((item) => item.pathname === 'orphan').length, 1)
+    await db.acknowledgeCleanup('orphan')
+    assert(!(await db.cleanupCandidates()).some((item) => item.pathname === 'orphan'))
+    // A stopped address is available to someone else; its former owner cannot
+    // recreate it using a request captured before stopping.
+    assert(await db.compareAndSwapShare(other, write('second', 'path-c')))
+    assert.equal(await db.compareAndSwapShare(winner, write('second', 'late')), null)
+  },
+)

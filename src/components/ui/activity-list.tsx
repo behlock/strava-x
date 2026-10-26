@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useId, useMemo, useRef } from 'react'
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 
 import type { Activity } from '@/models/activity'
@@ -29,7 +29,7 @@ function formatDate(date: Date | undefined): string {
 }
 
 // Rows are absolutely positioned by the virtualizer, so this fixes the row
-// height on every breakpoint. Sized for the taller mobile rows (py-4).
+// height on every breakpoint. Content is vertically centered within each row.
 const ROW_HEIGHT = 56
 
 function scrollIndexIntoView(parent: HTMLElement, index: number) {
@@ -50,6 +50,7 @@ export function ActivityList({
   loading = false,
 }: ActivityListProps) {
   const parentRef = useRef<HTMLDivElement>(null)
+  const [keyboardFocused, setKeyboardFocused] = useState(false)
   const selectedIndexRef = useRef(-1)
   const pointerRef = useRef<{ x: number; y: number } | null>(null)
   const pointerLockRef = useRef<{ x: number; y: number } | null>(null)
@@ -146,20 +147,28 @@ export function ActivityList({
   }
 
   return (
-    <Panel
-      title="activities"
-      grow
-      meta={<span className="tabular-nums">{activities.length.toLocaleString()} total</span>}
-    >
+    <Panel title="activities" grow className={activities.length < 3 ? 'min-h-0' : undefined}>
       {/* Arrow keys highlight a row (via the parent); the active descendant
           follows the highlight so assistive tech announces the move. */}
       <div
         ref={parentRef}
-        className="scrollbar-thin min-h-0 flex-1 overflow-y-auto focus-ring-inset"
+        className="scrollbar-thin min-h-0 flex-1 overflow-y-auto focus:outline-hidden"
         tabIndex={0}
         role="listbox"
         aria-label="Activities"
-        aria-activedescendant={highlightedActivityId ? rowId(highlightedActivityId) : undefined}
+        aria-activedescendant={
+          highlightedActivityId
+            ? rowId(highlightedActivityId)
+            : keyboardFocused && sortedActivities[0]
+              ? rowId(sortedActivities[0].id)
+              : undefined
+        }
+        onFocus={(event) => {
+          const keyboard = event.currentTarget.matches(':focus-visible')
+          setKeyboardFocused(keyboard)
+          if (keyboard && !highlightedActivityId && sortedActivities.length > 0) selectedIndexRef.current = 0
+        }}
+        onBlur={() => setKeyboardFocused(false)}
         onKeyDown={handleKeyDown}
         onPointerMove={handlePointerMove}
         onMouseDown={() => {
@@ -173,6 +182,7 @@ export function ActivityList({
             {virtualizer.getVirtualItems().map((row) => {
               const activity = sortedActivities[row.index]
               const isHighlighted = activity.id === highlightedActivityId
+              const isKeyboardTarget = keyboardFocused && !highlightedActivityId && row.index === 0
               return (
                 <div
                   key={activity.id}
@@ -180,8 +190,10 @@ export function ActivityList({
                   role="option"
                   aria-selected={isHighlighted}
                   className={cn(
-                    'absolute top-0 left-0 w-full cursor-pointer border-b border-panel-border transition-colors',
-                    isHighlighted ? 'bg-foreground/20' : 'hover:bg-foreground/5',
+                    'absolute top-0 left-2 w-[calc(100%-1rem)] cursor-pointer rounded-md transition-colors',
+                    isHighlighted || isKeyboardTarget
+                      ? 'bg-selection text-selection-foreground'
+                      : 'hover:bg-foreground/5',
                   )}
                   style={{ height: row.size, transform: `translateY(${row.start}px)` }}
                   onMouseEnter={(e) => {
@@ -201,18 +213,25 @@ export function ActivityList({
                   onClick={() => onActivityClick(activity)}
                 >
                   <div
-                    className="absolute top-0 bottom-0 left-0 w-0.5"
+                    className="absolute top-3 bottom-3 left-0 w-0.5 rounded-full"
                     style={{ backgroundColor: getActivityColor(activity.type) }}
                   />
-                  <div className="px-3 py-4 md:py-2">
+                  <div className="flex h-full flex-col justify-center px-3">
                     <div className="flex items-center justify-between text-sm-compact">
-                      <span className="w-8 text-panel-muted tabular-nums">
+                      <span
+                        className={cn('w-8 tabular-nums', isHighlighted ? 'text-selection-muted' : 'text-panel-muted')}
+                      >
                         {String(row.index + 1).padStart(3, '0')}
                       </span>
                       <span className="ml-2 flex-1 truncate">{activity.type || 'unknown'}</span>
                       <span className="ml-2 tabular-nums">{formatDistance(activity.distance)} km</span>
                     </div>
-                    <div className="flex items-center justify-between pl-10 text-xs-compact text-panel-muted">
+                    <div
+                      className={cn(
+                        'flex items-center justify-between pl-10 text-xs-compact',
+                        isHighlighted ? 'text-selection-muted' : 'text-panel-muted',
+                      )}
+                    >
                       <span>{formatDate(activity.date)}</span>
                       {activity.elevationGain > 0 && (
                         <span className="tabular-nums">+{Math.round(activity.elevationGain)}m</span>

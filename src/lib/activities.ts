@@ -17,10 +17,3 @@ export function latestActivityStart(activities: Activity[]): { latitude: number;
 export function sortActivitiesByDateDesc(activities: Activity[]): Activity[] {
   return [...activities].sort((a, b) => (b.date?.getTime() ?? 0) - (a.date?.getTime() ?? 0))
 }
-
-/** Appends activities not already present (by id), keeping newest-first order. */
-export function mergeActivities(existing: Activity[], incoming: Activity[]): Activity[] {
-  const known = new Set(existing.map((a) => a.id))
-  const fresh = incoming.filter((a) => !known.has(a.id))
-  return fresh.length === 0 ? existing : sortActivitiesByDateDesc([...existing, ...fresh])
-}

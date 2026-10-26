@@ -4,34 +4,39 @@ import { useEffect, useMemo, useReducer } from 'react'
 
 import type { Activity } from '@/models/activity'
 import type { ActivityCluster } from '@/models/location'
-import { clusterActivities, mergeClustersByDisplayName } from '@/lib/clusters'
+import type { ResolvedCity } from '@/lib/city-names'
+import { clusterActivities, filterActivityClusters, mergeClustersByLocation } from '@/lib/clusters'
 import { readLocalStorage, useLocalStorageItem, writeLocalStorage } from '@/hooks/use-local-storage'
 
-const GEOCODE_CACHE_KEY = 'strava-x-geocode-cache-v2'
+const GEOCODE_CACHE_KEY = 'strava-x-geocode-cache-v4'
 // Nominatim's usage policy is ~1 request/second.
 const GEOCODE_THROTTLE_MS = 1000
-// After a failed lookup (or a 429) leave the key alone for a while instead of
-// retrying on every filter change.
+// Back off failed lookups across filter changes.
 const GEOCODE_RETRY_MS = 60_000
 
-type GeocodeCache = Record<string, string>
+type GeocodeCache = Record<string, ResolvedCity>
 
-// Module-level so every instance of the hook (and every restart of the
-// effect) shares one throttle window and one view of recent failures.
+// Share throttling and backoff across hook instances.
 let lastRequestAt = 0
 let rateLimitedUntil = 0
 const failedAt = new Map<string, number>()
 
 function cacheKeyFor(cluster: ActivityCluster): string {
-  // Round to 2 decimals (~1km precision) so nearby centroids share an entry.
-  return `${cluster.centroid.latitude.toFixed(2)},${cluster.centroid.longitude.toFixed(2)}`
+  return `${cluster.centroid.latitude.toFixed(4)},${cluster.centroid.longitude.toFixed(4)}`
 }
 
 function parseCache(raw: string | null): GeocodeCache {
   if (!raw) return {}
   try {
     const parsed = JSON.parse(raw) as unknown
-    return parsed && typeof parsed === 'object' ? (parsed as GeocodeCache) : {}
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+      ? Object.fromEntries(
+          Object.entries(parsed).filter(
+            ([, city]) =>
+              city && typeof city === 'object' && typeof city.id === 'string' && typeof city.name === 'string',
+          ),
+        )
+      : {}
   } catch {
     return {}
   }
@@ -41,27 +46,24 @@ function readCache(): GeocodeCache {
   return parseCache(readLocalStorage(GEOCODE_CACHE_KEY))
 }
 
-function writeCacheEntry(key: string, name: string): void {
-  writeLocalStorage(GEOCODE_CACHE_KEY, JSON.stringify({ ...readCache(), [key]: name }))
+function writeCacheEntry(key: string, city: ResolvedCity): void {
+  writeLocalStorage(GEOCODE_CACHE_KEY, JSON.stringify({ ...readCache(), [key]: city }))
 }
 
 interface GeocodeResult {
-  name: string | null
+  city: ResolvedCity | null
   rateLimited: boolean
 }
 
-// Reverse geocoding goes through our own /api/geocode/reverse proxy rather
-// than hitting Nominatim directly. The proxy hides the user's IP from
-// OpenStreetMap and lets the CDN cache repeat lookups.
-async function fetchCityName(lat: number, lng: number): Promise<GeocodeResult> {
+async function fetchCity(lat: number, lng: number): Promise<GeocodeResult> {
   try {
-    // `v=2` busts the edge cache of the previous (borough/district) names.
-    const response = await fetch(`/api/geocode/reverse?lat=${lat}&lng=${lng}&v=2`)
-    if (!response.ok) return { name: null, rateLimited: response.status === 429 }
-    const data = (await response.json()) as { name?: string | null }
-    return { name: data.name ?? null, rateLimited: false }
+    // A new version bypasses cached labels from the old city-specific rules.
+    const response = await fetch(`/api/geocode/reverse?lat=${lat}&lng=${lng}&v=4`)
+    if (!response.ok) return { city: null, rateLimited: response.status === 429 }
+    const data = (await response.json()) as { city?: ResolvedCity | null }
+    return { city: data.city ?? null, rateLimited: false }
   } catch {
-    return { name: null, rateLimited: false }
+    return { city: null, rateLimited: false }
   }
 }
 
@@ -79,16 +81,16 @@ function retryAfter(key: string): number {
  * reverse-geocoded city names, then merges clusters that share a city.
  * Resolved names are cached in localStorage, which also drives re-renders.
  */
-export function useActivityClusters(activities: Activity[]): ActivityCluster[] {
+export function useActivityClusters(
+  activities: Activity[],
+  visibleActivities: Activity[] = activities,
+): ActivityCluster[] {
   const baseClusters = useMemo(() => clusterActivities(activities), [activities])
   const cacheRaw = useLocalStorageItem(GEOCODE_CACHE_KEY)
   const names = useMemo(() => parseCache(cacheRaw), [cacheRaw])
   const [retryTick, scheduleRetry] = useReducer((n: number) => n + 1, 0)
 
-  // A stable string of the keys still missing a name. The effect below keys
-  // on this rather than the activities array, so dragging the date slider
-  // (which reshapes clusters but rarely changes which cities they're in)
-  // doesn't restart the loop and drop in-flight lookups.
+  // Stable keys keep timeline changes from restarting in-flight geocoding.
   const pendingKeys = useMemo(() => {
     const keys = new Set<string>()
     for (const cluster of baseClusters) {
@@ -116,18 +118,16 @@ export function useActivityClusters(activities: Activity[]): ActivityCluster[] {
         const wait = lastRequestAt + GEOCODE_THROTTLE_MS - Date.now()
         if (wait > 0) await sleep(wait)
         if (cancelled) return
-        // The key is rounded to ~1km, which is the resolution the cache is
-        // keyed at anyway, so geocoding the rounded point is as good as the
-        // exact centroid (and lets the CDN cache the lookup).
+        // Geocode the rounded cache key so nearby requests share CDN results.
         const [lat, lng] = key.split(',').map(Number)
         lastRequestAt = Date.now()
-        const { name, rateLimited } = await fetchCityName(lat, lng)
-        // Store the outcome even if the effect was cancelled meanwhile: the
-        // request already cost a Nominatim call, so its answer must not be
-        // thrown away — and a failure must not be retried straight away.
-        if (name) {
-          writeCacheEntry(key, name)
+        const { city, rateLimited } = await fetchCity(lat, lng)
+        // Cache completed calls even after cancellation to avoid duplicate requests.
+        if (city) {
+          failedAt.delete(key)
+          writeCacheEntry(key, city)
         } else {
+          if (failedAt.size >= 1000) failedAt.delete(failedAt.keys().next().value!)
           failedAt.set(key, Date.now())
           if (rateLimited) rateLimitedUntil = Date.now() + GEOCODE_RETRY_MS
           earliestRetry = Math.min(earliestRetry, retryAfter(key))
@@ -145,13 +145,16 @@ export function useActivityClusters(activities: Activity[]): ActivityCluster[] {
     }
   }, [pendingKeys, retryTick])
 
-  return useMemo(() => {
+  const labeledClusters = useMemo(() => {
     const labeled = baseClusters.map((cluster) => {
-      const name = names[cacheKeyFor(cluster)]
-      // City-keyed id so the selection survives when a second blob geocodes
-      // to the same name and the two rows collapse into one.
-      return name ? { ...cluster, displayName: name, id: `city:${name}` } : cluster
+      const city = names[cacheKeyFor(cluster)]
+      return city ? { ...cluster, displayName: city.name, id: city.id } : cluster
     })
-    return mergeClustersByDisplayName(labeled)
+    return mergeClustersByLocation(labeled)
   }, [baseClusters, names])
+  return useMemo(
+    () =>
+      visibleActivities === activities ? labeledClusters : filterActivityClusters(labeledClusters, visibleActivities),
+    [activities, visibleActivities, labeledClusters],
+  )
 }

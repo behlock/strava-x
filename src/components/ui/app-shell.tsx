@@ -1,9 +1,12 @@
 'use client'
 
-import { type ReactNode, useCallback, useState } from 'react'
+import { type ReactNode, useCallback, useId, useState } from 'react'
 
 import { useIsMobile } from '@/hooks/use-media-query'
 import { DRAWER_COLLAPSED_HEIGHT, MobileDrawer } from './mobile-drawer'
+import { PanelChromeContext, PanelVisibilityContext } from './panel'
+import { SidebarContext } from './sidebar-context'
+import { cn } from '@/lib/utils'
 
 interface AppShellProps {
   header: ReactNode
@@ -11,13 +14,13 @@ interface AppShellProps {
   children: ReactNode
   hasActivities: boolean
   filterPanel: ReactNode
+  timelinePanel: ReactNode
   locationsPanel: ReactNode
   activityList: ReactNode
-  /** Settings panel; last in the left column on desktop, last drawer section on mobile. */
-  setupPanel?: ReactNode
   /** Floating map controls (e.g. locate), anchored bottom-right above the mobile drawer. */
   mapControls?: ReactNode
   onDrawerHeightChange: (height: number) => void
+  onSidebarVisibilityChange?: (visible: boolean) => void
 }
 
 const EDGE_GAP = 16
@@ -34,13 +37,16 @@ export function AppShell({
   children,
   hasActivities,
   filterPanel,
+  timelinePanel,
   locationsPanel,
   activityList,
-  setupPanel,
   mapControls,
   onDrawerHeightChange,
+  onSidebarVisibilityChange,
 }: AppShellProps) {
   const isMobile = useIsMobile()
+  const [sidebarOpen, setSidebarOpen] = useState(true)
+  const sidebarId = useId()
 
   // Track the drawer height locally too so map controls can sit above it.
   // Starts at the collapsed height so the first paint isn't under the drawer.
@@ -52,27 +58,51 @@ export function AppShell({
     },
     [onDrawerHeightChange],
   )
-  // The setup panel (theme, disconnect) must stay reachable with no
-  // activities, so the column and drawer show whenever there is one.
-  const showPanels = hasActivities || Boolean(setupPanel)
-  const showDrawer = showPanels && isMobile
+  const showDrawer = hasActivities && isMobile
   const stackBottom = showDrawer ? `min(${drawerHeight + EDGE_GAP}px, ${STACK_MAX_BOTTOM})` : EDGE_GAP
 
   return (
-    <div className="relative h-screen w-screen overflow-hidden">
+    <div className="relative h-dvh w-full overflow-hidden">
       <div className="absolute inset-0">{children}</div>
 
       {/* Above the mobile drawer (z-20) so header menus never paint under it. */}
-      <div className="absolute top-0 right-0 left-0 z-30">{header}</div>
+      <SidebarContext
+        value={
+          hasActivities && !isMobile
+            ? {
+                open: sidebarOpen,
+                controlsId: sidebarId,
+                toggle: () => {
+                  const visible = !sidebarOpen
+                  setSidebarOpen(visible)
+                  onSidebarVisibilityChange?.(visible)
+                },
+              }
+            : null
+        }
+      >
+        <div className="absolute top-0 right-0 left-0 z-30">{header}</div>
+      </SidebarContext>
 
-      {showPanels && !isMobile && (
-        // Scrolls on short viewports so the setup panel is always reachable;
-        // the activity list keeps a floor height and takes any spare room.
-        <div className="absolute top-18 bottom-4 left-4 z-10 hidden scrollbar-thin min-h-0 w-56 flex-col gap-3 overflow-x-hidden overflow-y-auto md:flex lg:w-64 xl:w-72">
-          {hasActivities && filterPanel}
-          {hasActivities && locationsPanel}
-          {hasActivities && <div className="flex min-h-40 flex-1 flex-col">{activityList}</div>}
-          {setupPanel}
+      {hasActivities && !isMobile && (
+        <div className="pointer-events-none absolute top-18 bottom-4 left-4 z-10 hidden min-h-0 w-56 flex-col items-start gap-2 md:flex lg:w-64 xl:w-72">
+          <aside
+            id={sidebarId}
+            aria-label="Map controls"
+            className={cn(
+              'pointer-events-auto scrollbar-thin min-h-0 w-full floating-sidebar flex-col overflow-y-auto rounded-lg border border-panel-border bg-panel',
+              sidebarOpen ? 'flex' : 'hidden',
+            )}
+          >
+            <PanelVisibilityContext value={sidebarOpen}>
+              <PanelChromeContext value="sidebar">
+                {timelinePanel}
+                {locationsPanel}
+                {filterPanel}
+                {activityList}
+              </PanelChromeContext>
+            </PanelVisibilityContext>
+          </aside>
         </div>
       )}
 
@@ -84,10 +114,10 @@ export function AppShell({
 
       {showDrawer && (
         <MobileDrawer
-          filterPanel={hasActivities ? filterPanel : null}
-          locationsPanel={hasActivities ? locationsPanel : null}
-          activityList={hasActivities ? activityList : null}
-          setupPanel={setupPanel}
+          filterPanel={filterPanel}
+          timelinePanel={timelinePanel}
+          locationsPanel={locationsPanel}
+          activityList={activityList}
           onHeightChange={handleDrawerHeightChange}
         />
       )}

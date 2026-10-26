@@ -3,8 +3,8 @@ import { sortActivitiesByDateDesc } from '@/lib/activities'
 import { deserializeActivity, type SerializedActivity, serializeActivity } from '@/lib/activities-serialize'
 
 const DB_NAME = 'strava-x'
-const DB_VERSION = 1
-const STORE_NAME = 'activities'
+const DB_VERSION = 2
+const STORE_NAME = 'libraries'
 
 function openDB(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -13,6 +13,7 @@ function openDB(): Promise<IDBDatabase> {
     request.onsuccess = () => resolve(request.result)
     request.onupgradeneeded = () => {
       const db = request.result
+      if (db.objectStoreNames.contains('activities')) db.deleteObjectStore('activities')
       if (!db.objectStoreNames.contains(STORE_NAME)) {
         db.createObjectStore(STORE_NAME, { keyPath: 'id' })
       }
@@ -40,52 +41,43 @@ async function withStore<T>(mode: IDBTransactionMode, run: (store: IDBObjectStor
   try {
     const tx = db.transaction(STORE_NAME, mode)
     const done = awaitTransaction(tx)
-    const result = await run(tx.objectStore(STORE_NAME))
-    await done
-    return result
+    try {
+      const [result] = await Promise.all([run(tx.objectStore(STORE_NAME)), done])
+      return result
+    } catch (error) {
+      try {
+        tx.abort()
+      } catch {
+        /* Already aborted or complete. */
+      }
+      await done.catch(() => {})
+      throw error
+    }
   } finally {
     db.close()
   }
 }
 
-// Entries written by older builds can lack an id or carry a feature without
-// geometry; drop them rather than crash the map.
-function isUsable(activity: Activity): boolean {
-  if (!activity.id) return false
-  if (activity.feature && !activity.feature.geometry?.coordinates?.length) {
-    console.warn('[activities-db] Dropping activity with invalid feature:', activity.id)
-    return false
-  }
-  return true
-}
-
-/** Upserts activities by id. */
-export function saveActivities(activities: Activity[]): Promise<void> {
+/** Replace one account's entire library atomically, including a successful empty sync. */
+export function replaceActivities(athleteId: number, activities: Activity[]): Promise<void> {
   return withStore('readwrite', async (store) => {
-    for (const activity of activities) store.put(serializeActivity(activity))
+    store.put({ id: String(athleteId), activities: activities.map(serializeActivity) })
   })
 }
 
-/** Loads every stored activity, newest first. Resolves with `[]` on any failure. */
-export async function loadActivities(): Promise<Activity[]> {
+/** A verified account id is required; unscoped legacy rows are never restored. */
+export async function loadActivities(athleteId: number): Promise<Activity[]> {
   try {
-    const rows = await withStore('readonly', (store) =>
-      awaitRequest(store.getAll() as IDBRequest<SerializedActivity[]>),
-    )
-    return sortActivitiesByDateDesc(rows.map(deserializeActivity).filter(isUsable))
-  } catch (error) {
-    console.error('[activities-db] Failed to load activities from IndexedDB:', error)
+    const row = (await withStore('readonly', (store) => awaitRequest(store.get(String(athleteId))))) as
+      { activities: SerializedActivity[] } | undefined
+    return sortActivitiesByDateDesc((row?.activities ?? []).map(deserializeActivity))
+  } catch {
     return []
   }
 }
 
-/** Best-effort wipe of the store. */
 export async function clearActivities(): Promise<void> {
-  try {
-    await withStore('readwrite', async (store) => {
-      store.clear()
-    })
-  } catch (error) {
-    console.error('[activities-db] Failed to clear activities:', error)
-  }
+  await withStore('readwrite', async (store) => {
+    store.clear()
+  }).catch(() => {})
 }
