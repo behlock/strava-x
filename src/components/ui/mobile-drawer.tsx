@@ -32,7 +32,7 @@ export function MobileDrawer({
     [
       { key: 'timeline', label: 'timeline', content: timelinePanel },
       { key: 'locations', label: 'locations', content: locationsPanel },
-      { key: 'filters', label: 'activity types', content: filterPanel },
+      { key: 'filters', label: 'types', content: filterPanel },
       { key: 'activities', label: 'activities', content: activityList },
     ] as const satisfies readonly { key: Section; label: string; content: ReactNode }[]
   ).filter((section) => Boolean(section.content))
@@ -163,7 +163,7 @@ export function MobileDrawer({
               suppressClickRef.current = false
             }}
             className={cn(
-              'min-h-11 min-w-0 flex-1 rounded-full px-1 py-1 text-xs-compact leading-4 focus-ring-inset transition-colors',
+              'flex min-h-11 min-w-0 flex-1 items-center justify-center rounded-full px-0.5 py-1 text-center text-[11px] leading-4 whitespace-nowrap focus-ring-inset transition-colors min-[360px]:text-xs',
               activeSection?.key === key
                 ? 'bg-selection text-selection-foreground'
                 : 'text-panel-muted hover:bg-foreground/5',

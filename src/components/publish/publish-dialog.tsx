@@ -218,10 +218,11 @@ function PublishDialogBody({
           <div className="rounded-lg border border-panel-border bg-control py-1 pr-1 pl-3 focus-within:border-foreground/50">
             <div className="flex items-center">
               <span
-                className="max-w-[50%] min-w-0 truncate text-base-compact text-panel-muted md:text-sm-compact"
+                className="max-w-[50%] min-w-0 truncate text-[12px] leading-5 text-panel-muted md:text-sm-compact"
                 title={`${origin}/`}
               >
-                {`${origin}/`}
+                <span className="md:hidden">{`${origin.replace(/^https?:\/\/(?:www\.)?/, '')}/`}</span>
+                <span className="hidden md:inline">{`${origin}/`}</span>
               </span>
               <span
                 className={cn(
