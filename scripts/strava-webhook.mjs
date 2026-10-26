@@ -6,8 +6,7 @@ const clientId = process.env.NEXT_PUBLIC_STRAVA_CLIENT_ID
 const clientSecret = process.env.STRAVA_CLIENT_SECRET
 if (!clientId || !clientSecret) throw new Error('Strava credentials are missing')
 
-const callback = new URL('/api/strava/webhook', origin)
-callback.searchParams.set('key', stravaWebhookToken('callback'))
+const callback = new URL(`/api/strava/webhook/${stravaWebhookToken('callback')}`, origin)
 const credentials = new URLSearchParams({ client_id: clientId, client_secret: clientSecret })
 const endpoint = 'https://www.strava.com/api/v3/push_subscriptions'
 const existing = await fetch(`${endpoint}?${credentials}`, { signal: AbortSignal.timeout(15_000) })

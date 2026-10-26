@@ -6,11 +6,14 @@ import { matchesWebhookToken, webhookSubscriptionId } from '@/lib/strava-webhook
 
 export const runtime = 'nodejs'
 
-export function GET(req: NextRequest) {
+type WebhookContext = { params: Promise<{ key: string }> }
+
+export async function GET(req: NextRequest, { params: routeParams }: WebhookContext) {
+  const { key } = await routeParams
   const params = new URL(req.url).searchParams
   const challenge = params.get('hub.challenge')
   if (
-    !matchesWebhookToken(params.get('key'), 'callback') ||
+    !matchesWebhookToken(key, 'callback') ||
     !matchesWebhookToken(params.get('hub.verify_token'), 'verify') ||
     params.get('hub.mode') !== 'subscribe' ||
     !challenge ||
@@ -21,8 +24,9 @@ export function GET(req: NextRequest) {
   return NextResponse.json({ 'hub.challenge': challenge }, { headers: { 'Cache-Control': 'no-store' } })
 }
 
-export async function POST(req: NextRequest) {
-  if (!matchesWebhookToken(new URL(req.url).searchParams.get('key'), 'callback')) {
+export async function POST(req: NextRequest, { params }: WebhookContext) {
+  const { key } = await params
+  if (!matchesWebhookToken(key, 'callback')) {
     return jsonError('invalid_webhook_token', 403)
   }
   const subscriptionId = webhookSubscriptionId()

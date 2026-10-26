@@ -10,12 +10,14 @@ const api = {
   jsonError: (error, status = 400) => Response.json({ error }, { status }),
 }
 function route(recordActivityChange) {
-  return loadTs('src/app/api/strava/webhook/route.ts', {
+  const handlers = loadTs('src/app/api/strava/webhook/[key]/route.ts', {
     '@/lib/api': api,
     '@/lib/activity-sync-db': { recordActivityChange },
   })
+  const context = (req) => ({ params: Promise.resolve({ key: new URL(req.url).pathname.split('/').at(-1) }) })
+  return { GET: (req) => handlers.GET(req, context(req)), POST: (req) => handlers.POST(req, context(req)) }
 }
-const url = () => `https://example.test/api/strava/webhook?key=${stravaWebhookToken('callback')}`
+const url = () => `https://example.test/api/strava/webhook/${stravaWebhookToken('callback')}`
 const event = {
   owner_id: 7,
   object_id: 99,
@@ -27,15 +29,15 @@ const event = {
 }
 const request = (body = event, address = url()) => new Request(address, { method: 'POST', body: JSON.stringify(body) })
 
-test('verification requires the secret callback URL and verification token', () => {
+test('verification requires the secret callback URL and verification token', async () => {
   const { GET } = route(() => assert.fail('verification must not write data'))
   const address = new URL(url())
   address.searchParams.set('hub.mode', 'subscribe')
   address.searchParams.set('hub.challenge', 'challenge')
   address.searchParams.set('hub.verify_token', stravaWebhookToken('verify'))
-  assert.equal(GET(new Request(address)).status, 200)
-  address.searchParams.set('key', 'é'.repeat(64))
-  assert.equal(GET(new Request(address)).status, 403)
+  assert.equal((await GET(new Request(address))).status, 200)
+  address.pathname = `/api/strava/webhook/${'é'.repeat(64)}`
+  assert.equal((await GET(new Request(address))).status, 403)
 })
 
 test('untrusted or malformed events cannot invalidate accounts', async () => {
