@@ -33,14 +33,3 @@ export interface SnapshotProof {
   fingerprint: string
   policy: 1
 }
-export function hasSafeRouteGrant(proof: unknown, accessToken: string): boolean {
-  const grant = readProof<{ token: string }>('route-access', proof)
-  return grant?.token === digest(accessToken)
-}
-
-/** Only the scope returned by Strava's server-to-server exchange is trusted. */
-export function safeRouteScope(scope: unknown): boolean {
-  if (typeof scope !== 'string') return false
-  const scopes = scope.split(/[ ,]+/)
-  return scopes.includes('activity:read') && !scopes.includes('activity:read_all')
-}

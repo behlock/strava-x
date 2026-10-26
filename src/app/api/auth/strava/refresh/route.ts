@@ -1,8 +1,8 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { enforceRateLimit, isAccessToken, isSameOriginRequest, jsonError } from '@/lib/api'
-import { STRAVA_REFRESH_COOKIE, STRAVA_ROUTE_GRANT_COOKIE } from '@/lib/cookies'
+import { STRAVA_REFRESH_COOKIE } from '@/lib/cookies'
 import { clearSessionCookies, getStravaCredentials, setSessionCookies } from '@/lib/server-config'
-import { digest, readProof, safeRouteScope, signProof } from '@/lib/sharing-proof'
+import { digest } from '@/lib/sharing-proof'
 import { TtlCache } from '@/lib/ttl-cache'
 
 export const runtime = 'nodejs'
@@ -10,14 +10,12 @@ interface Token {
   access_token: string
   refresh_token: string
   expires_at: number
-  routesVerified: boolean
-  routeAccessProof: string | null
 }
 type Result = { token: Token } | { error: string; status: number }
 // Coalesce rotation races and give every waiter the same refreshed cookies.
 const rotations = new TtlCache<Promise<Result>>(1000, 30_000)
 
-async function refresh(refreshToken: string, routesPreviouslyVerified: boolean): Promise<Result> {
+async function refresh(refreshToken: string): Promise<Result> {
   const credentials = getStravaCredentials()
   if (!credentials) return { error: 'server_not_configured', status: 500 }
   try {
@@ -46,16 +44,11 @@ async function refresh(refreshToken: string, routesPreviouslyVerified: boolean):
       data.expires_at * 1000 <= Date.now()
     )
       return { error: 'invalid_token_response', status: 502 }
-    const routesVerified = data.scope === undefined ? routesPreviouslyVerified : safeRouteScope(data.scope)
     return {
       token: {
         access_token: data.access_token,
         refresh_token: data.refresh_token,
         expires_at: data.expires_at,
-        routesVerified,
-        routeAccessProof: routesVerified
-          ? signProof('route-access', { token: digest(data.access_token) }, data.expires_at * 1000)
-          : null,
       },
     }
   } catch {
@@ -76,8 +69,7 @@ export async function POST(req: NextRequest) {
   const key = digest(refreshToken)
   let pending = rotations.get(key)
   if (!pending) {
-    const grant = readProof<{ token: string }>('refresh-grant', req.cookies.get(STRAVA_ROUTE_GRANT_COOKIE)?.value)
-    pending = refresh(refreshToken, grant?.token === key)
+    pending = refresh(refreshToken)
     rotations.set(key, pending)
   }
   const result = await pending
@@ -87,11 +79,8 @@ export async function POST(req: NextRequest) {
     if (result.status === 401) clearSessionCookies(response)
     return response
   }
-  const { access_token, expires_at, routeAccessProof, refresh_token, routesVerified } = result.token
-  const response = NextResponse.json(
-    { access_token, expires_at, routeAccessProof },
-    { headers: { 'Cache-Control': 'no-store' } },
-  )
-  setSessionCookies(response, refresh_token, routesVerified)
+  const { access_token, expires_at, refresh_token } = result.token
+  const response = NextResponse.json({ access_token, expires_at }, { headers: { 'Cache-Control': 'no-store' } })
+  setSessionCookies(response, refresh_token)
   return response
 }

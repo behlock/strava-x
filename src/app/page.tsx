@@ -47,7 +47,6 @@ export default function HomePage() {
 
   const {
     currentSlug,
-    routesVerified,
     isPublishing,
     estimatePayloadSize,
     checkSlug,
@@ -114,7 +113,7 @@ export default function HomePage() {
         method: 'POST',
         signal,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ accessToken: auth.accessToken, routeAccessProof: auth.routeAccessProof }),
+        body: JSON.stringify({ accessToken: auth.accessToken }),
       })
       if (!response.ok) {
         const body = await response.json().catch(() => null)
@@ -278,8 +277,6 @@ export default function HomePage() {
             currentSlug={currentSlug}
             suggestedAddress={stravaProfile?.suggestedAddress}
             isPublishing={isPublishing}
-            routesVerified={routesVerified}
-            onReconnect={connect}
             estimatedSizeBytes={estimatedSizeBytes}
             publish={publish}
             unpublish={unpublish}

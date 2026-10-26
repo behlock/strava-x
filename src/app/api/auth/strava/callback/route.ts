@@ -1,5 +1,4 @@
 import { isAccessToken } from '@/lib/api'
-import { safeRouteScope } from '@/lib/sharing-proof'
 import { timingSafeEqual } from 'node:crypto'
 import { type NextRequest, NextResponse } from 'next/server'
 
@@ -60,7 +59,7 @@ export async function GET(req: NextRequest) {
     return failRedirect(origin, 'token_exchange_failed')
   }
 
-  const token = (await tokenRes.json().catch(() => null)) as { refresh_token?: unknown; scope?: unknown } | null
+  const token = (await tokenRes.json().catch(() => null)) as { refresh_token?: unknown } | null
   if (!token || !isAccessToken(token.refresh_token)) {
     console.error('[strava/callback] invalid token response shape')
     return failRedirect(origin, 'invalid_token_response')
@@ -70,7 +69,7 @@ export async function GET(req: NextRequest) {
   // short-lived access tokens by POSTing to /api/auth/strava/refresh, so no
   // token ever lands in the URL, history, or referer headers.
   const res = NextResponse.redirect(`${origin}/`)
-  setSessionCookies(res, token.refresh_token, safeRouteScope(token.scope))
+  setSessionCookies(res, token.refresh_token)
   clearOAuthStateCookie(res)
   return res
 }

@@ -19,7 +19,6 @@ const snapshot = () => ({
   proof: 'test-proof',
   fingerprint: 'same',
   activities: [],
-  routesVerified: true,
 })
 
 test('publishing requires a fresh verified snapshot; cached browser activities cannot be substituted', async (t) => {
@@ -73,4 +72,124 @@ test('unchanged automatic update sends only its signed proof, with the captured 
   assert.equal(submitted.revision, '0')
   assert.equal(submitted.proof, 'test-proof')
   assert.equal(submitted.activities, undefined)
+})
+
+async function requestBody(options) {
+  const body =
+    options.headers['Content-Type'] === 'application/gzip'
+      ? await new Response(options.body.stream().pipeThrough(new DecompressionStream('gzip'))).text()
+      : options.body
+  return JSON.parse(body)
+}
+
+test('stop then re-publish fetches a new signed snapshot without reloading', async (t) => {
+  let current = state(1, '0', 'owner')
+  const requests = []
+  t.mock.method(globalThis, 'fetch', async (url, options) => {
+    const body = await requestBody(options)
+    requests.push({ url, body })
+    if (url === '/api/publish/me') return Response.json(current)
+    if (url === '/api/activities/sync') {
+      return Response.json({
+        share: current,
+        snapshot: { ...snapshot(), revision: current.revision, proof: 'fresh-proof' },
+      })
+    }
+    assert.equal(body.revision, current.revision)
+    current = {
+      ...current,
+      revision: String(BigInt(current.revision) + 1n),
+      slug: body.action === 'stop' ? null : body.slug,
+    }
+    return Response.json(current)
+  })
+  const client = hook()
+  await client.refreshCurrentSlug()
+  assert.deepEqual(await client.unpublish(), { ok: true })
+  const result = await client.publish('owner')
+  assert.equal(result.slug, 'owner')
+  assert.deepEqual(
+    requests.map(({ url }) => url),
+    ['/api/publish/me', '/api/publish', '/api/activities/sync', '/api/publish'],
+  )
+  assert.equal(requests[3].body.proof, 'fresh-proof')
+  assert.equal(requests[3].body.revision, '1')
+  assert.equal(requests[3].body.action, 'create')
+})
+
+test('an expired snapshot is refreshed before publishing', async (t) => {
+  const client = hook()
+  const controller = new AbortController()
+  await client.updatePublishedMap({ ...snapshot(), expiresAt: 1 }, state(), client.beginSync(), controller.signal)
+  const requests = []
+  t.mock.method(globalThis, 'fetch', async (url, options) => {
+    requests.push(url)
+    if (url === '/api/activities/sync') return Response.json({ share: state(), snapshot: snapshot() })
+    assert.equal((await requestBody(options)).proof, 'test-proof')
+    return Response.json(state(1, '1', 'owner'))
+  })
+  assert.equal((await client.publish('owner')).slug, 'owner')
+  assert.deepEqual(requests, ['/api/activities/sync', '/api/publish'])
+})
+
+test('disconnect during on-demand sync prevents publication and concurrent clicks do not duplicate it', async (t) => {
+  const client = hook()
+  await client.updatePublishedMap(snapshot(), state(), client.beginSync(), new AbortController().signal)
+  // Stop invalidates the existing proof.
+  t.mock.method(globalThis, 'fetch', async () => Response.json(state(1, '1')))
+  await client.unpublish()
+  let release, started
+  const gate = new Promise((resolve) => {
+    release = resolve
+  })
+  const ready = new Promise((resolve) => {
+    started = resolve
+  })
+  t.mock.method(globalThis, 'fetch', async (url) => {
+    assert.equal(url, '/api/activities/sync')
+    started()
+    await gate
+    return Response.json({ share: state(1, '1'), snapshot: { ...snapshot(), revision: '1' } })
+  })
+  const pending = client.publish('owner')
+  await ready
+  assert.deepEqual(await client.publish('owner'), { error: 'busy' })
+  client.forgetCurrentSlug()
+  release()
+  assert.deepEqual(await pending, { error: 'cancelled' })
+})
+
+test('a changed revision or account during on-demand sync cannot silently re-publish', async (t) => {
+  for (const next of [state(1, '1'), state(2)]) {
+    const client = hook()
+    t.mock.method(globalThis, 'fetch', async () => Response.json(state()))
+    await client.refreshCurrentSlug()
+    t.mock.method(globalThis, 'fetch', async (url) => {
+      if (url === '/api/publish/me') return Response.json(next)
+      assert.equal(url, '/api/activities/sync')
+      return Response.json({
+        share: next,
+        snapshot: { ...snapshot(), athleteId: next.athleteId, revision: next.revision },
+      })
+    })
+    assert.deepEqual(await client.publish('owner'), { error: 'publication_changed' })
+  }
+})
+
+test('failed on-demand sync can be retried without a reload', async (t) => {
+  const client = hook()
+  t.mock.method(globalThis, 'fetch', async () => Response.json(state()))
+  await client.refreshCurrentSlug()
+  let syncs = 0
+  t.mock.method(globalThis, 'fetch', async (url) => {
+    if (url === '/api/activities/sync') {
+      return ++syncs === 1
+        ? Response.json({ error: 'sync_failed' }, { status: 502 })
+        : Response.json({ share: state(), snapshot: snapshot() })
+    }
+    return Response.json(state(1, '1', 'owner'))
+  })
+  assert.deepEqual(await client.publish('owner'), { error: 'sync_required' })
+  assert.equal((await client.publish('owner')).slug, 'owner')
+  assert.equal(syncs, 2)
 })

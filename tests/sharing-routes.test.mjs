@@ -4,7 +4,7 @@ import { gunzipSync } from 'node:zlib'
 import { loadTs } from './load-ts.mjs'
 
 process.env.STRAVA_CLIENT_SECRET = 'isolated-test-secret'
-const { signProof, digest } = loadTs('src/lib/sharing-proof.ts')
+const { digest } = loadTs('src/lib/sharing-proof.ts')
 const api = {
   authenticateAthlete: async () => ({ ok: true, athlete: { athleteId: 7 } }),
   enforceRateLimit: () => null,
@@ -34,7 +34,6 @@ const request = () =>
     method: 'POST',
     body: JSON.stringify({
       accessToken: 'token',
-      routeAccessProof: signProof('route-access', { token: digest('token') }, Date.now() + 60000),
     }),
   })
 function syncRoute() {
@@ -50,7 +49,7 @@ async function decoded(response) {
   return JSON.parse(gunzipSync(Buffer.from(await response.arrayBuffer())).toString())
 }
 
-test('sync signs only public data; owner library retains visibility; captures revision before network I/O', async (t) => {
+test('sync signs every imported route without a scope proof; captures revision before network I/O', async (t) => {
   t.mock.method(globalThis, 'fetch', async () => {
     row.revision = '5'
     return Response.json([
@@ -60,18 +59,17 @@ test('sync signs only public data; owner library retains visibility; captures re
       { ...item(4), visibility: undefined, private: false },
     ])
   })
-  // Explicit absence of visibility cannot be inferred from private:false.
   const result = await decoded(await syncRoute()(request()))
   assert.equal(result.share.revision, '4')
   assert.equal(result.activities.length, 4)
   assert.equal(result.activities[1].visibility, 'followers_only')
-  assert.equal(result.snapshot.activities.length, 1)
+  assert.equal(result.snapshot.activities.length, 4)
   assert.equal(
     result.snapshot.activities.some((a) => a.id === 'strava-2'),
-    false,
+    true,
   )
   assert.equal(result.snapshot.activities[0].date, '2026-10-25')
-  assert.equal(result.snapshot.routesVerified, true)
+  assert.ok(result.snapshot.activities.every((activity) => activity.feature.geometry.coordinates.length > 1))
   assert.equal(row.revision, '5')
 })
 test('failure on a later page returns no partial snapshot or publishable proof', async (t) => {

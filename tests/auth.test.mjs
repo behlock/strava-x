@@ -7,9 +7,8 @@ process.env.STRAVA_CLIENT_SECRET = 'isolated-test-secret'
 const config = {
   getAppUrl: () => 'http://localhost',
   getStravaCredentials: () => ({ clientId: 'test', clientSecret: 'test' }),
-  setSessionCookies: (response, token, verified) => {
+  setSessionCookies: (response, token) => {
     response.cookies.set('strava_rt', token)
-    response.headers.set('x-test-routes', String(verified))
   },
   clearSessionCookies: (response) => response.cookies.set('strava_rt', '', { maxAge: 0 }),
   clearOAuthStateCookie: () => {},
@@ -36,7 +35,6 @@ test('concurrent refreshes coalesce and return rotated cookies to every caller',
       access_token: 'new-access',
       refresh_token: 'new-refresh',
       expires_at: Math.floor(Date.now() / 1000) + 3600,
-      scope: 'read,activity:read',
     })
   })
   const POST = refreshRoute()
@@ -46,8 +44,10 @@ test('concurrent refreshes coalesce and return rotated cookies to every caller',
     assert.equal(response.status, 200)
     assert.equal(response.cookies.get('strava_rt').value, 'new-refresh')
     assert.equal(response.headers.get('cache-control'), 'no-store')
-    assert.equal(response.headers.get('x-test-routes'), 'true')
-    assert.equal(typeof (await response.json()).routeAccessProof, 'string')
+    const body = await response.json()
+    assert.equal(body.access_token, 'new-access')
+    assert.ok(body.expires_at * 1000 > Date.now())
+    assert.deepEqual(Object.keys(body).sort(), ['access_token', 'expires_at'])
   }
 })
 test('refresh failures are retriable; transient failures keep cookies, revoked grants clear them', async (t) => {

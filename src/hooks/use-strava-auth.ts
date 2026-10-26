@@ -12,7 +12,6 @@ const LEGACY_STORAGE_KEYS = ['strava-x:tokens', 'strava-x:oauth_state']
 
 interface AccessToken {
   access_token: string
-  routeAccessProof?: string | null
   expires_at: number
 }
 
@@ -22,9 +21,7 @@ interface AccessToken {
  * transient failure (network, 5xx, 429, Strava down) worth retrying.
  */
 type AccessTokenResult =
-  | { status: 'ok'; accessToken: string; routeAccessProof?: string | null }
-  | { status: 'unauthenticated' }
-  | { status: 'unavailable' }
+  { status: 'ok'; accessToken: string } | { status: 'unauthenticated' } | { status: 'unavailable' }
 
 type RefreshResult = { ok: true; token: AccessToken } | { ok: false; status: 'unauthenticated' | 'unavailable' }
 
@@ -74,14 +71,13 @@ async function refreshFromServer(): Promise<RefreshResult> {
     const body = (await res.json()) as {
       access_token?: unknown
       expires_at?: unknown
-      routeAccessProof?: string | null
     }
     if (typeof body.access_token !== 'string' || typeof body.expires_at !== 'number') {
       return { ok: false, status: 'unavailable' }
     }
     return {
       ok: true,
-      token: { access_token: body.access_token, expires_at: body.expires_at, routeAccessProof: body.routeAccessProof },
+      token: { access_token: body.access_token, expires_at: body.expires_at },
     }
   } catch {
     return { ok: false, status: 'unavailable' }
@@ -148,7 +144,7 @@ export function useStravaAuth(): UseStravaAuth {
     const cached = tokenRef.current
     const now = Math.floor(Date.now() / 1000)
     if (cached && cached.expires_at > now + REFRESH_SKEW_SECONDS) {
-      return { status: 'ok', accessToken: cached.access_token, routeAccessProof: cached.routeAccessProof }
+      return { status: 'ok', accessToken: cached.access_token }
     }
 
     // Serialize token rotation within and across tabs.
@@ -175,7 +171,6 @@ export function useStravaAuth(): UseStravaAuth {
     return {
       status: 'ok',
       accessToken: refreshed.token.access_token,
-      routeAccessProof: refreshed.token.routeAccessProof,
     }
   }, [])
 
