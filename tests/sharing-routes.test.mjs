@@ -50,7 +50,8 @@ async function decoded(response) {
 }
 
 test('sync signs every imported route without a scope proof; captures revision before network I/O', async (t) => {
-  t.mock.method(globalThis, 'fetch', async () => {
+  t.mock.method(globalThis, 'fetch', async (url) => {
+    if (new URL(url).searchParams.get('page') !== '1') return Response.json([])
     row.revision = '5'
     return Response.json([
       item(1),
@@ -82,7 +83,7 @@ test('failure on a later page returns no partial snapshot or publishable proof',
   const response = await syncRoute()(request())
   assert.equal(response.status, 502)
   assert.deepEqual(await response.json(), { error: 'strava_unauthorized' })
-  assert.equal(calls, 2)
+  assert.equal(calls, 4)
 })
 test('successful empty sync yields a valid empty snapshot instead of retaining old routes', async (t) => {
   t.mock.method(globalThis, 'fetch', async () => Response.json([]))
@@ -170,7 +171,9 @@ test('public storage failures fail closed with an uncached service error', async
 })
 
 test('missing sharing tables do not block personal sync or issue a publishable proof', async (t) => {
-  t.mock.method(globalThis, 'fetch', async () => Response.json([item(1), item(2, 'only_me')]))
+  t.mock.method(globalThis, 'fetch', async (url) =>
+    Response.json(new URL(url).searchParams.get('page') === '1' ? [item(1), item(2, 'only_me')] : []),
+  )
   const { POST } = loadTs('src/app/api/activities/sync/route.ts', {
     '@/lib/api': api,
     '@/lib/sharing-db': {
@@ -223,7 +226,9 @@ test('sharing status returns a controlled service error when the database is una
 })
 
 test('sharing preparation failures preserve the complete personal library without issuing a proof', async (t) => {
-  t.mock.method(globalThis, 'fetch', async () => Response.json([item(1)]))
+  t.mock.method(globalThis, 'fetch', async (url) =>
+    Response.json(new URL(url).searchParams.get('page') === '1' ? [item(1)] : []),
+  )
   const actual = loadTs('src/lib/share-snapshot.ts')
   for (const canonicalSnapshot of [
     () => 'x'.repeat(25 * 1024 * 1024 + 1),

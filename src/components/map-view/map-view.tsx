@@ -293,7 +293,7 @@ export function MapView({
           onActivityHover={handleActivityHover}
           onActivityClick={handleActivityClick}
           onActivityNavigate={handleActivityNavigate}
-          loading={loading}
+          loading={loading && allActivities.length === 0}
         />
       }
       onDrawerHeightChange={handleDrawerHeightChange}
