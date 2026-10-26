@@ -297,6 +297,13 @@ export function MapView({
         />
       }
       onDrawerHeightChange={handleDrawerHeightChange}
+      onSidebarVisibilityChange={(visible) => {
+        if (!visible) {
+          setHighlightedActivityId(null)
+          setHoveredFilterType(null)
+          if (hoverPanTimeoutRef.current) clearTimeout(hoverPanTimeoutRef.current)
+        }
+      }}
     >
       <ActivityMap
         ref={setMapRef}
