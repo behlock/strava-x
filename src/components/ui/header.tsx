@@ -1,6 +1,7 @@
 'use client'
 
 import { Suspense } from 'react'
+import { LoaderCircle } from 'lucide-react'
 
 import { HEADER_LOGO_CLASS, HeaderBar } from './header-bar'
 import { StravaAuthError } from './strava-auth-error'
@@ -103,6 +104,14 @@ export function Header({
       )}
 
       {publishControl}
+      {stravaConnected && isStravaSyncing && (
+        <Tooltip text="syncing activities">
+          <span role="status" className="flex shrink-0 items-center text-panel-muted">
+            <LoaderCircle className="size-4 motion-safe:animate-spin" aria-hidden="true" />
+            <span className="sr-only">Syncing activities</span>
+          </span>
+        </Tooltip>
+      )}
     </HeaderBar>
   )
 }
