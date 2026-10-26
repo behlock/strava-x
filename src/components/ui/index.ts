@@ -1,6 +1,5 @@
 export { ActivityList } from './activity-list'
 export { AppShell } from './app-shell'
-export { Checkbox } from './checkbox'
 export { DialogCloseButton } from './dialog-close-button'
 export { FilterPanel } from './filter-panel'
 export { Header } from './header'

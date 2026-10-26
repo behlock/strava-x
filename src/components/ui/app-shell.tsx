@@ -69,8 +69,8 @@ export function AppShell({
         // Scrolls on short viewports so the setup panel is always reachable;
         // the activity list keeps a floor height and takes any spare room.
         <div className="absolute top-18 bottom-4 left-4 z-10 hidden scrollbar-thin min-h-0 w-56 flex-col gap-3 overflow-x-hidden overflow-y-auto md:flex lg:w-64 xl:w-72">
-          {hasActivities && filterPanel}
           {hasActivities && locationsPanel}
+          {hasActivities && filterPanel}
           {hasActivities && <div className="flex min-h-40 flex-1 flex-col">{activityList}</div>}
           {setupPanel}
         </div>

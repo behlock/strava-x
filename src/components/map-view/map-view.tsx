@@ -126,11 +126,6 @@ export function MapView({
     return counts
   }, [allActivities, isBeforeCutoff])
 
-  const displayedActivities = useMemo(
-    () => (hoveredFilterType ? activities.filter((a) => a.type === hoveredFilterType) : activities),
-    [activities, hoveredFilterType],
-  )
-
   const {
     position: initialMapPosition,
     initialBounds,
@@ -201,18 +196,39 @@ export function MapView({
     startTransition(() => setSelectedDate(date))
   }, [])
 
-  const clusters = useActivityClusters(activities)
-  const [selectedClusterId, setSelectedClusterId] = useState<string | null>(null)
-  // Fall back to the busiest cluster whenever the selection is filtered away.
-  const activeClusterId = clusters.some((c) => c.id === selectedClusterId)
-    ? selectedClusterId
-    : (clusters[0]?.id ?? null)
+  const clusters = useActivityClusters(allActivities, activities)
+  const [selectedLocation, setSelectedLocation] = useState<{ id: string; activityIds: string[] } | null>(null)
+  const selectedCluster =
+    clusters.find((cluster) => cluster.id === selectedLocation?.id) ??
+    (selectedLocation
+      ? clusters.find((cluster) => cluster.activityIds.some((id) => selectedLocation.activityIds.includes(id)))
+      : undefined)
+  // Retain the selected scope if the date/type filters temporarily remove its cluster.
+  const selectedActivityIds = useMemo(
+    () => (selectedLocation ? new Set((selectedCluster ?? selectedLocation).activityIds) : null),
+    [selectedCluster, selectedLocation],
+  )
+  const displayedActivities = useMemo(
+    () =>
+      activities.filter(
+        (activity) =>
+          (!selectedActivityIds || selectedActivityIds.has(activity.id)) &&
+          (!hoveredFilterType || activity.type === hoveredFilterType),
+      ),
+    [activities, selectedActivityIds, hoveredFilterType],
+  )
 
   const handleClusterSelect = useCallback(
-    (id: string) => {
+    (id: string | null, toggle = false) => {
+      setHighlightedActivityId(null)
+      if (hoverPanTimeoutRef.current) clearTimeout(hoverPanTimeoutRef.current)
+      if (id === null || (toggle && (selectedCluster?.id ?? selectedLocation?.id) === id)) {
+        setSelectedLocation(null)
+        return
+      }
       const target = clusters.find((c) => c.id === id)
       if (!target) return
-      setSelectedClusterId(id)
+      setSelectedLocation({ id, activityIds: target.activityIds })
       const { minLng, minLat, maxLng, maxLat } = target.bounds
       mapRef.current?.fitToBounds(
         [
@@ -222,7 +238,7 @@ export function MapView({
         { padding: computePadding() },
       )
     },
-    [clusters, computePadding],
+    [clusters, computePadding, selectedLocation, selectedCluster],
   )
 
   const handleLocate = useCallback(() => {
@@ -250,10 +266,11 @@ export function MapView({
         />
       }
       locationsPanel={
-        clusters.length > 0 ? (
+        clusters.length > 0 || selectedLocation ? (
           <LocationSelector
             clusters={clusters}
-            selectedClusterId={activeClusterId}
+            totalActivityCount={activities.length}
+            selectedClusterId={selectedCluster?.id ?? selectedLocation?.id ?? null}
             onClusterSelect={handleClusterSelect}
           />
         ) : null

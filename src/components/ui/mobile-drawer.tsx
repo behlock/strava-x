@@ -5,7 +5,7 @@ import { type ReactNode, useCallback, useEffect, useRef, useState } from 'react'
 import { cn } from '@/lib/utils'
 import { PanelChromeContext } from './panel'
 
-type Section = 'filters' | 'locations' | 'activities' | 'setup'
+type Section = 'activity types' | 'locations' | 'activities' | 'setup'
 
 export const DRAWER_COLLAPSED_HEIGHT = 56
 const SWIPE_THRESHOLD = 50
@@ -60,8 +60,8 @@ export function MobileDrawer({
   // Sections whose content is absent (e.g. no activities yet) are skipped.
   const sections = (
     [
-      { key: 'filters', content: filterPanel },
       { key: 'locations', content: locationsPanel },
+      { key: 'activity types', content: filterPanel },
       { key: 'activities', content: activityList },
       { key: 'setup', content: setupPanel },
     ] as const satisfies readonly { key: Section; content: ReactNode }[]
