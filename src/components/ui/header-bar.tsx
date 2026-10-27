@@ -1,7 +1,7 @@
 'use client'
 
 import { type ButtonHTMLAttributes, type ReactNode, type Ref, useContext } from 'react'
-import { ArrowRight, PanelBottom, PanelLeft } from 'lucide-react'
+import { ArrowRight, PanelLeft } from 'lucide-react'
 
 import { cn } from '@/lib/utils'
 import { Tooltip, type TooltipAlign } from './tooltip'
@@ -65,41 +65,18 @@ export function HeaderBar({
           {logo}
           {status}
         </div>
-        {sidebar && (
-          <Tooltip
-            text={
-              sidebar.mobile
-                ? sidebar.open
-                  ? 'hide map controls'
-                  : 'show map controls'
-                : sidebar.open
-                  ? 'hide sidebar'
-                  : 'show sidebar'
-            }
-            shortcut={SHORTCUTS['toggle-ui'].label}
-          >
+        {sidebar && !sidebar.mobile && (
+          <Tooltip text={sidebar.open ? 'hide sidebar' : 'show sidebar'} shortcut={SHORTCUTS['toggle-ui'].label}>
             <button
               type="button"
-              aria-label={
-                sidebar.mobile
-                  ? sidebar.open
-                    ? 'Hide map controls'
-                    : 'Show map controls'
-                  : sidebar.open
-                    ? 'Hide sidebar'
-                    : 'Show sidebar'
-              }
+              aria-label={sidebar.open ? 'Hide sidebar' : 'Show sidebar'}
               aria-keyshortcuts={SHORTCUTS['toggle-ui'].aria}
               aria-expanded={sidebar.open}
               aria-controls={sidebar.controlsId}
               onClick={sidebar.toggle}
               className="mobile-touch-target flex size-8 shrink-0 items-center justify-center rounded-lg focus-ring hover:bg-foreground/5"
             >
-              {sidebar.mobile ? (
-                <PanelBottom className="size-4" aria-hidden="true" />
-              ) : (
-                <PanelLeft className="size-4" aria-hidden="true" />
-              )}
+              <PanelLeft className="size-4" aria-hidden="true" />
             </button>
           </Tooltip>
         )}

@@ -88,7 +88,6 @@ export function MapView({
 
   // On mobile the bottom drawer covers part of the map; pad fits accordingly.
   const isMobile = useIsMobile()
-  const [controlsVisible, setControlsVisible] = useState(true)
   const drawerHeightRef = useRef(0)
   const handleDrawerHeightChange = useCallback((height: number) => {
     drawerHeightRef.current = height
@@ -314,7 +313,6 @@ export function MapView({
       }
       onDrawerHeightChange={handleDrawerHeightChange}
       onSidebarVisibilityChange={(visible) => {
-        setControlsVisible(visible)
         if (!visible) {
           setHighlightedActivityId(null)
           setHoveredFilterType(null)
@@ -339,7 +337,7 @@ export function MapView({
         initialBounds={initialBounds}
         onPositionChange={savePosition}
       />
-      {commonRoutes && (!isMobile || controlsVisible || commonRoutes.status !== 'ready') && (
+      {commonRoutes && (
         <CommonRoutesNotice
           state={commonRoutes}
           appearance={comparisonAppearance}
