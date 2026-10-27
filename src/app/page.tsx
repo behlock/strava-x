@@ -8,6 +8,7 @@ import { deserializeActivities, type SerializedActivity } from '@/lib/activities
 import type { ActivityMapRef } from '@/components/activity-map'
 import { MapView } from '@/components/map-view'
 import { Header } from '@/components/ui'
+import { SharingControls } from '@/components/publish'
 import { latestActivityStart } from '@/lib/activities'
 import { replaceActivities } from '@/lib/activities-db'
 import { isActivityCacheFresh, type ActivitySyncStamp, type ActivitySyncStatus } from '@/lib/activity-sync'
@@ -19,7 +20,6 @@ import { useStravaAuth } from '@/hooks/use-strava-auth'
 
 const STRAVA_AVAILABLE = Boolean(config.STRAVA_CLIENT_ID)
 
-const PublishDialog = dynamic(() => import('@/components/publish').then((mod) => mod.PublishDialog), { ssr: false })
 const WelcomePanel = dynamic(() => import('@/components/welcome').then((mod) => mod.WelcomePanel), { ssr: false })
 
 const SYNC_ERRORS: Record<string, string> = {
@@ -41,7 +41,7 @@ export default function HomePage() {
   const [syncError, setSyncError] = useState<string | null>(null)
   const [mapUpdateError, setMapUpdateError] = useState<string | null>(null)
   const [sharingAvailable, setSharingAvailable] = useState(true)
-  const [publishOpen, setPublishOpen] = useState(false)
+  const [sharingOpen, setSharingOpen] = useState(false)
   const mapRef = useRef<ActivityMapRef | null>(null)
 
   const welcomeOpen = !stravaConnected && activities.length === 0
@@ -207,7 +207,7 @@ export default function HomePage() {
     sessionGenerationRef.current++
     hasAutoSyncedRef.current = false
     hasRetriedRef.current = false
-    setPublishOpen(false)
+    setSharingOpen(false)
     setSyncError(null)
     setMapUpdateError(null)
     // State empties right away; the store is wiped only once the page writes
@@ -267,14 +267,12 @@ export default function HomePage() {
 
   const hasActivities = activities.length > 0 || Boolean(currentSlug)
 
-  // Measured once as the dialog opens — not on every activities change while
-  // it's up, which would re-serialize the whole library each time.
   const [estimatedSizeBytes, setEstimatedSizeBytes] = useState(0)
-  const openPublish = useCallback(() => {
+  const openSharing = useCallback(() => {
     void refreshCurrentSlug().catch(() => {})
-    setEstimatedSizeBytes(estimatePayloadSize())
-    setPublishOpen(true)
-  }, [estimatePayloadSize, refreshCurrentSlug])
+    setEstimatedSizeBytes(currentSlug ? 0 : estimatePayloadSize())
+    setSharingOpen(true)
+  }, [currentSlug, estimatePayloadSize, refreshCurrentSlug])
 
   const flyToLatestActivity = () => {
     const start = latestActivityStart(activities)
@@ -284,8 +282,21 @@ export default function HomePage() {
   const header = (
     <Header
       onLogoClick={flyToLatestActivity}
-      onPublishClick={openPublish}
-      currentSlug={currentSlug}
+      sharingControls={
+        <SharingControls
+          open={sharingOpen}
+          onOpen={openSharing}
+          onClose={() => setSharingOpen(false)}
+          currentSlug={currentSlug}
+          suggestedAddress={stravaProfile?.suggestedAddress}
+          isPublishing={isPublishing}
+          isSyncing={isSyncing}
+          estimatedSizeBytes={estimatedSizeBytes}
+          publish={publish}
+          unpublish={unpublish}
+          checkSlug={checkSlug}
+        />
+      }
       hasActivities={hasActivities && sharingAvailable}
       stravaAvailable={STRAVA_AVAILABLE}
       stravaConnected={stravaConnected}
@@ -306,22 +317,7 @@ export default function HomePage() {
       preferBusiestArea={stravaConnected}
       header={header}
       externalMapRef={mapRef}
-      overlays={
-        <>
-          <PublishDialog
-            open={publishOpen}
-            onClose={() => setPublishOpen(false)}
-            currentSlug={currentSlug}
-            suggestedAddress={stravaProfile?.suggestedAddress}
-            isPublishing={isPublishing}
-            estimatedSizeBytes={estimatedSizeBytes}
-            publish={publish}
-            unpublish={unpublish}
-            checkSlug={checkSlug}
-          />
-          <WelcomePanel open={welcomeOpen} onConnect={connect} />
-        </>
-      }
+      overlays={<WelcomePanel open={welcomeOpen} onConnect={connect} />}
     />
   )
 }

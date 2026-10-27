@@ -1,6 +1,5 @@
 export { ActivityList } from './activity-list'
 export { AppShell } from './app-shell'
-export { DialogCloseButton } from './dialog-close-button'
 export { FilterPanel } from './filter-panel'
 export { Header } from './header'
 export { HEADER_LOGO_CLASS, HeaderBar } from './header-bar'

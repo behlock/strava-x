@@ -1,13 +1,12 @@
 'use client'
 
-import { type RefObject, useEffect, useRef } from 'react'
+import { type RefObject, useEffect } from 'react'
 
 const FOCUSABLE =
   'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
 
 interface UseFocusTrapOptions {
   active: boolean
-  onEscape?: () => void
   /** Element to focus on activation. Defaults to the first focusable, then the container. */
   initialFocus?: RefObject<HTMLElement | null>
 }
@@ -15,19 +14,12 @@ interface UseFocusTrapOptions {
 /**
  * Keeps keyboard focus inside `containerRef` while `active`: focus moves in
  * on activation, Tab wraps at both ends (including from the container
- * itself), Escape calls `onEscape`, and the previously focused element gets
- * focus back on deactivation.
+ * itself), and the previously focused element gets focus back on deactivation.
  */
 export function useFocusTrap(
   containerRef: RefObject<HTMLElement | null>,
-  { active, onEscape, initialFocus }: UseFocusTrapOptions,
+  { active, initialFocus }: UseFocusTrapOptions,
 ) {
-  // Latest callback without re-running the effect (which would reset focus).
-  const onEscapeRef = useRef(onEscape)
-  useEffect(() => {
-    onEscapeRef.current = onEscape
-  })
-
   useEffect(() => {
     if (!active) return
     const container = containerRef.current
@@ -41,10 +33,6 @@ export function useFocusTrap(
     ;(initialFocus?.current ?? focusables()[0] ?? container).focus()
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        onEscapeRef.current?.()
-        return
-      }
       if (e.key !== 'Tab') return
       const items = focusables()
       if (items.length === 0) {

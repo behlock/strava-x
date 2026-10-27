@@ -1,7 +1,6 @@
 'use client'
 
-import { Suspense } from 'react'
-import { LoaderCircle } from 'lucide-react'
+import { type ReactNode, Suspense } from 'react'
 
 import { HEADER_LOGO_CLASS, HeaderBar } from './header-bar'
 import { StravaAuthError } from './strava-auth-error'
@@ -9,8 +8,7 @@ import { Tooltip } from './tooltip'
 
 interface HeaderProps {
   onLogoClick: () => void
-  onPublishClick: () => void
-  currentSlug: string | null
+  sharingControls: ReactNode
   mapUpdateError: string | null
   sharingAvailable: boolean
   hasActivities: boolean
@@ -40,8 +38,7 @@ function SyncFailed({ message, label = 'sync failed' }: { message: string; label
 
 export function Header({
   onLogoClick,
-  onPublishClick,
-  currentSlug,
+  sharingControls,
   mapUpdateError,
   sharingAvailable,
   hasActivities,
@@ -53,24 +50,7 @@ export function Header({
   onStravaConnect,
   onStravaDisconnect,
 }: HeaderProps) {
-  const publishControl =
-    (hasActivities || isStravaSyncing) && stravaConnected ? (
-      <Tooltip text={isStravaSyncing ? 'syncing activities' : 'sharing'}>
-        <button
-          type="button"
-          onClick={onPublishClick}
-          disabled={isStravaSyncing}
-          aria-busy={isStravaSyncing}
-          aria-label={isStravaSyncing ? 'Syncing activities' : currentSlug ? `Sharing for /${currentSlug}` : 'Sharing'}
-          className="mobile-touch-target relative inline-flex min-h-8 max-w-[46vw] items-center justify-center rounded-lg floating-control px-2.5 text-xs-compact tracking-wider text-foreground focus-ring disabled:cursor-wait md:min-h-[35px] md:max-w-xs md:px-4"
-        >
-          <span className={isStravaSyncing ? 'invisible truncate' : 'truncate'}>
-            {currentSlug ? `/${currentSlug}` : 'sharing'}
-          </span>
-          {isStravaSyncing && <LoaderCircle className="absolute size-4 motion-safe:animate-spin" aria-hidden="true" />}
-        </button>
-      </Tooltip>
-    ) : null
+  const showSharing = (hasActivities || isStravaSyncing) && stravaConnected
   return (
     <HeaderBar
       profilePhotoUrl={stravaConnected ? profilePhotoUrl : null}
@@ -104,7 +84,7 @@ export function Header({
         </Suspense>
       )}
 
-      {publishControl}
+      {showSharing && sharingControls}
     </HeaderBar>
   )
 }

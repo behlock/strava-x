@@ -1,1 +1,1 @@
-export { PublishDialog } from './publish-dialog'
+export { SharingControls } from './sharing-controls'

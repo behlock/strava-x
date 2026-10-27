@@ -22,6 +22,7 @@ function page(cached, share = { athleteId: 7, slug: 'owner', revision: '1', fing
     '@/lib/config': { config: {} },
     '@/components/map-view': { MapView: () => null },
     '@/components/ui': { Header: () => null },
+    '@/components/publish': { SharingControls: () => null },
     '@/lib/activities-db': { replaceActivities: async () => {} },
     '@/hooks/use-persisted-activities': {
       usePersistedActivities: () => ({
