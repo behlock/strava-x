@@ -103,6 +103,7 @@ test('a late availability answer cannot enable saving a different link', async (
   t.mock.timers.enable({ apis: ['setTimeout'] })
   let answerFirst
   const fixture = controls({
+    currentSlug: null,
     checkSlug: (slug) =>
       slug === 'first'
         ? new Promise((resolve) => {
@@ -120,12 +121,12 @@ test('a late availability answer cannot enable saving a different link', async (
   answerFirst({ available: true })
   await Promise.resolve()
   tree = render()
-  assert.equal(find(tree, (node) => node.props?.label === 'Update link').props.disabled, true)
+  assert.equal(find(tree, (node) => node.props?.label === 'Share map').props.disabled, true)
   t.mock.timers.tick(300)
   await Promise.resolve()
   await Promise.resolve()
   tree = render()
-  assert.equal(find(tree, (node) => node.props?.label === 'Update link').props.disabled, true)
+  assert.equal(find(tree, (node) => node.props?.label === 'Share map').props.disabled, true)
   assert.equal(find(tree, (node) => node.props?.role === 'alert').props.children, 'someone else already uses that link')
   fixture.runtime.unmount()
 })
@@ -197,5 +198,62 @@ test('closed sharing controls do not check availability or allow submission', as
   assert.equal(checks, 1)
   const tree = fixture.runtime.render(fixture.Component, closed)
   assert.equal(find(tree, (node) => node.props?.label === 'Share map').props.disabled, true)
+  fixture.runtime.unmount()
+})
+
+test('published maps expose a link and unpublish action, without name editing', () => {
+  const fixture = controls()
+  const tree = fixture.runtime.render(fixture.Component, fixture.props)
+  assert.equal(
+    find(tree, (node) => node.type === 'input'),
+    undefined,
+  )
+  assert.equal(find(tree, (node) => node.type === 'a').props.href, '/owner')
+  assert.ok(find(tree, (node) => node.props?.label === 'Share link'))
+  assert.ok(find(tree, (node) => node.props?.label === 'Stop sharing'))
+  fixture.runtime.unmount()
+})
+
+test('unpublished maps use an icon trigger and cannot submit while closed', () => {
+  const fixture = controls({ currentSlug: null, open: false })
+  const tree = fixture.runtime.render(fixture.Component, fixture.props)
+  const trigger = find(tree, (node) => node.props?.['aria-label'] === 'Share map')
+  assert.equal(trigger.props.variant, 'icon')
+  assert.equal(
+    find(tree, (node) => node.type === 'input'),
+    undefined,
+  )
+  fixture.runtime.unmount()
+})
+
+test('sharing copies the full map URL and announces success', async (t) => {
+  let copied
+  const previousWindow = globalThis.window
+  globalThis.window = {
+    location: { origin: 'https://maps.example' },
+    matchMedia: () => ({ matches: false }),
+  }
+  t.after(() => {
+    if (previousWindow === undefined) delete globalThis.window
+    else globalThis.window = previousWindow
+  })
+  const navigatorDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'navigator')
+  t.after(() => Object.defineProperty(globalThis, 'navigator', navigatorDescriptor))
+  Object.defineProperty(globalThis, 'navigator', {
+    configurable: true,
+    value: {
+      clipboard: {
+        writeText: async (url) => {
+          copied = url
+        },
+      },
+    },
+  })
+  const fixture = controls()
+  let tree = fixture.runtime.render(fixture.Component, fixture.props)
+  await find(tree, (node) => node.props?.label === 'Share link').props.onClick()
+  tree = fixture.runtime.render(fixture.Component, fixture.props)
+  assert.equal(copied, 'https://maps.example/owner')
+  assert.ok(find(tree, (node) => node.props?.label === 'Link copied'))
   fixture.runtime.unmount()
 })

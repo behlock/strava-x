@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useId, useRef, useState } from 'react'
+import { type ReactNode, useCallback, useEffect, useId, useRef, useState } from 'react'
 import { Plus, Unplug } from 'lucide-react'
 
 import { cn } from '@/lib/utils'
@@ -8,11 +8,12 @@ import { ThemeSwitch } from './theme-switch'
 import { Tooltip } from './tooltip'
 
 interface ProfileMenuProps {
+  children?: ReactNode
   onDisconnect?: () => void
   profilePhotoUrl?: string | null
 }
 
-export function ProfileMenu({ onDisconnect, profilePhotoUrl }: ProfileMenuProps) {
+export function ProfileMenu({ onDisconnect, profilePhotoUrl, children }: ProfileMenuProps) {
   const [open, setOpen] = useState(false)
   const [settledOpen, setSettledOpen] = useState(false)
   const [loadedPhotoUrl, setLoadedPhotoUrl] = useState<string | null>(null)
@@ -57,7 +58,7 @@ export function ProfileMenu({ onDisconnect, profilePhotoUrl }: ProfileMenuProps)
       ref={rootRef}
       className="relative flex shrink-0 flex-row-reverse items-center"
       onBlur={(event) => {
-        if (!event.currentTarget.contains(event.relatedTarget)) collapse()
+        if (event.relatedTarget && !event.currentTarget.contains(event.relatedTarget)) collapse()
       }}
     >
       <button
@@ -106,7 +107,7 @@ export function ProfileMenu({ onDisconnect, profilePhotoUrl }: ProfileMenuProps)
         aria-hidden={!open}
         data-open={open}
         data-settled-open={settledOpen}
-        className="profile-menu-reveal absolute top-1/2 right-full shrink-0 -translate-y-1/2 rounded-lg bg-panel md:static md:translate-y-0 md:bg-transparent"
+        className="profile-menu-reveal absolute top-[calc(100%+0.75rem)] right-0 shrink-0 rounded-lg bg-panel md:static md:bg-transparent"
         onTransitionEnd={(event) => {
           if (event.target === event.currentTarget && event.propertyName === 'max-width') setSettledOpen(open)
         }}
@@ -115,7 +116,7 @@ export function ProfileMenu({ onDisconnect, profilePhotoUrl }: ProfileMenuProps)
           role="group"
           aria-label="Profile controls"
           data-open={open}
-          className="profile-menu-items flex items-center"
+          className="profile-menu-items flex max-w-[calc(100vw-2rem)] items-center rounded-lg border border-panel-border p-2 md:max-w-none md:border-0 md:p-0"
         >
           <ThemeSwitch />
           {onDisconnect && (
@@ -130,6 +131,7 @@ export function ProfileMenu({ onDisconnect, profilePhotoUrl }: ProfileMenuProps)
               </button>
             </Tooltip>
           )}
+          {children}
         </div>
       </div>
     </div>

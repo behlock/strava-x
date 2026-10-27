@@ -54,6 +54,7 @@ export function Header({
   return (
     <HeaderBar
       profilePhotoUrl={stravaConnected ? profilePhotoUrl : null}
+      profileControls={showSharing ? sharingControls : null}
       onConnect={stravaAvailable && !stravaConnected ? onStravaConnect : undefined}
       onDisconnect={stravaConnected ? onStravaDisconnect : undefined}
       logo={
@@ -83,8 +84,6 @@ export function Header({
           <StravaAuthError />
         </Suspense>
       )}
-
-      {showSharing && sharingControls}
     </HeaderBar>
   )
 }
