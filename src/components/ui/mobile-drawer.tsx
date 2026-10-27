@@ -8,8 +8,6 @@ import { PanelChromeContext, PanelVisibilityContext } from './panel'
 
 type Section = 'filters' | 'timeline' | 'locations' | 'activities'
 
-// Floating bar plus its bottom gap; ResizeObserver accounts for safe areas.
-export const DRAWER_COLLAPSED_HEIGHT = 68
 const SWIPE_THRESHOLD = 50
 
 interface MobileDrawerProps {

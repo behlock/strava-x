@@ -1,9 +1,9 @@
 'use client'
 
-import { type ReactNode, useCallback, useId, useState } from 'react'
+import { type ReactNode, useId, useState } from 'react'
 
 import { useIsMobile } from '@/hooks/use-media-query'
-import { DRAWER_COLLAPSED_HEIGHT, MobileDrawer } from './mobile-drawer'
+import { MobileDrawer } from './mobile-drawer'
 import { PanelChromeContext, PanelVisibilityContext } from './panel'
 import { SidebarContext } from './sidebar-context'
 import { cn } from '@/lib/utils'
@@ -17,16 +17,9 @@ interface AppShellProps {
   timelinePanel: ReactNode
   locationsPanel: ReactNode
   activityList: ReactNode
-  /** Floating map controls (e.g. locate), anchored bottom-right above the mobile drawer. */
-  mapControls?: ReactNode
   onDrawerHeightChange: (height: number) => void
   onSidebarVisibilityChange?: (visible: boolean) => void
 }
-
-const EDGE_GAP = 16
-// Keep the bottom-right stack clear of the header even when the drawer is
-// fully expanded on a short viewport: header height + control + gap.
-const STACK_MAX_BOTTOM = 'calc(100% - 120px)'
 
 /**
  * Full-screen map with floating panels: a left column on desktop and a
@@ -40,7 +33,6 @@ export function AppShell({
   timelinePanel,
   locationsPanel,
   activityList,
-  mapControls,
   onDrawerHeightChange,
   onSidebarVisibilityChange,
 }: AppShellProps) {
@@ -48,18 +40,7 @@ export function AppShell({
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const sidebarId = useId()
 
-  // Track the drawer height locally too so map controls can sit above it.
-  // Starts at the collapsed height so the first paint isn't under the drawer.
-  const [drawerHeight, setDrawerHeight] = useState(DRAWER_COLLAPSED_HEIGHT)
-  const handleDrawerHeightChange = useCallback(
-    (height: number) => {
-      setDrawerHeight(height)
-      onDrawerHeightChange(height)
-    },
-    [onDrawerHeightChange],
-  )
   const showDrawer = hasActivities && isMobile
-  const stackBottom = showDrawer ? `min(${drawerHeight + EDGE_GAP}px, ${STACK_MAX_BOTTOM})` : EDGE_GAP
 
   return (
     <div className="relative h-dvh w-full overflow-hidden">
@@ -106,19 +87,13 @@ export function AppShell({
         </div>
       )}
 
-      {/* Map controls sit above the drawer on mobile. The wrapper lets
-          pointer events through to the map; only the controls catch them. */}
-      <div className="pointer-events-none absolute right-4 z-10" style={{ bottom: stackBottom }}>
-        {mapControls && <div className="pointer-events-auto">{mapControls}</div>}
-      </div>
-
       {showDrawer && (
         <MobileDrawer
           filterPanel={filterPanel}
           timelinePanel={timelinePanel}
           locationsPanel={locationsPanel}
           activityList={activityList}
-          onHeightChange={handleDrawerHeightChange}
+          onHeightChange={onDrawerHeightChange}
         />
       )}
     </div>

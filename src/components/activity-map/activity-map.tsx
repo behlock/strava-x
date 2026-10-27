@@ -22,7 +22,7 @@ interface FitOptions {
 export interface ActivityMapRef {
   /** Frame the given coordinates. */
   fitToBounds: (coordinates: LngLat[], options?: FitOptions) => void
-  flyTo: (position: { latitude: number; longitude: number; zoom?: number }, options?: FitOptions) => void
+  flyTo: (position: { latitude: number; longitude: number; zoom?: number }) => void
   /** Frame the coordinates only if none of them are currently on screen. */
   ensureInView: (coordinates: LngLat[], options?: FitOptions) => void
 }
@@ -157,12 +157,12 @@ export const ActivityMap = memo(function ActivityMap({
         const bounds = boundsOf(coordinates)
         if (bounds) fitBounds(bounds, options)
       },
-      flyTo: ({ latitude, longitude, zoom = 12 }, options) => {
+      flyTo: ({ latitude, longitude, zoom = 12 }) => {
         hasUserMovedRef.current = true
         mapRef.current?.flyTo({
           center: [longitude, latitude],
           zoom,
-          padding: options?.padding ?? 0,
+          padding: 0,
           retainPadding: false,
           duration: 1000,
         })
