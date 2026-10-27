@@ -1,17 +1,18 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { startTransition, useCallback, useEffect, useRef, useState } from 'react'
 import dynamic from 'next/dynamic'
 
-import type { ShareState, VerifiedSnapshot } from '@/lib/share-snapshot'
-import { deserializeActivities, type SerializedActivity } from '@/lib/activities-serialize'
+import type { Activity } from '@/models/activity'
+import { readActivitySync } from '@/lib/activity-sync-stream'
+import { deserializeActivities } from '@/lib/activities-serialize'
 import type { ActivityMapRef } from '@/components/activity-map'
 import { MapView } from '@/components/map-view'
 import { Header } from '@/components/ui'
 import { SharingControls } from '@/components/publish'
 import { latestActivityStart } from '@/lib/activities'
 import { replaceActivities } from '@/lib/activities-db'
-import { isActivityCacheFresh, type ActivitySyncStamp, type ActivitySyncStatus } from '@/lib/activity-sync'
+import { isActivityCacheFresh, type ActivitySyncStatus } from '@/lib/activity-sync'
 import { config } from '@/lib/config'
 import { usePersistedActivities } from '@/hooks/use-persisted-activities'
 import { usePublish } from '@/hooks/use-publish'
@@ -42,6 +43,7 @@ export default function HomePage() {
   const [mapUpdateError, setMapUpdateError] = useState<string | null>(null)
   const [sharingAvailable, setSharingAvailable] = useState(true)
   const [sharingOpen, setSharingOpen] = useState(false)
+  const [previewActivities, setPreviewActivities] = useState<Activity[] | null>(null)
   const mapRef = useRef<ActivityMapRef | null>(null)
 
   const welcomeOpen = !stravaConnected && activities.length === 0
@@ -129,27 +131,27 @@ export default function HomePage() {
       }
       const sharingVersion = beginSync()
       setIsSyncing(true)
+      setPreviewActivities(null)
       setMapUpdateError(null)
       const response = await fetch('/api/activities/sync', {
         method: 'POST',
         signal,
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', Accept: 'application/x-ndjson' },
         body: JSON.stringify({ accessToken: auth.accessToken }),
       })
-      if (!response.ok) {
-        const body = await response.json().catch(() => null)
-        throw new Error(body?.error ?? 'sync_failed')
-      }
-      const result = (await response.json()) as {
-        activities: SerializedActivity[]
-        athleteId: number
-        snapshot: VerifiedSnapshot | null
-        share: ShareState | null
-        sync: ActivitySyncStamp
-      }
+      const preview = new Map<string, Activity>()
+      const result = await readActivitySync(response, signal, (batchAthleteId, batch) => {
+        if (!isLive()) return
+        if (athleteId && batchAthleteId !== athleteId) throw new Error('strava_unauthorized')
+        if (cached?.activities.length) return
+        for (const activity of deserializeActivities(batch)) preview.set(activity.id, activity)
+        const routes = [...preview.values()]
+        startTransition(() => setPreviewActivities(routes))
+      })
       if (!isLive() || (athleteId && result.athleteId !== athleteId)) return
       const completed = deserializeActivities(result.activities)
       setLibrary(result.athleteId, { activities: completed, sync: result.sync })
+      setPreviewActivities(null)
       const save = replaceActivities(result.athleteId, completed, result.sync)
         .catch(() => {
           if (isLive()) setSyncError("activities loaded but couldn't be saved to browser storage")
@@ -179,7 +181,10 @@ export default function HomePage() {
       if (code === 'strava_unauthorized') disconnect()
     } finally {
       if (syncAbortRef.current === controller) syncAbortRef.current = null
-      if (!signal.aborted) setIsSyncing(false)
+      if (!signal.aborted) {
+        setIsSyncing(false)
+        setPreviewActivities(null)
+      }
     }
   }, [
     resolveAccessToken,
@@ -200,6 +205,7 @@ export default function HomePage() {
       retryTimerRef.current = null
     }
     setIsSyncing(false)
+    setPreviewActivities(null)
   }, [])
 
   const clearSession = useCallback(() => {
@@ -265,7 +271,8 @@ export default function HomePage() {
     }
   }, [])
 
-  const hasActivities = activities.length > 0 || Boolean(currentSlug)
+  const visibleActivities = previewActivities ?? activities
+  const hasActivities = visibleActivities.length > 0 || Boolean(currentSlug)
 
   const [estimatedSizeBytes, setEstimatedSizeBytes] = useState(0)
   const openSharing = useCallback(() => {
@@ -275,7 +282,7 @@ export default function HomePage() {
   }, [currentSlug, estimatePayloadSize, refreshCurrentSlug])
 
   const flyToLatestActivity = () => {
-    const start = latestActivityStart(activities)
+    const start = latestActivityStart(visibleActivities)
     if (start) mapRef.current?.flyTo({ ...start, zoom: 12 })
   }
 
@@ -312,7 +319,7 @@ export default function HomePage() {
 
   return (
     <MapView
-      activities={activities}
+      activities={visibleActivities}
       loading={isSyncing}
       preferBusiestArea={stravaConnected}
       header={header}

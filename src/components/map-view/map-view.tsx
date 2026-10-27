@@ -44,6 +44,7 @@ interface MapViewProps {
   mode?: MapPositionMode
   commonRoutes?: CommonRoutesState | null
   comparisonAppearance?: ComparisonAppearance
+  comparisonOwner?: string
   onComparisonRetry?: () => void
 }
 
@@ -63,6 +64,7 @@ export function MapView({
   mode = 'own',
   commonRoutes,
   comparisonAppearance,
+  comparisonOwner,
   onComparisonRetry,
 }: MapViewProps) {
   const [selectedActivityTypes, setSelectedActivityTypes] = useState<string[]>([...ACTIVITY_TYPES])
@@ -140,7 +142,7 @@ export function MapView({
     position: initialMapPosition,
     initialBounds,
     savePosition,
-  } = usePersistedMapPosition(preferBusiestArea && loading ? [] : allActivities, mode, preferBusiestArea)
+  } = usePersistedMapPosition(allActivities, mode, preferBusiestArea)
 
   const allGeoData = useMemo(() => activitiesToGeoData(allActivities), [allActivities])
 
@@ -326,10 +328,11 @@ export function MapView({
         initialBounds={initialBounds}
         onPositionChange={savePosition}
       />
-      {commonRoutes && onComparisonRetry && (
+      {commonRoutes && (
         <CommonRoutesNotice
           state={commonRoutes}
           appearance={comparisonAppearance}
+          ownerLabel={comparisonOwner ?? 'them'}
           heatmapStatus={heatmapStatus}
           onRetry={onComparisonRetry}
         />

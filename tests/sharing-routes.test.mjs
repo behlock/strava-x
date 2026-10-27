@@ -29,9 +29,10 @@ const item = (id, visibility = 'everyone') => ({
   visibility,
   map: { summary_polyline: '_p~iF~ps|U_ulLnnqC_mqNvxq`@' },
 })
-const request = () =>
+const request = (accept = 'application/json') =>
   new Request('http://localhost/api/activities/sync', {
     method: 'POST',
+    headers: { Accept: accept },
     body: JSON.stringify({
       accessToken: 'token',
     }),
@@ -62,6 +63,99 @@ test('sync records the change version before downloading, so concurrent webhook 
 async function decoded(response) {
   return JSON.parse(gunzipSync(Buffer.from(await response.arrayBuffer())).toString())
 }
+
+test(
+  'gzip flushes preview routes before later Strava pages finish; proof is issued only on completion',
+  { timeout: 5000 },
+  async (t) => {
+    let release
+    const laterPage = new Promise((resolve) => {
+      release = resolve
+    })
+    t.mock.method(globalThis, 'fetch', async (url) => {
+      if (new URL(url).searchParams.get('page') === '1') return Response.json([item(1)])
+      await laterPage
+      return Response.json([])
+    })
+    const response = await syncRoute()(request('application/x-ndjson'))
+    assert.equal(response.headers.get('Content-Encoding'), 'gzip')
+    const { readActivitySync } = loadTs('src/lib/activity-sync-stream.ts')
+    let firstBatch
+    const seen = new Promise((resolve) => {
+      firstBatch = resolve
+    })
+    let finished = false
+    const pending = readActivitySync(
+      new Response(response.body.pipeThrough(new DecompressionStream('gzip')), {
+        headers: { 'Content-Type': 'application/x-ndjson' },
+      }),
+      new AbortController().signal,
+      (athleteId, activities) => firstBatch({ athleteId, activities }),
+    )
+    pending.then(() => {
+      finished = true
+    })
+    try {
+      const preview = await seen
+      assert.equal(preview.athleteId, 7)
+      assert.equal(preview.activities[0].id, 'strava-1')
+      assert.equal(finished, false)
+      release()
+      const result = await pending
+      assert.equal(result.activities.length, 1)
+      assert.ok(result.snapshot.proof)
+    } finally {
+      release()
+    }
+  },
+)
+
+test('a later page failure in a progressive sync has no completion or publishable proof', async (t) => {
+  t.mock.method(globalThis, 'fetch', async (url) =>
+    new URL(url).searchParams.get('page') === '1' ? Response.json([item(1)]) : new Response(null, { status: 401 }),
+  )
+  const response = await syncRoute()(request('application/x-ndjson'))
+  const events = gunzipSync(Buffer.from(await response.arrayBuffer()))
+    .toString()
+    .trim()
+    .split('\n')
+    .map(JSON.parse)
+  assert.deepEqual(
+    events.map((event) => event.type),
+    ['start', 'batch', 'error'],
+  )
+  assert.equal(events.at(-1).error, 'strava_unauthorized')
+  assert.ok(events.every((event) => !event.result && !event.proof))
+})
+
+test('closing a progressive response cancels the outstanding Strava page', { timeout: 5000 }, async (t) => {
+  let pageAborted
+  const aborted = new Promise((resolve) => {
+    pageAborted = resolve
+  })
+  t.mock.method(globalThis, 'fetch', async (url, { signal }) => {
+    if (new URL(url).searchParams.get('page') === '1') return Response.json([item(1)])
+    return new Promise((_resolve, reject) => {
+      signal.addEventListener(
+        'abort',
+        () => {
+          pageAborted()
+          reject(signal.reason)
+        },
+        { once: true },
+      )
+    })
+  })
+  const response = await syncRoute()(request('application/x-ndjson'))
+  const reader = response.body
+    .pipeThrough(new DecompressionStream('gzip'))
+    .pipeThrough(new TextDecoderStream())
+    .getReader()
+  let text = ''
+  while (!text.includes('"type":"batch"')) text += (await reader.read()).value
+  await reader.cancel()
+  await aborted
+})
 
 test('sync signs every imported route without a scope proof; captures revision before network I/O', async (t) => {
   t.mock.method(globalThis, 'fetch', async (url) => {

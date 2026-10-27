@@ -103,6 +103,7 @@ function PublicMapCanvas({
       }
       commonRoutes={comparison.state}
       comparisonAppearance={appearance}
+      comparisonOwner={slug}
       onComparisonRetry={comparison.retry}
       mode="public"
     />

@@ -11,6 +11,9 @@ import {
   COMPARISON_PALETTES,
   COMPARISON_RENDER_MODES,
   DEFAULT_COMPARISON_ICON,
+  DEFAULT_COMPARISON_PALETTE,
+  DEFAULT_COMPARISON_RENDER_MODE,
+  comparisonColors,
   type ComparisonAppearance,
   type ComparisonIconId,
   type RouteAppearance,
@@ -161,17 +164,21 @@ export function CommonRoutesNotice({
   state,
   onRetry,
   appearance,
+  ownerLabel,
   heatmapStatus,
 }: {
   state: CommonRoutesState
-  onRetry: () => void
+  onRetry?: () => void
   appearance?: ComparisonAppearance
+  ownerLabel: string
   heatmapStatus?: string
 }) {
   const { resolvedTheme } = useTheme()
   const [debugOpen, setDebugOpen] = useState(false)
   const pickerId = useId()
   const isDark = resolvedTheme === 'dark'
+  const colors = comparisonColors(appearance?.paletteId ?? DEFAULT_COMPARISON_PALETTE, isDark)
+  const showDebug = config.MAP_STYLE_DEBUG && Boolean(appearance)
 
   if (state.status === 'loading')
     return (
@@ -180,23 +187,70 @@ export function CommonRoutesNotice({
       </span>
     )
 
-  if (state.status === 'ready' && (!config.MAP_STYLE_DEBUG || !appearance)) return null
-
   return (
-    <div className="absolute right-3 bottom-[calc(var(--map-drawer-height,4rem)+0.75rem)] z-10 max-h-[calc(100dvh-var(--map-drawer-height,4rem)-6rem-env(safe-area-inset-top,0px))] max-w-[calc(100%-1.5rem)] overflow-y-auto overscroll-contain rounded-lg border border-panel-border bg-panel text-xs-compact md:right-4 md:bottom-4 md:max-h-[calc(100dvh-6rem)] md:max-w-[calc(100%-2rem)]">
+    <div
+      className={cn(
+        'absolute right-3 bottom-[calc(var(--map-drawer-height,4rem)+0.75rem)] z-20 max-h-[calc(100dvh-var(--map-drawer-height,4rem)-6rem-env(safe-area-inset-top,0px))] max-w-[calc(100%-1.5rem)] overflow-y-auto overscroll-contain rounded-lg bg-panel/90 text-sm-compact text-foreground backdrop-blur-sm md:right-4 md:bottom-4 md:max-h-[calc(100dvh-6rem)] md:max-w-[calc(100%-2rem)]',
+        (state.status === 'error' || (showDebug && debugOpen)) && 'border border-panel-border bg-panel',
+      )}
+    >
       {state.status === 'ready' ? (
         <>
-          <div className="sticky top-0 z-10 flex items-center justify-end bg-panel p-1">
-            <button
-              type="button"
-              aria-label="Overlap appearance"
-              aria-expanded={debugOpen}
-              aria-controls={pickerId}
-              onClick={() => setDebugOpen((value) => !value)}
-              className="flex size-11 items-center justify-center rounded-lg focus-ring hover:bg-control-hover md:size-7"
+          <div
+            className={cn(
+              'sticky top-0 z-10 flex items-center justify-end gap-3 px-3 py-2',
+              showDebug && debugOpen && 'bg-panel px-3',
+            )}
+          >
+            <div
+              aria-label="Route legend"
+              className="flex min-w-0 items-center gap-3"
+              style={{ textShadow: '0 1px 2px var(--background), 0 0 6px var(--background)' }}
             >
-              <Settings2 className="size-3.5" aria-hidden="true" />
-            </button>
+              {[
+                { label: 'you', color: colors.own, width: 1.5 },
+                { label: ownerLabel, color: colors.other, width: 1 },
+                { label: 'overlap', color: colors.overlap, width: 3 },
+              ].map(({ label, color, width }, index) => (
+                <span key={index} className="inline-flex min-w-0 items-center gap-1.5">
+                  <svg
+                    className="h-3 w-4 shrink-0 md:w-5"
+                    viewBox="0 0 24 12"
+                    aria-hidden="true"
+                    style={{ filter: 'drop-shadow(0 1px 2px var(--background))' }}
+                  >
+                    <line
+                      x1="0"
+                      y1="6"
+                      x2="24"
+                      y2="6"
+                      stroke={color}
+                      strokeWidth={width}
+                      strokeDasharray={
+                        index === 0 && (appearance?.renderMode ?? DEFAULT_COMPARISON_RENDER_MODE) === 'routes'
+                          ? '6 4'
+                          : undefined
+                      }
+                    />
+                  </svg>
+                  <span className="max-w-20 truncate" title={label}>
+                    {label}
+                  </span>
+                </span>
+              ))}
+            </div>
+            {showDebug && (
+              <button
+                type="button"
+                aria-label="Overlap appearance"
+                aria-expanded={debugOpen}
+                aria-controls={pickerId}
+                onClick={() => setDebugOpen((value) => !value)}
+                className="flex size-11 items-center justify-center rounded-lg focus-ring hover:bg-control-hover md:size-7"
+              >
+                <Settings2 className="size-3.5" aria-hidden="true" />
+              </button>
+            )}
           </div>
           {heatmapStatus && (
             <p role="status" className="px-3 pb-2 text-panel-muted">
@@ -214,13 +268,15 @@ export function CommonRoutesNotice({
           <p role="status" className="text-panel-muted">
             {state.message}
           </p>
-          <button
-            type="button"
-            onClick={onRetry}
-            className="mt-2 min-h-8 rounded-lg px-2 focus-ring hover:bg-control-hover"
-          >
-            try again
-          </button>
+          {onRetry && (
+            <button
+              type="button"
+              onClick={onRetry}
+              className="mt-2 min-h-8 rounded-lg px-2 focus-ring hover:bg-control-hover"
+            >
+              try again
+            </button>
+          )}
         </div>
       )}
     </div>

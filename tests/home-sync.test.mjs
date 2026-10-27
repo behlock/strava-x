@@ -6,8 +6,11 @@ function page(cached, share = { athleteId: 7, slug: 'owner', revision: '1', fing
   const effects = []
   const writes = []
   const libraries = []
+  const saves = []
+  const publicUpdates = []
   let stateIndex = 0
   const react = {
+    startTransition: (callback) => callback(),
     useCallback: (fn) => fn,
     useRef: (value) => ({ current: value }),
     useState: (value) => {
@@ -23,7 +26,11 @@ function page(cached, share = { athleteId: 7, slug: 'owner', revision: '1', fing
     '@/components/map-view': { MapView: () => null },
     '@/components/ui': { Header: () => null },
     '@/components/publish': { SharingControls: () => null },
-    '@/lib/activities-db': { replaceActivities: async () => {} },
+    '@/lib/activities-db': {
+      replaceActivities: async (...args) => {
+        saves.push(args)
+      },
+    },
     '@/hooks/use-persisted-activities': {
       usePersistedActivities: () => ({
         activities: cached?.activities ?? [],
@@ -49,7 +56,9 @@ function page(cached, share = { athleteId: 7, slug: 'owner', revision: '1', fing
         currentSlug: share?.slug ?? null,
         refreshCurrentSlug: async () => share,
         beginSync: () => 0,
-        updatePublishedMap: async () => {},
+        updatePublishedMap: async (...args) => {
+          publicUpdates.push(args)
+        },
         forgetCurrentSlug: () => {},
       }),
     },
@@ -59,6 +68,8 @@ function page(cached, share = { athleteId: 7, slug: 'owner', revision: '1', fing
     effects,
     writes,
     libraries,
+    saves,
+    publicUpdates,
     start: async () => {
       effects[1]()
       await new Promise(setImmediate)
@@ -149,4 +160,79 @@ test('a failed public map update is retried even when the personal cache is rece
   )
   await home.start()
   assert.deepEqual(requests, ['/api/activities/status', '/api/activities/sync'])
+})
+
+function progressiveFetch(t) {
+  const encoder = new TextEncoder()
+  let stream
+  const body = new ReadableStream({
+    start(controller) {
+      stream = controller
+    },
+  })
+  t.mock.method(globalThis, 'fetch', async (url) =>
+    url.endsWith('/status')
+      ? Response.json({ ...status, version: 'changed' })
+      : new Response(body, { headers: { 'Content-Type': 'application/x-ndjson' } }),
+  )
+  return {
+    send(event) {
+      stream.enqueue(encoder.encode(JSON.stringify(event) + '\n'))
+    },
+    close() {
+      stream.close()
+    },
+  }
+}
+const previewActivity = {
+  id: 'first',
+  type: 'running',
+  date: '2026-10-27',
+  feature: null,
+  distance: 1,
+  elevationGain: 0,
+}
+
+test('initial sync previews batches before completion without saving or publishing partial data', async (t) => {
+  const stream = progressiveFetch(t)
+  const home = page(null)
+  await home.start()
+  stream.send({ type: 'start', athleteId: 7 })
+  stream.send({ type: 'batch', activities: [previewActivity] })
+  await new Promise(setImmediate)
+  const preview = home.writes.find(({ next }) => Array.isArray(next) && next[0]?.id === 'first')
+  assert.ok(preview)
+  assert.ok(preview.next[0].date instanceof Date)
+  assert.deepEqual(home.libraries, [])
+  assert.deepEqual(home.saves, [])
+  assert.deepEqual(home.publicUpdates, [])
+  const sync = { version: 'changed', syncedAt: 123 }
+  stream.send({ type: 'complete', count: 1, result: { athleteId: 7, snapshot: null, share: null, sync } })
+  stream.close()
+  await new Promise(setImmediate)
+  assert.equal(home.libraries.length, 1)
+  assert.equal(home.saves.length, 1)
+  assert.equal(home.libraries[0].library.activities[0].id, 'first')
+  assert.deepEqual(home.libraries[0].library.sync, sync)
+  assert.equal(home.writes.filter(({ index }) => index === preview.index).at(-1).next, null)
+})
+
+test('failed initial sync discards the preview; an existing complete map stays visible during refresh', async (t) => {
+  for (const cached of [null, { activities: [{ id: 'saved' }], sync: stamp }]) {
+    const stream = progressiveFetch(t)
+    const home = page(cached)
+    await home.start()
+    stream.send({ type: 'start', athleteId: 7 })
+    stream.send({ type: 'batch', activities: [previewActivity] })
+    await new Promise(setImmediate)
+    const previews = home.writes.filter(({ next }) => Array.isArray(next))
+    assert.equal(previews.length, cached ? 0 : 1)
+    stream.send({ type: 'error', error: 'sync_failed' })
+    stream.close()
+    await new Promise(setImmediate)
+    assert.deepEqual(home.libraries, [])
+    assert.deepEqual(home.saves, [])
+    assert.deepEqual(home.publicUpdates, [])
+    if (!cached) assert.equal(home.writes.filter(({ index }) => index === previews[0].index).at(-1).next, null)
+  }
 })
