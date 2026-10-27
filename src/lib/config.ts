@@ -1,4 +1,5 @@
 export const config = {
+  MAP_STYLE_DEBUG: process.env.NEXT_PUBLIC_MAP_STYLE_DEBUG === 'true',
   STATS_TRACKING_URL: process.env.NEXT_PUBLIC_STATS_TRACKING_URL || '',
   MAPBOX_ACCESS_TOKEN: process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN || '',
   MAPBOX_MAP_STYLE_DARK: process.env.NEXT_PUBLIC_MAPBOX_MAP_STYLE_DARK || 'mapbox://styles/mapbox/dark-v11',

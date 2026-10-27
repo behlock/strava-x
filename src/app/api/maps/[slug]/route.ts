@@ -2,6 +2,7 @@ import { type NextRequest } from 'next/server'
 import { findShareBySlug } from '@/lib/sharing-db'
 import { readPrivateSnapshot } from '@/lib/sharing-storage'
 import { validateSlug } from '@/lib/slug'
+import { loadLocalMap } from '@/lib/local-map'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -15,6 +16,8 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ slu
   const checked = validateSlug((await params).slug)
   if (!checked.ok) return new Response(null, { status: 404, headers })
   try {
+    const local = await loadLocalMap(checked.slug)
+    if (local) return Response.json(local, { headers })
     const row = await findShareBySlug(checked.slug)
     if (!row?.snapshot_path) return new Response(null, { status: 404, headers })
     const blob = await readPrivateSnapshot(row.snapshot_path)

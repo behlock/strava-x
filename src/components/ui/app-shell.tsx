@@ -1,6 +1,6 @@
 'use client'
 
-import { type ReactNode, useId, useState } from 'react'
+import { type ReactNode, useCallback, useId, useRef, useState } from 'react'
 
 import { useIsMobile } from '@/hooks/use-media-query'
 import { MobileDrawer } from './mobile-drawer'
@@ -39,11 +39,19 @@ export function AppShell({
   const isMobile = useIsMobile()
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const sidebarId = useId()
+  const shellRef = useRef<HTMLDivElement>(null)
+  const handleDrawerHeightChange = useCallback(
+    (height: number) => {
+      shellRef.current?.style.setProperty('--map-drawer-height', `${height}px`)
+      onDrawerHeightChange(height)
+    },
+    [onDrawerHeightChange],
+  )
 
   const showDrawer = hasActivities && isMobile
 
   return (
-    <div className="relative h-dvh w-full overflow-hidden">
+    <div ref={shellRef} className="relative h-dvh w-full overflow-hidden">
       <div className="absolute inset-0">{children}</div>
 
       {/* Above the mobile drawer (z-20) so header menus never paint under it. */}
@@ -93,7 +101,7 @@ export function AppShell({
           timelinePanel={timelinePanel}
           locationsPanel={locationsPanel}
           activityList={activityList}
-          onHeightChange={onDrawerHeightChange}
+          onHeightChange={handleDrawerHeightChange}
         />
       )}
     </div>

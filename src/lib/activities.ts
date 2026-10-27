@@ -1,4 +1,22 @@
-import type { Activity } from '@/models/activity'
+import type { Activity, ActivityFeatureCollection } from '@/models/activity'
+
+/** Shared map properties let both libraries use the same sport/date filters. */
+export function activitiesToGeoData(activities: Activity[]): ActivityFeatureCollection {
+  return {
+    type: 'FeatureCollection',
+    features: activities.flatMap((activity) =>
+      activity.feature
+        ? [
+            {
+              type: 'Feature' as const,
+              geometry: activity.feature.geometry,
+              properties: { id: activity.id, type: activity.type || 'unknown', dateTs: activity.date?.getTime() ?? 0 },
+            },
+          ]
+        : [],
+    ),
+  }
+}
 
 /** Start coordinate of the most recent activity that has a track, or `null`. */
 export function latestActivityStart(activities: Activity[]): { latitude: number; longitude: number } | null {

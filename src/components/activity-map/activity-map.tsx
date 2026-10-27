@@ -2,7 +2,7 @@
 
 import 'mapbox-gl/dist/mapbox-gl.css'
 
-import type mapboxgl from 'mapbox-gl'
+import type { PaddingOptions, ExpressionSpecification, FilterSpecification, LngLatBounds } from 'mapbox-gl'
 import { type Ref, memo, useCallback, useEffect, useImperativeHandle, useMemo, useRef } from 'react'
 import { Layer, Map, type MapRef, Source, type ViewStateChangeEvent } from 'react-map-gl/mapbox'
 import { useTheme } from 'next-themes'
@@ -14,9 +14,25 @@ import { config } from '@/lib/config'
 import { boundsOf } from '@/lib/geo-utils'
 import { applyMapTheme } from '@/lib/map-theme'
 import { routePaint } from '@/lib/route-paint'
+import {
+  comparisonColors,
+  DEFAULT_COMPARISON_PALETTE,
+  DEFAULT_COMPARISON_RENDER_MODE,
+  type ComparisonPaletteId,
+  type ComparisonRenderMode,
+  type RouteAppearance,
+} from '@/lib/comparison-appearance'
+import {
+  comparisonLinePaint,
+  comparisonGlowPaint,
+  comparisonHeatmapPaint,
+  personalRouteColor,
+  personalRoutePaint,
+} from '@/lib/comparison-paint'
+import type { RouteHeatmaps } from '@/lib/route-heatmap'
 
 interface FitOptions {
-  padding?: mapboxgl.PaddingOptions
+  padding?: PaddingOptions
 }
 
 export interface ActivityMapRef {
@@ -30,6 +46,12 @@ export interface ActivityMapRef {
 interface ActivityMapProps {
   ref?: Ref<ActivityMapRef>
   data: ActivityFeatureCollection
+  commonRoutes?: ActivityFeatureCollection
+  ownRoutes?: ActivityFeatureCollection
+  comparisonPaletteId?: ComparisonPaletteId
+  comparisonRenderMode?: ComparisonRenderMode
+  personalAppearance?: Pick<RouteAppearance, 'paletteId' | 'renderMode'>
+  heatmaps?: RouteHeatmaps
   highlightedActivityId: string | null
   typeFilter: string[]
   /** Unix ms timestamp; `null` disables the date filter. */
@@ -47,23 +69,23 @@ interface ActivityMapProps {
   onPositionChange: (position: MapPosition) => void
 }
 
-const DEFAULT_PADDING: mapboxgl.PaddingOptions = { top: 80, bottom: 80, left: 100, right: 80 }
+const DEFAULT_PADDING: PaddingOptions = { top: 80, bottom: 80, left: 100, right: 80 }
 const LINE_LAYOUT = { 'line-join': 'round', 'line-cap': 'round' } as const
 
-const HIGHLIGHT_COLOR: mapboxgl.ExpressionSpecification = [
+const HIGHLIGHT_COLOR: ExpressionSpecification = [
   'match',
   ['get', 'type'],
   ...Object.entries(ACTIVITY_TYPE_COLORS).flat(),
   DEFAULT_ACTIVITY_COLOR,
-] as mapboxgl.ExpressionSpecification
+] as ExpressionSpecification
 
-function visibilityConditions(typeFilter: string[], dateCutoff: number | null): mapboxgl.FilterSpecification[] {
-  const conditions: mapboxgl.FilterSpecification[] = [['in', ['get', 'type'], ['literal', typeFilter]]]
+function visibilityConditions(typeFilter: string[], dateCutoff: number | null): FilterSpecification[] {
+  const conditions: FilterSpecification[] = [['in', ['get', 'type'], ['literal', typeFilter]]]
   if (dateCutoff !== null) conditions.push(['<=', ['get', 'dateTs'], dateCutoff])
   return conditions
 }
 
-function intersectsView(bounds: MapBounds, view: mapboxgl.LngLatBounds): boolean {
+function intersectsView(bounds: MapBounds, view: LngLatBounds): boolean {
   const [[west, south], [east, north]] = bounds
   return east >= view.getWest() && west <= view.getEast() && north >= view.getSouth() && south <= view.getNorth()
 }
@@ -71,6 +93,12 @@ function intersectsView(bounds: MapBounds, view: mapboxgl.LngLatBounds): boolean
 export const ActivityMap = memo(function ActivityMap({
   ref,
   data,
+  commonRoutes,
+  ownRoutes,
+  comparisonPaletteId = DEFAULT_COMPARISON_PALETTE,
+  comparisonRenderMode = DEFAULT_COMPARISON_RENDER_MODE,
+  personalAppearance,
+  heatmaps,
   highlightedActivityId,
   typeFilter,
   dateCutoff,
@@ -182,20 +210,24 @@ export const ActivityMap = memo(function ActivityMap({
   const layerFilter = useMemo(() => {
     const conditions = visibilityConditions(typeFilter, dateCutoff)
     if (hoverType) conditions.push(['==', ['get', 'type'], hoverType])
-    return ['all', ...conditions] as mapboxgl.FilterSpecification
+    return ['all', ...conditions] as FilterSpecification
   }, [typeFilter, dateCutoff, hoverType])
 
   // The highlight obeys the same type/date filters so it disappears along
   // with its activity.
-  const highlightFilter = useMemo((): mapboxgl.FilterSpecification => {
-    if (!hasVisibleHighlight) return ['==', ['get', 'id'], '']
+  const highlightFilter = useMemo((): FilterSpecification => {
+    if (!hasVisibleHighlight || commonRoutes) return ['==', ['get', 'id'], '']
     return ['all', ['==', ['get', 'id'], highlightedActivityId], ...visibilityConditions(typeFilter, dateCutoff)]
-  }, [highlightedActivityId, hasVisibleHighlight, typeFilter, dateCutoff])
+  }, [highlightedActivityId, hasVisibleHighlight, typeFilter, dateCutoff, commonRoutes])
 
   // next-themes resolves the theme client-side; hold off until it's known so
   // Mapbox doesn't load one style and immediately swap to the other.
   if (!resolvedTheme) return <div className="absolute inset-0 bg-background" />
   const isDark = resolvedTheme === 'dark'
+  const colors = comparisonColors(comparisonPaletteId, isDark)
+  const requestedMode = commonRoutes ? comparisonRenderMode : (personalAppearance?.renderMode ?? 'routes')
+  const renderMode = requestedMode === 'hotspots' && !heatmaps ? 'routes' : requestedMode
+  const personalColor = personalRouteColor(personalAppearance?.paletteId ?? 'graphite', isDark)
 
   return (
     <div ref={containerRef} className="size-full">
@@ -219,8 +251,27 @@ export const ActivityMap = memo(function ActivityMap({
             type="line"
             filter={layerFilter}
             layout={LINE_LAYOUT}
-            paint={routePaint(isDark, hasVisibleHighlight)}
+            paint={
+              commonRoutes
+                ? comparisonLinePaint(colors.other, 'other', renderMode)
+                : personalAppearance
+                  ? personalRoutePaint(isDark, personalColor, renderMode, hasVisibleHighlight)
+                  : routePaint(isDark, hasVisibleHighlight)
+            }
           />
+          {(commonRoutes || personalAppearance) && renderMode === 'glow' && (
+            <Layer
+              id="comparison-other-glow"
+              beforeId="all-activities-layer"
+              type="line"
+              filter={layerFilter}
+              layout={LINE_LAYOUT}
+              paint={{
+                ...comparisonGlowPaint(commonRoutes ? colors.other : personalColor),
+                ...(!commonRoutes && hasVisibleHighlight ? { 'line-opacity': 0.015 } : {}),
+              }}
+            />
+          )}
           <Layer
             id="highlighted-activity-casing"
             type="line"
@@ -244,6 +295,88 @@ export const ActivityMap = memo(function ActivityMap({
             }}
           />
         </Source>
+        {commonRoutes &&
+          renderMode === 'hotspots' &&
+          heatmaps &&
+          (['other', 'own', 'overlap'] as const).map((role) => (
+            <Source key={role} id={`heatmap-${role}`} type="geojson" data={heatmaps[role]}>
+              <Layer
+                id={`heatmap-${role}-layer`}
+                beforeId="all-activities-layer"
+                type="heatmap"
+                filter={layerFilter}
+                paint={comparisonHeatmapPaint(colors[role])}
+              />
+            </Source>
+          ))}
+        {personalAppearance && !commonRoutes && renderMode === 'hotspots' && heatmaps && (
+          <Source id="personal-heatmap" type="geojson" data={heatmaps.own}>
+            <Layer
+              id="personal-heatmap-layer"
+              beforeId="all-activities-layer"
+              type="heatmap"
+              filter={layerFilter}
+              paint={{
+                ...comparisonHeatmapPaint(personalColor),
+                ...(hasVisibleHighlight ? { 'heatmap-opacity': 0.15 } : {}),
+              }}
+            />
+          </Source>
+        )}
+        {ownRoutes && (
+          <Source id="comparison-own-routes" type="geojson" data={ownRoutes}>
+            <Layer
+              id="comparison-own-routes-layer"
+              type="line"
+              filter={layerFilter}
+              layout={{ ...LINE_LAYOUT, 'line-cap': renderMode === 'routes' ? 'butt' : 'round' }}
+              paint={comparisonLinePaint(colors.own, 'own', renderMode)}
+            />
+            {renderMode === 'glow' && (
+              <Layer
+                id="comparison-own-glow"
+                beforeId="comparison-own-routes-layer"
+                type="line"
+                filter={layerFilter}
+                layout={LINE_LAYOUT}
+                paint={comparisonGlowPaint(colors.own)}
+              />
+            )}
+          </Source>
+        )}
+        {commonRoutes && (
+          <Source id="common-routes" type="geojson" data={commonRoutes}>
+            <Layer
+              id="common-routes-casing"
+              type="line"
+              filter={layerFilter}
+              layout={LINE_LAYOUT}
+              paint={{
+                'line-color': isDark ? '#181818' : '#fafafa',
+                'line-width': ['interpolate', ['linear'], ['zoom'], 5, 3, 12, 4.5, 16, 6],
+                'line-opacity': renderMode === 'routes' ? 0.9 : 0,
+                'line-opacity-transition': { duration: 0 },
+              }}
+            />
+            {renderMode === 'glow' && (
+              <Layer
+                id="comparison-overlap-glow"
+                beforeId="common-routes-casing"
+                type="line"
+                filter={layerFilter}
+                layout={LINE_LAYOUT}
+                paint={comparisonGlowPaint(colors.overlap)}
+              />
+            )}
+            <Layer
+              id="common-routes-layer"
+              type="line"
+              filter={layerFilter}
+              layout={LINE_LAYOUT}
+              paint={comparisonLinePaint(colors.overlap, 'overlap', renderMode)}
+            />
+          </Source>
+        )}
       </Map>
     </div>
   )

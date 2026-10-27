@@ -5,9 +5,16 @@ import dynamic from 'next/dynamic'
 
 import { ACTIVITY_TYPES, type Activity, type ActivityFeatureCollection } from '@/models/activity'
 import type { LngLat } from '@/models/map'
+import { activitiesToGeoData } from '@/lib/activities'
+import { config } from '@/lib/config'
 import type { ActivityMapRef } from '@/components/activity-map'
 import { ActivityList, AppShell, FilterPanel, LocationSelector, MapSkeleton, TimelinePanel } from '@/components/ui'
 import { useActivityClusters } from '@/hooks/use-activity-clusters'
+import type { CommonRoutesState } from '@/hooks/use-common-routes'
+import type { ComparisonAppearance } from '@/lib/comparison-appearance'
+import { useRouteHeatmap } from '@/hooks/use-route-heatmap'
+import { usePersonalMapAppearance } from '@/hooks/use-map-appearance'
+import { CommonRoutesNotice, PersonalMapAppearance } from '@/components/ui/map-appearance-controls'
 import { useIsMobile } from '@/hooks/use-media-query'
 import { type MapPositionMode, usePersistedMapPosition } from '@/hooks/use-persisted-map-position'
 
@@ -35,12 +42,16 @@ interface MapViewProps {
    * "public" never touches that cache and always frames the busiest cluster.
    */
   mode?: MapPositionMode
+  commonRoutes?: CommonRoutesState | null
+  comparisonAppearance?: ComparisonAppearance
+  onComparisonRetry?: () => void
 }
 
 const DESKTOP_PADDING = { top: 80, bottom: 80, left: 100, right: 80 }
 const MOBILE_PADDING_TOP = 80
 const MOBILE_MAX_BOTTOM_RATIO = 0.4
 const MOBILE_MAX_VERTICAL_RATIO = 0.8
+const EMPTY_ROUTES: ActivityFeatureCollection = { type: 'FeatureCollection', features: [] }
 
 export function MapView({
   activities: allActivities,
@@ -50,6 +61,9 @@ export function MapView({
   overlays,
   externalMapRef,
   mode = 'own',
+  commonRoutes,
+  comparisonAppearance,
+  onComparisonRetry,
 }: MapViewProps) {
   const [selectedActivityTypes, setSelectedActivityTypes] = useState<string[]>([...ACTIVITY_TYPES])
   const [selectedDate, setSelectedDate] = useState(100)
@@ -128,23 +142,7 @@ export function MapView({
     savePosition,
   } = usePersistedMapPosition(preferBusiestArea && loading ? [] : allActivities, mode, preferBusiestArea)
 
-  const allGeoData = useMemo(
-    (): ActivityFeatureCollection => ({
-      type: 'FeatureCollection',
-      features: allActivities.flatMap((a) =>
-        a.feature
-          ? [
-              {
-                type: 'Feature' as const,
-                geometry: a.feature.geometry,
-                properties: { id: a.id, type: a.type || 'unknown', dateTs: a.date?.getTime() ?? 0 },
-              },
-            ]
-          : [],
-      ),
-    }),
-    [allActivities],
-  )
+  const allGeoData = useMemo(() => activitiesToGeoData(allActivities), [allActivities])
 
   const handleActivityClick = useCallback(
     (activity: Activity) => {
@@ -238,6 +236,26 @@ export function MapView({
   )
 
   const hasActivities = allActivities.length > 0
+  const personalAppearance = usePersonalMapAppearance()
+  const personalStyleEnabled = mode === 'own' && !commonRoutes
+  const personalExperiment = config.MAP_STYLE_DEBUG && personalStyleEnabled && hasActivities
+  const renderMode = personalStyleEnabled ? personalAppearance.renderMode : comparisonAppearance?.renderMode
+  const commonData = commonRoutes?.status === 'ready' ? commonRoutes.data : undefined
+  const heatmapSources = useMemo(
+    () =>
+      commonRoutes?.status === 'ready'
+        ? {
+            own: commonRoutes.ownRoutes,
+            other: allGeoData,
+            overlap: commonRoutes.data,
+          }
+        : personalExperiment
+          ? { own: allGeoData, other: EMPTY_ROUTES, overlap: EMPTY_ROUTES }
+          : null,
+    [commonRoutes, allGeoData, personalExperiment],
+  )
+  const heatmap = useRouteHeatmap(heatmapSources, renderMode === 'hotspots')
+  const heatmapStatus = renderMode === 'hotspots' ? (heatmap.loading ? 'building hotspots…' : heatmap.error) : undefined
 
   return (
     <AppShell
@@ -294,6 +312,12 @@ export function MapView({
       <ActivityMap
         ref={setMapRef}
         data={allGeoData}
+        commonRoutes={commonData}
+        ownRoutes={commonRoutes?.status === 'ready' ? commonRoutes.ownRoutes : undefined}
+        comparisonPaletteId={comparisonAppearance?.paletteId}
+        comparisonRenderMode={comparisonAppearance?.renderMode}
+        personalAppearance={personalStyleEnabled ? personalAppearance : undefined}
+        heatmaps={heatmap.data}
         highlightedActivityId={highlightedActivityId}
         typeFilter={selectedActivityTypes}
         dateCutoff={cutoffTime}
@@ -302,6 +326,15 @@ export function MapView({
         initialBounds={initialBounds}
         onPositionChange={savePosition}
       />
+      {commonRoutes && onComparisonRetry && (
+        <CommonRoutesNotice
+          state={commonRoutes}
+          appearance={comparisonAppearance}
+          heatmapStatus={heatmapStatus}
+          onRetry={onComparisonRetry}
+        />
+      )}
+      {personalExperiment && <PersonalMapAppearance appearance={personalAppearance} status={heatmapStatus} />}
       {overlays}
     </AppShell>
   )
