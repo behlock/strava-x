@@ -40,6 +40,7 @@ export function useSwipeGesture({ onUp, onDown, enabled = true, respectScroll = 
     const direction = swipeDirection(deltaY, SWIPE_THRESHOLD)
     if (direction === 'down') onDown?.()
     else if (direction === 'up') onUp?.()
+    else suppressClickRef.current = false
   }
   const cancel = () => {
     gestureRef.current = null

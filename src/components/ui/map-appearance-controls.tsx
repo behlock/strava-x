@@ -202,14 +202,14 @@ export function CommonRoutesNotice({
     )
 
   const positionClass =
-    'absolute right-3 bottom-[calc(var(--map-drawer-height,4rem)+0.75rem)] z-20 md:right-4 md:bottom-4'
+    'absolute right-3 bottom-[calc(var(--map-drawer-height,4rem)+0.75rem)] z-[21] md:right-4 md:bottom-4'
 
   if (hidden) {
     return (
       <button
         type="button"
         aria-label="Show route legend"
-        className={cn(positionClass, 'touch-none px-3 pt-2 pb-1')}
+        className={cn(positionClass, 'mobile-touch-target touch-none px-3 py-2')}
         {...swipe.handlers}
         onClick={() => {
           if (swipe.guardClick()) setHiddenWhile(null)
