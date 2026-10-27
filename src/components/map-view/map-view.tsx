@@ -237,9 +237,9 @@ export function MapView({
 
   const hasActivities = allActivities.length > 0
   const personalAppearance = usePersonalMapAppearance()
-  const personalStyleEnabled = mode === 'own' && !commonRoutes
-  const personalExperiment = config.MAP_STYLE_DEBUG && personalStyleEnabled && hasActivities
-  const renderMode = personalStyleEnabled ? personalAppearance.renderMode : comparisonAppearance?.renderMode
+  const singleMapStyleEnabled = commonRoutes?.status !== 'ready'
+  const showMapAppearanceControls = config.MAP_STYLE_DEBUG && singleMapStyleEnabled && hasActivities
+  const renderMode = singleMapStyleEnabled ? personalAppearance.renderMode : comparisonAppearance?.renderMode
   const commonData = commonRoutes?.status === 'ready' ? commonRoutes.data : undefined
   const heatmapSources = useMemo(
     () =>
@@ -249,10 +249,10 @@ export function MapView({
             other: allGeoData,
             overlap: commonRoutes.data,
           }
-        : personalExperiment
+        : showMapAppearanceControls
           ? { own: allGeoData, other: EMPTY_ROUTES, overlap: EMPTY_ROUTES }
           : null,
-    [commonRoutes, allGeoData, personalExperiment],
+    [commonRoutes, allGeoData, showMapAppearanceControls],
   )
   const heatmap = useRouteHeatmap(heatmapSources, renderMode === 'hotspots')
   const heatmapStatus = renderMode === 'hotspots' ? (heatmap.loading ? 'building hotspots…' : heatmap.error) : undefined
@@ -316,7 +316,7 @@ export function MapView({
         ownRoutes={commonRoutes?.status === 'ready' ? commonRoutes.ownRoutes : undefined}
         comparisonPaletteId={comparisonAppearance?.paletteId}
         comparisonRenderMode={comparisonAppearance?.renderMode}
-        personalAppearance={personalStyleEnabled ? personalAppearance : undefined}
+        personalAppearance={singleMapStyleEnabled ? personalAppearance : undefined}
         heatmaps={heatmap.data}
         highlightedActivityId={highlightedActivityId}
         typeFilter={selectedActivityTypes}
@@ -334,7 +334,7 @@ export function MapView({
           onRetry={onComparisonRetry}
         />
       )}
-      {personalExperiment && <PersonalMapAppearance appearance={personalAppearance} status={heatmapStatus} />}
+      {showMapAppearanceControls && <PersonalMapAppearance appearance={personalAppearance} status={heatmapStatus} />}
       {overlays}
     </AppShell>
   )
