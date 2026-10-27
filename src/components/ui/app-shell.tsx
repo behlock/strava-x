@@ -47,6 +47,10 @@ export function AppShell({
     },
     [onDrawerHeightChange],
   )
+  const setSidebarVisible = (visible: boolean) => {
+    setSidebarOpen(visible)
+    onSidebarVisibilityChange?.(visible)
+  }
 
   const showDrawer = hasActivities && isMobile
 
@@ -62,11 +66,7 @@ export function AppShell({
                 open: sidebarOpen,
                 mobile: isMobile,
                 controlsId: sidebarId,
-                toggle: () => {
-                  const visible = !sidebarOpen
-                  setSidebarOpen(visible)
-                  onSidebarVisibilityChange?.(visible)
-                },
+                toggle: () => setSidebarVisible(!sidebarOpen),
               }
             : null
         }
@@ -105,6 +105,8 @@ export function AppShell({
           locationsPanel={locationsPanel}
           activityList={activityList}
           onHeightChange={handleDrawerHeightChange}
+          onHide={() => setSidebarVisible(false)}
+          onShow={() => setSidebarVisible(true)}
         />
       )}
     </div>

@@ -3,6 +3,7 @@
 import { Combine, Layers2, LoaderCircle, ScanLine, Settings2 } from 'lucide-react'
 import { useId, useRef, useState } from 'react'
 import { useTheme } from 'next-themes'
+import { useSwipeGesture } from '@/hooks/use-swipe-gesture'
 import { HeaderChip } from '@/components/ui/header-bar'
 import { Tooltip } from '@/components/ui/tooltip'
 import { config } from '@/lib/config'
@@ -177,10 +178,21 @@ export function CommonRoutesNotice({
 }) {
   const { resolvedTheme } = useTheme()
   const [debugOpen, setDebugOpen] = useState(false)
+  const [hiddenWhile, setHiddenWhile] = useState<CommonRoutesState['status'] | null>(null)
   const pickerId = useId()
   const isDark = resolvedTheme === 'dark'
   const colors = comparisonColors(appearance?.paletteId ?? DEFAULT_COMPARISON_PALETTE, isDark)
   const showDebug = config.MAP_STYLE_DEBUG && Boolean(appearance)
+  const hidden = state.status === 'ready' && hiddenWhile === 'ready'
+  const swipe = useSwipeGesture({
+    enabled: state.status === 'ready',
+    respectScroll: true,
+    onDown: () => {
+      setDebugOpen(false)
+      setHiddenWhile('ready')
+    },
+    onUp: () => setHiddenWhile(null),
+  })
 
   if (state.status === 'loading')
     return (
@@ -189,12 +201,33 @@ export function CommonRoutesNotice({
       </span>
     )
 
+  const positionClass =
+    'absolute right-3 bottom-[calc(var(--map-drawer-height,4rem)+0.75rem)] z-20 md:right-4 md:bottom-4'
+
+  if (hidden) {
+    return (
+      <button
+        type="button"
+        aria-label="Show route legend"
+        className={cn(positionClass, 'touch-none px-3 pt-2 pb-1')}
+        {...swipe.handlers}
+        onClick={() => {
+          if (swipe.guardClick()) setHiddenWhile(null)
+        }}
+      >
+        <span className="block h-1 w-9 rounded-full bg-foreground/25" aria-hidden="true" />
+      </button>
+    )
+  }
+
   return (
     <div
       className={cn(
-        'absolute right-3 bottom-[calc(var(--map-drawer-height,4rem)+0.75rem)] z-20 max-h-[calc(100dvh-var(--map-drawer-height,4rem)-6rem-env(safe-area-inset-top,0px))] max-w-[calc(100%-1.5rem)] overflow-y-auto overscroll-contain rounded-lg bg-panel/90 text-sm-compact text-foreground backdrop-blur-sm md:right-4 md:bottom-4 md:max-h-[calc(100dvh-6rem)] md:max-w-[calc(100%-2rem)]',
+        positionClass,
+        'max-h-[calc(100dvh-var(--map-drawer-height,4rem)-6rem-env(safe-area-inset-top,0px))] max-w-[calc(100%-1.5rem)] overflow-y-auto overscroll-contain rounded-lg bg-panel/90 text-sm-compact text-foreground backdrop-blur-sm md:max-h-[calc(100dvh-6rem)] md:max-w-[calc(100%-2rem)]',
         (state.status === 'error' || (showDebug && debugOpen)) && 'border border-panel-border bg-panel',
       )}
+      {...(state.status === 'ready' ? swipe.handlers : null)}
     >
       {state.status === 'ready' ? (
         <>
