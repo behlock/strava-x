@@ -56,7 +56,7 @@ export function HeaderBar({
         className={cn(
           'flex min-w-0 items-center gap-3',
           sidebar && 'justify-between rounded-xl border border-panel-border bg-panel px-3 py-1.5',
-          sidebar?.open && 'w-56 lg:w-64 xl:w-72',
+          sidebar && 'w-56 lg:w-64 xl:w-72',
         )}
       >
         <div className="flex min-w-0 items-center gap-3">
