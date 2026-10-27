@@ -24,7 +24,7 @@ test('chosen defaults apply with debug off, even after saved experiments', () =>
   comparison().setRenderMode('density')
   comparison().setIcon('layers')
   assert.equal(personal().paletteId, 'graphite')
-  assert.equal(personal().renderMode, 'glow')
+  assert.equal(personal().renderMode, 'routes')
   assert.equal(comparison().paletteId, 'ink')
   assert.equal(comparison().renderMode, 'glow')
   assert.equal(comparison().iconId, 'scan')
@@ -38,7 +38,7 @@ test('debug starts with chosen defaults, then keeps personal and comparison expe
     'strava-x:overlap-render-mode': 'routes',
   })
   assert.equal(personal().paletteId, 'graphite')
-  assert.equal(personal().renderMode, 'glow')
+  assert.equal(personal().renderMode, 'routes')
   assert.equal(comparison().paletteId, 'ink')
   assert.equal(comparison().renderMode, 'glow')
   personal().setPalette('dusk')

@@ -72,7 +72,7 @@ export const DEFAULT_COMPARISON_RENDER_MODE: ComparisonRenderMode = 'glow'
 
 export const DEFAULT_PERSONAL_APPEARANCE = {
   paletteId: 'graphite',
-  renderMode: 'glow',
+  renderMode: 'routes',
 } as const
 
 export interface RouteAppearance {
