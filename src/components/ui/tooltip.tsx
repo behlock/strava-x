@@ -164,7 +164,7 @@ export function Tooltip({
             ref={bubbleRef}
             id={id}
             role="tooltip"
-            className="pointer-events-auto fixed z-50 max-w-[calc(100vw-16px)] rounded-md border border-panel-border bg-panel px-2.5 py-1.5 text-center font-mono text-xs-compact font-medium break-words text-foreground"
+            className="pointer-events-auto fixed z-50 max-w-[calc(100vw-16px)] rounded-lg border border-panel-border bg-panel px-2.5 py-1.5 text-center font-mono text-xs-compact font-medium break-words text-foreground"
             onPointerEnter={cancelTimers}
             onPointerLeave={leave}
             style={{

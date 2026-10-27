@@ -56,7 +56,7 @@ export function TimelinePanel({ dateRange, selectedDate, onDateChange }: Timelin
               aria-label={playing ? 'Pause timeline' : 'Play timeline'}
               aria-pressed={playing}
               aria-keyshortcuts="Space"
-              className="flex size-11 items-center justify-center rounded-full focus-ring transition-colors hover:bg-foreground/5 disabled:opacity-40 md:size-6"
+              className="flex size-11 items-center justify-center rounded-lg focus-ring transition-colors hover:bg-foreground/5 disabled:opacity-40 md:size-6"
             >
               {playing ? (
                 <Pause className="size-3.5" aria-hidden="true" />

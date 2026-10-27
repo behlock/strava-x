@@ -44,7 +44,7 @@ const SUCCESS_PILL_MS = 2500
 const COPIED_PILL_MS = 2000
 
 const BUTTON =
-  'focus-ring inline-flex min-h-11 items-center justify-center gap-2 rounded-full px-3 py-2 text-xs-compact tracking-wider transition-colors md:min-h-0'
+  'focus-ring inline-flex min-h-11 items-center justify-center gap-2 rounded-lg px-3 py-2 text-xs-compact tracking-wider transition-colors md:min-h-0'
 const BUTTON_OUTLINE = `${BUTTON} floating-control disabled:opacity-50`
 const BUTTON_DANGER = `${BUTTON} border border-panel-border text-red-600 hover:bg-red-500/10 disabled:opacity-50 dark:text-red-400`
 
@@ -197,9 +197,9 @@ function PublishDialogBody({
       >
         <div className="flex shrink-0 items-center justify-between gap-3 border-b border-panel-border/40 px-4 py-3">
           <span id="publish-dialog-title" className="text-sm-compact tracking-wider">
-            share map
+            sharing
           </span>
-          <DialogCloseButton onClick={onClose} aria-label="Close share map dialog" />
+          <DialogCloseButton onClick={onClose} aria-label="Close sharing dialog" />
         </div>
 
         <form
@@ -226,7 +226,7 @@ function PublishDialogBody({
               </span>
               <span
                 className={cn(
-                  'ml-1 inline-grid min-h-11 min-w-0 grid-cols-[minmax(0,1fr)] items-center rounded-full border px-2 py-1 text-base-compact tracking-normal transition-colors md:min-h-0 md:text-sm-compact md:tracking-normal',
+                  'ml-1 inline-grid min-h-11 min-w-0 grid-cols-[minmax(0,1fr)] items-center rounded-lg border px-2 py-1 text-base-compact tracking-normal transition-colors md:min-h-0 md:text-sm-compact md:tracking-normal',
                   addressAvailable || showSuccess
                     ? 'border-green-600/50 bg-green-600/10 text-green-700 focus-within:border-green-600 hover:bg-green-600/15 dark:border-green-400/50 dark:bg-green-400/10 dark:text-green-400 dark:focus-within:border-green-400'
                     : 'border-panel-border bg-selection/60 focus-within:border-foreground/50 focus-within:bg-selection hover:bg-selection',
@@ -267,7 +267,7 @@ function PublishDialogBody({
                   type="button"
                   onClick={handleCopy}
                   aria-label={copied ? 'Link copied' : 'Copy map link'}
-                  className="ml-auto flex size-11 shrink-0 items-center justify-center rounded-full focus-ring transition-colors hover:bg-foreground/5 md:size-8"
+                  className="ml-auto flex size-11 shrink-0 items-center justify-center rounded-lg focus-ring transition-colors hover:bg-foreground/5 md:size-8"
                 >
                   <span
                     className="copy-feedback relative size-3.5"

@@ -71,7 +71,7 @@ export function AppShell({
             id={sidebarId}
             aria-label="Map controls"
             className={cn(
-              'pointer-events-auto scrollbar-thin min-h-0 w-full floating-sidebar flex-col overflow-y-auto rounded-lg border border-panel-border bg-panel',
+              'pointer-events-auto scrollbar-thin min-h-0 w-full floating-sidebar flex-col overflow-y-auto rounded-xl border border-panel-border bg-panel',
               sidebarOpen ? 'flex' : 'hidden',
             )}
           >

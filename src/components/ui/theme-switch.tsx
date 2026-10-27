@@ -22,7 +22,7 @@ export function ThemeSwitch() {
         aria-keyshortcuts={SHORTCUTS['toggle-theme'].aria}
         disabled={!mounted}
         onClick={() => setTheme(nextTheme)}
-        className="mobile-touch-target inline-flex size-8 shrink-0 items-center justify-center rounded-full floating-control focus-ring disabled:opacity-50 md:size-[35px]"
+        className="mobile-touch-target inline-flex size-8 shrink-0 items-center justify-center rounded-lg floating-control focus-ring disabled:opacity-50 md:size-[35px]"
       >
         <svg
           width="14"

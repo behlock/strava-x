@@ -13,7 +13,7 @@ import { SHORTCUTS } from '@/lib/keyboard-shortcuts'
 
 /** Class for the brand mark on the far left; the element differs per page (button vs link). */
 export const HEADER_LOGO_CLASS =
-  'inline-flex min-h-11 shrink-0 items-center md:min-h-0 rounded-full text-lg-compact md:text-base-compact font-medium tracking-tight md:-translate-y-px whitespace-nowrap transition-opacity hover:opacity-70'
+  'inline-flex min-h-11 shrink-0 items-center md:min-h-0 rounded-lg text-lg-compact md:text-base-compact font-medium tracking-tight md:-translate-y-px whitespace-nowrap transition-opacity hover:opacity-70'
 
 interface HeaderBarProps {
   logo: ReactNode
@@ -55,7 +55,7 @@ export function HeaderBar({
       <div
         className={cn(
           'flex min-w-0 items-center gap-3',
-          sidebar && 'justify-between rounded-lg border border-panel-border bg-panel px-3 py-1.5',
+          sidebar && 'justify-between rounded-xl border border-panel-border bg-panel px-3 py-1.5',
           sidebar?.open && 'w-56 lg:w-64 xl:w-72',
         )}
       >
@@ -72,7 +72,7 @@ export function HeaderBar({
               aria-expanded={sidebar.open}
               aria-controls={sidebar.controlsId}
               onClick={sidebar.toggle}
-              className="flex size-8 shrink-0 items-center justify-center rounded-md focus-ring hover:bg-foreground/5"
+              className="flex size-8 shrink-0 items-center justify-center rounded-lg focus-ring hover:bg-foreground/5"
             >
               <PanelLeft className="size-4" aria-hidden="true" />
             </button>
@@ -85,7 +85,7 @@ export function HeaderBar({
           <button
             type="button"
             onClick={onConnect}
-            className="mobile-touch-target inline-flex min-h-8 shrink-0 items-center justify-center gap-2 rounded-full bg-foreground px-3 text-xs-compact tracking-wider whitespace-nowrap text-background focus-ring transition-colors hover:bg-foreground/85 md:min-h-[35px] md:px-4"
+            className="mobile-touch-target inline-flex min-h-8 shrink-0 items-center justify-center gap-2 rounded-lg bg-foreground px-3 text-xs-compact tracking-wider whitespace-nowrap text-background focus-ring transition-colors hover:bg-foreground/85 md:min-h-[35px] md:px-4"
           >
             <ArrowRight className="size-3.5" aria-hidden="true" />
             connect strava
@@ -102,7 +102,7 @@ export function HeaderBar({
 }
 
 const CHIP_BASE =
-  'focus-ring floating-control mobile-touch-target inline-flex items-center justify-center rounded-full text-xs-compact tracking-wider whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-50'
+  'focus-ring floating-control mobile-touch-target inline-flex items-center justify-center rounded-lg text-xs-compact tracking-wider whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-50'
 const CHIP_ICON = 'size-8'
 const CHIP_TEXT = 'min-h-8 px-3 md:px-2'
 

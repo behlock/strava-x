@@ -1,10 +1,11 @@
 'use client'
 
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
-import { Plus } from 'lucide-react'
+import { Plus, Unplug } from 'lucide-react'
 
 import { cn } from '@/lib/utils'
 import { ThemeSwitch } from './theme-switch'
+import { Tooltip } from './tooltip'
 
 interface ProfileMenuProps {
   onDisconnect?: () => void
@@ -69,25 +70,27 @@ export function ProfileMenu({ onDisconnect, profilePhotoUrl }: ProfileMenuProps)
           setSettledOpen(false)
           setOpen((value) => !value)
         }}
-        className="mobile-touch-target relative flex size-9 shrink-0 items-center justify-center rounded-full floating-control text-foreground focus-ring md:size-[35px]"
+        className="mobile-touch-target relative flex size-9 shrink-0 items-center justify-center rounded-lg floating-control text-foreground focus-ring md:size-[35px]"
       >
         {showPhoto && (
-          // Remote Strava photo URLs vary by athlete; load directly without an image proxy.
-          <img
-            src={profilePhotoUrl}
-            alt=""
-            referrerPolicy="no-referrer"
-            onLoad={() => setLoadedPhotoUrl(profilePhotoUrl)}
-            onError={() => setFailedPhotoUrl(profilePhotoUrl)}
-            className={cn(
-              'absolute inset-0 size-full rounded-full object-cover transition-[opacity,rotate] duration-300 ease-[cubic-bezier(0,0,0.58,1)] motion-reduce:transition-none',
-              open
-                ? '-rotate-45 opacity-0'
-                : loadedPhotoUrl === profilePhotoUrl
-                  ? 'rotate-0 opacity-100'
-                  : 'rotate-0 opacity-0',
-            )}
-          />
+          <span className="pointer-events-none absolute inset-0 overflow-hidden rounded-[inherit]">
+            {/* Strava photos load directly because their remote hosts vary by athlete. */}
+            <img
+              src={profilePhotoUrl}
+              alt=""
+              referrerPolicy="no-referrer"
+              onLoad={() => setLoadedPhotoUrl(profilePhotoUrl)}
+              onError={() => setFailedPhotoUrl(profilePhotoUrl)}
+              className={cn(
+                'absolute inset-0 size-full object-cover transition-[opacity,rotate] duration-300 ease-[cubic-bezier(0,0,0.58,1)] motion-reduce:transition-none',
+                open
+                  ? '-rotate-45 opacity-0'
+                  : loadedPhotoUrl === profilePhotoUrl
+                    ? 'rotate-0 opacity-100'
+                    : 'rotate-0 opacity-0',
+              )}
+            />
+          </span>
         )}
         <Plus
           aria-hidden="true"
@@ -103,7 +106,7 @@ export function ProfileMenu({ onDisconnect, profilePhotoUrl }: ProfileMenuProps)
         aria-hidden={!open}
         data-open={open}
         data-settled-open={settledOpen}
-        className="profile-menu-reveal absolute top-1/2 right-full shrink-0 -translate-y-1/2 rounded-full bg-panel md:static md:translate-y-0 md:bg-transparent"
+        className="profile-menu-reveal absolute top-1/2 right-full shrink-0 -translate-y-1/2 rounded-lg bg-panel md:static md:translate-y-0 md:bg-transparent"
         onTransitionEnd={(event) => {
           if (event.target === event.currentTarget && event.propertyName === 'max-width') setSettledOpen(open)
         }}
@@ -116,13 +119,16 @@ export function ProfileMenu({ onDisconnect, profilePhotoUrl }: ProfileMenuProps)
         >
           <ThemeSwitch />
           {onDisconnect && (
-            <button
-              type="button"
-              onClick={() => choose(onDisconnect)}
-              className="mobile-touch-target min-h-8 shrink-0 rounded-full floating-control px-2.5 text-xs-compact tracking-wider whitespace-nowrap focus-ring md:min-h-[35px] md:px-4"
-            >
-              disconnect
-            </button>
+            <Tooltip text="disconnect Strava">
+              <button
+                type="button"
+                aria-label="Disconnect Strava"
+                onClick={() => choose(onDisconnect)}
+                className="mobile-touch-target inline-flex size-8 shrink-0 items-center justify-center rounded-lg floating-control focus-ring md:size-[35px]"
+              >
+                <Unplug className="size-4" strokeWidth={1.75} aria-hidden="true" />
+              </button>
+            </Tooltip>
           )}
         </div>
       </div>

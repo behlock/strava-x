@@ -24,7 +24,7 @@ export function ChoiceList({ label, options, selectedId, onSelect, onHover, clas
       tabIndex={0}
       aria-label={label}
       aria-activedescendant={current >= 0 ? `${id}-${current}` : undefined}
-      className={cn('space-y-0.5 p-3 focus-ring-inset', className)}
+      className={cn('space-y-0.5 px-2 py-3 focus-ring-inset', className)}
       onMouseLeave={() => onHover?.(null)}
       onKeyDown={(event) => {
         let index: number
@@ -68,12 +68,16 @@ export function ChoiceList({ label, options, selectedId, onSelect, onHover, clas
           }}
           onMouseEnter={() => onHover?.(option.id)}
           className={cn(
-            'flex min-h-11 w-full cursor-pointer items-center justify-between gap-2 rounded-md border-l-2 px-2 py-1.5 text-left text-xs-compact tracking-wider transition-colors md:min-h-0',
-            selectedId === option.id
-              ? 'border-selection-foreground bg-selection font-medium text-selection-foreground'
-              : 'border-transparent hover:bg-control-hover',
+            'relative flex min-h-11 w-full cursor-pointer items-center justify-between gap-2 rounded-lg px-3 py-1.5 text-left text-xs-compact tracking-wider transition-colors md:min-h-0',
+            selectedId === option.id ? 'bg-selection font-medium text-selection-foreground' : 'hover:bg-control-hover',
           )}
         >
+          {selectedId === option.id && (
+            <span
+              aria-hidden="true"
+              className="pointer-events-none absolute top-1.5 bottom-1.5 left-0 w-0.5 rounded-full bg-selection-foreground"
+            />
+          )}
           <span className="min-w-0 truncate">{option.label}</span>
           <span
             className={cn(

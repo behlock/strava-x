@@ -17,7 +17,7 @@ interface WelcomePanelProps {
 }
 
 const BUTTON =
-  'focus-ring inline-flex min-h-11 w-full items-center gap-2 rounded-full border px-3 py-2 text-left text-xs-compact tracking-wider transition-colors focus-visible:ring-offset-1 focus-visible:ring-offset-panel md:min-h-0'
+  'focus-ring inline-flex min-h-11 w-full items-center gap-2 rounded-lg border px-3 py-2 text-left text-xs-compact tracking-wider transition-colors focus-visible:ring-offset-1 focus-visible:ring-offset-panel md:min-h-0'
 const BUTTON_ICON = 'size-3.5 shrink-0'
 
 export function WelcomePanel({ open, onConnect }: WelcomePanelProps) {

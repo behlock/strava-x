@@ -190,7 +190,7 @@ export function ActivityList({
                   role="option"
                   aria-selected={isHighlighted}
                   className={cn(
-                    'absolute top-0 left-2 w-[calc(100%-1rem)] cursor-pointer rounded-md transition-colors',
+                    'absolute top-0 left-2 w-[calc(100%-1rem)] cursor-pointer rounded-lg transition-colors',
                     isHighlighted || isKeyboardTarget
                       ? 'bg-selection text-selection-foreground ring-1 ring-selection-muted/30 ring-inset'
                       : 'hover:bg-control-hover',

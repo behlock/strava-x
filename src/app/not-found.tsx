@@ -9,7 +9,7 @@ export default function NotFound() {
       >
         <div className="flex items-center justify-between gap-3 border-b border-panel-border/40 px-5 py-4">
           <span className="text-base-compact font-medium tracking-tight">strava—x</span>
-          <span className="rounded-full border border-panel-border bg-control px-2 py-1 text-xs-compact text-panel-muted">
+          <span className="rounded-lg border border-panel-border bg-control px-2 py-1 text-xs-compact text-panel-muted">
             404
           </span>
         </div>
@@ -24,7 +24,7 @@ export default function NotFound() {
           </div>
           <Link
             href="/"
-            className="inline-flex min-h-11 w-full items-center justify-center rounded-full floating-control px-4 py-2 text-xs-compact tracking-wider focus-ring"
+            className="inline-flex min-h-11 w-full items-center justify-center rounded-lg floating-control px-4 py-2 text-xs-compact tracking-wider focus-ring"
           >
             back to strava—x
           </Link>

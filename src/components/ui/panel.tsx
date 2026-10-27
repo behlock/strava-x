@@ -36,7 +36,7 @@ export function Panel({ title, grow = false, className, children, onExpandedChan
         'collapsible-panel flex flex-col overflow-hidden bg-panel',
         chrome === 'sidebar'
           ? 'border-b border-panel-border/60 last:border-b-0'
-          : 'rounded-lg border border-panel-border',
+          : 'rounded-xl border border-panel-border',
         grow
           ? expanded
             ? chrome === 'sidebar'
