@@ -21,7 +21,12 @@ const data = { type: 'FeatureCollection', features: [] }
 const auth = async () => ({ status: 'ok', accessToken: 'token' })
 const settle = () => new Promise((resolve) => setImmediate(resolve))
 
-function fixture({ load = async () => activities, compare = async () => data, resolveToken = auth } = {}) {
+function fixture({
+  load = async () => activities,
+  compare = async () => data,
+  resolveToken = auth,
+  publicActivities = activities,
+} = {}) {
   const slots = [],
     effects = []
   let cursor = 0
@@ -54,9 +59,9 @@ function fixture({ load = async () => activities, compare = async () => data, re
     '@/lib/run-route-comparison': { runRouteComparison: compare },
   })
   return {
-    render() {
+    render(filters) {
       cursor = 0
-      const state = renderHook(activities, resolveToken)
+      const state = renderHook(publicActivities, resolveToken, filters)
       effects.splice(0).forEach((fn) => fn())
       return state
     },
@@ -163,5 +168,42 @@ test('errors can be retried and transient auth failures do not claim the session
   await settle()
   state = ui.render()
   assert.equal(state.state.status, 'ready')
+  ui.unmount()
+})
+
+test('type and timeline filters constrain both libraries, reusing loaded activities', async () => {
+  const early = new Date('2026-01-01')
+  const late = new Date('2026-10-27')
+  const library = [
+    { ...activities[0], id: 'early-run', type: 'running', date: early },
+    { ...activities[0], id: 'late-run', type: 'running', date: late },
+    { ...activities[0], id: 'early-bike', type: 'cycling', date: early },
+  ]
+  let loads = 0
+  const comparisons = []
+  const ui = fixture({
+    publicActivities: library,
+    load: async () => {
+      loads++
+      return library
+    },
+    compare: async (other, own) => {
+      comparisons.push([other.map((a) => a.id), own.map((a) => a.id)])
+      return data
+    },
+  })
+  const all = { types: ['running', 'cycling'], cutoff: null }
+  ui.render(all).toggle()
+  ui.render(all)
+  await settle()
+  ui.render(all)
+  const filtered = { types: ['running'], cutoff: early.getTime() }
+  ui.render(filtered)
+  ui.render(filtered)
+  await settle()
+  const result = ui.render(filtered)
+  assert.deepEqual(comparisons.at(-1), [['early-run'], ['early-run']])
+  assert.equal(loads, 1)
+  assert.equal(result.state.ownRoutes.features.length, 3, 'keep full sources so changing filters can restore routes')
   ui.unmount()
 })

@@ -306,8 +306,9 @@ export function SharingControls({
         aria-hidden={!open}
         data-open={open}
         data-settled-open={settledOpen}
+        style={currentSlug ? { marginRight: 0 } : undefined}
         className={cn(
-          'profile-menu-reveal sharing-controls-reveal absolute top-[calc(100%+0.75rem)] right-0 shrink-0',
+          'profile-menu-reveal absolute top-[calc(100%+0.75rem)] right-[calc(-0.5rem-1px)] shrink-0 md:right-0',
           !currentSlug && 'md:static',
         )}
         onTransitionEnd={(event) => {
@@ -381,7 +382,7 @@ export function SharingControls({
             <div
               id={stopQuestionId}
               role="status"
-              className="absolute top-[calc(100%+0.5rem)] left-1/2 w-max -translate-x-1/2 rounded-lg border border-panel-border bg-panel px-2.5 py-1.5 text-xs-compact text-panel-muted"
+              className="absolute top-[calc(100%+0.5rem)] right-0 w-max rounded-lg border border-panel-border bg-panel px-2.5 py-1.5 text-xs-compact text-panel-muted"
             >
               stop sharing?
             </div>
@@ -398,7 +399,7 @@ export function SharingControls({
                 currentSlug
                   ? 'top-[calc(100%+8.5rem)] md:top-[calc(100%+4.5rem)]'
                   : 'top-[calc(100%+4.5rem)] md:top-[calc(100%+0.5rem)]',
-                'absolute right-0 w-max max-w-[min(20rem,calc(100vw-5rem))] rounded-lg border border-panel-border bg-panel px-2.5 py-1.5 md:max-w-xs',
+                'absolute right-[calc(-0.5rem-1px)] w-max max-w-[min(20rem,calc(100vw-5rem))] rounded-lg border border-panel-border bg-panel px-2.5 py-1.5 md:right-0 md:max-w-xs',
               )
             : 'sr-only',
           message ? 'text-red-600 dark:text-red-400' : 'text-panel-muted',

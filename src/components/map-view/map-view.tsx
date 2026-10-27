@@ -6,6 +6,7 @@ import dynamic from 'next/dynamic'
 import { ACTIVITY_TYPES, type Activity, type ActivityFeatureCollection } from '@/models/activity'
 import type { LngLat } from '@/models/map'
 import { activitiesToGeoData } from '@/lib/activities'
+import type { ComparisonFilters } from '@/lib/comparison-filters'
 import { config } from '@/lib/config'
 import type { ActivityMapRef } from '@/components/activity-map'
 import { ActivityList, AppShell, FilterPanel, LocationSelector, MapSkeleton, TimelinePanel } from '@/components/ui'
@@ -44,6 +45,8 @@ interface MapViewProps {
   mode?: MapPositionMode
   commonRoutes?: CommonRoutesState | null
   comparisonAppearance?: ComparisonAppearance
+  comparisonViewer?: string
+  onComparisonFiltersChange?: (filters: ComparisonFilters) => void
   comparisonOwner?: string
   onComparisonRetry?: () => void
 }
@@ -65,6 +68,8 @@ export function MapView({
   commonRoutes,
   comparisonAppearance,
   comparisonOwner,
+  comparisonViewer,
+  onComparisonFiltersChange,
   onComparisonRetry,
 }: MapViewProps) {
   const [selectedActivityTypes, setSelectedActivityTypes] = useState<string[]>([...ACTIVITY_TYPES])
@@ -83,6 +88,7 @@ export function MapView({
 
   // On mobile the bottom drawer covers part of the map; pad fits accordingly.
   const isMobile = useIsMobile()
+  const [controlsVisible, setControlsVisible] = useState(true)
   const drawerHeightRef = useRef(0)
   const handleDrawerHeightChange = useCallback((height: number) => {
     drawerHeightRef.current = height
@@ -127,6 +133,10 @@ export function MapView({
     const typeSet = new Set(selectedActivityTypes)
     return allActivities.filter((a) => a.type !== null && typeSet.has(a.type) && isBeforeCutoff(a))
   }, [allActivities, selectedActivityTypes, isBeforeCutoff])
+
+  useEffect(() => {
+    onComparisonFiltersChange?.({ types: selectedActivityTypes, cutoff: cutoffTime })
+  }, [selectedActivityTypes, cutoffTime, onComparisonFiltersChange])
 
   const activityCounts = useMemo(() => {
     const counts: Record<string, number> = {}
@@ -304,6 +314,7 @@ export function MapView({
       }
       onDrawerHeightChange={handleDrawerHeightChange}
       onSidebarVisibilityChange={(visible) => {
+        setControlsVisible(visible)
         if (!visible) {
           setHighlightedActivityId(null)
           setHoveredFilterType(null)
@@ -328,11 +339,12 @@ export function MapView({
         initialBounds={initialBounds}
         onPositionChange={savePosition}
       />
-      {commonRoutes && (
+      {commonRoutes && (!isMobile || controlsVisible || commonRoutes.status !== 'ready') && (
         <CommonRoutesNotice
           state={commonRoutes}
           appearance={comparisonAppearance}
           ownerLabel={comparisonOwner ?? 'them'}
+          viewerLabel={comparisonViewer ?? 'me'}
           heatmapStatus={heatmapStatus}
           onRetry={onComparisonRetry}
         />

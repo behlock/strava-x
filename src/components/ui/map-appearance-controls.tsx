@@ -165,12 +165,14 @@ export function CommonRoutesNotice({
   onRetry,
   appearance,
   ownerLabel,
+  viewerLabel = 'me',
   heatmapStatus,
 }: {
   state: CommonRoutesState
   onRetry?: () => void
   appearance?: ComparisonAppearance
   ownerLabel: string
+  viewerLabel?: string
   heatmapStatus?: string
 }) {
   const { resolvedTheme } = useTheme()
@@ -208,7 +210,7 @@ export function CommonRoutesNotice({
               style={{ textShadow: '0 1px 2px var(--background), 0 0 6px var(--background)' }}
             >
               {[
-                { label: 'you', color: colors.own, width: 1.5 },
+                { label: viewerLabel, color: colors.own, width: 1.5 },
                 { label: ownerLabel, color: colors.other, width: 1 },
                 { label: 'overlap', color: colors.overlap, width: 3 },
               ].map(({ label, color, width }, index) => (

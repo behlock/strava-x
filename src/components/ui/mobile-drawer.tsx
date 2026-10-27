@@ -11,6 +11,8 @@ type Section = 'filters' | 'timeline' | 'locations' | 'activities'
 const SWIPE_THRESHOLD = 50
 
 interface MobileDrawerProps {
+  id?: string
+  visible?: boolean
   filterPanel?: ReactNode
   timelinePanel?: ReactNode
   locationsPanel?: ReactNode
@@ -20,6 +22,8 @@ interface MobileDrawerProps {
 
 /** Direct section navigation below a single, non-modal sheet on phones. */
 export function MobileDrawer({
+  id,
+  visible = true,
   filterPanel,
   timelinePanel,
   locationsPanel,
@@ -87,7 +91,9 @@ export function MobileDrawer({
   return (
     <div
       ref={containerRef}
-      className="pointer-events-none fixed right-3 bottom-0 left-3 z-20 flex max-h-[calc(100dvh-5rem-env(safe-area-inset-top,0px))] flex-col gap-2 pb-[calc(0.75rem+env(safe-area-inset-bottom,0px))] md:hidden"
+      id={id}
+      hidden={!visible}
+      className="pointer-events-none fixed right-3 bottom-0 left-3 z-20 flex max-h-[calc(100dvh-5rem-env(safe-area-inset-top,0px))] flex-col gap-2 pb-[calc(0.75rem+env(safe-area-inset-bottom,0px))] md:hidden [&[hidden]]:hidden"
       onKeyDown={(event) => {
         if (event.key === 'Escape' && activeSection) {
           event.preventDefault()
@@ -128,7 +134,9 @@ export function MobileDrawer({
               </button>
               <div className="flex scrollbar-thin max-h-[50dvh] min-h-0 flex-col overflow-y-auto overscroll-contain border-t border-panel-border/40">
                 {visited.includes(key) && (
-                  <PanelVisibilityContext value={activeSection?.key === key}>{content}</PanelVisibilityContext>
+                  <PanelVisibilityContext value={visible && activeSection?.key === key}>
+                    {content}
+                  </PanelVisibilityContext>
                 )}
               </div>
             </section>

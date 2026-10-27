@@ -1,6 +1,7 @@
 import { suggestMapAddress } from './slug'
 
 export interface StravaProfile {
+  name: string | null
   photoUrl: string | null
   suggestedAddress: string
 }
@@ -33,5 +34,9 @@ export async function fetchStravaProfile(accessToken: string, signal: AbortSigna
       // Strava can return a placeholder rather than an absolute photo URL.
     }
   }
-  return { photoUrl, suggestedAddress }
+  return {
+    name: typeof details.firstname === 'string' ? details.firstname.trim() || null : null,
+    photoUrl,
+    suggestedAddress,
+  }
 }

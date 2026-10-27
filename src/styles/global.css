@@ -176,13 +176,10 @@
 }
 @media (width < 48rem) {
   .profile-menu-reveal[data-open='true'] {
-    margin-right: 12px;
+    margin-right: 0;
   }
   .profile-menu-items[data-open='true'] {
     gap: 12px;
-  }
-  .sharing-controls-reveal[data-open='true'] {
-    margin-right: 0;
   }
 }
 @media (prefers-reduced-motion: reduce) {

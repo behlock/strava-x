@@ -7,7 +7,9 @@ import { useStravaProfile } from '@/hooks/use-strava-profile'
 import Link from 'next/link'
 import { type ReactNode, useEffect, useState } from 'react'
 
-import type { Activity } from '@/models/activity'
+import { ACTIVITY_TYPES, type Activity } from '@/models/activity'
+import type { ComparisonFilters } from '@/lib/comparison-filters'
+import type { StravaProfile } from '@/lib/strava-profile'
 import { MapView } from '@/components/map-view'
 import { HEADER_LOGO_CLASS, HeaderBar, Tooltip } from '@/components/ui'
 import { loadPublishedMap } from '@/lib/published-map'
@@ -28,15 +30,16 @@ function PublicHeader({
   slug,
   updatedAt,
   auth,
+  profile,
   children,
 }: {
   slug: string
   updatedAt: string | null
   auth: UseStravaAuth
+  profile: StravaProfile | null
   children?: ReactNode
 }) {
-  const { isConnected, getAccessToken, disconnect } = auth
-  const profile = useStravaProfile(isConnected, getAccessToken)
+  const { isConnected, disconnect } = auth
   const byline = (
     <span
       tabIndex={updatedAt ? 0 : undefined}
@@ -82,14 +85,16 @@ function PublicMapCanvas({
   activities: Activity[] | null
   auth: UseStravaAuth
 }) {
-  const comparison = useCommonRoutes(activities, auth.resolveAccessToken)
+  const profile = useStravaProfile(auth.isConnected, auth.getAccessToken)
+  const [filters, setFilters] = useState<ComparisonFilters>({ types: [...ACTIVITY_TYPES], cutoff: null })
+  const comparison = useCommonRoutes(activities, auth.resolveAccessToken, filters)
   const appearance = useComparisonAppearance()
   return (
     <MapView
       activities={activities ?? []}
       loading={activities === null}
       header={
-        <PublicHeader slug={slug} updatedAt={updatedAt} auth={auth}>
+        <PublicHeader slug={slug} updatedAt={updatedAt} auth={auth} profile={profile}>
           {auth.isConnected && (
             <CommonRoutesToggle
               iconId={appearance.iconId}
@@ -104,6 +109,8 @@ function PublicMapCanvas({
       commonRoutes={comparison.state}
       comparisonAppearance={appearance}
       comparisonOwner={slug}
+      comparisonViewer={profile?.name ?? undefined}
+      onComparisonFiltersChange={setFilters}
       onComparisonRetry={comparison.retry}
       mode="public"
     />

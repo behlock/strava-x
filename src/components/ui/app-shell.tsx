@@ -57,9 +57,10 @@ export function AppShell({
       {/* Above the mobile drawer (z-20) so header menus never paint under it. */}
       <SidebarContext
         value={
-          hasActivities && !isMobile
+          hasActivities
             ? {
                 open: sidebarOpen,
+                mobile: isMobile,
                 controlsId: sidebarId,
                 toggle: () => {
                   const visible = !sidebarOpen
@@ -97,6 +98,8 @@ export function AppShell({
 
       {showDrawer && (
         <MobileDrawer
+          id={sidebarId}
+          visible={sidebarOpen}
           filterPanel={filterPanel}
           timelinePanel={timelinePanel}
           locationsPanel={locationsPanel}
