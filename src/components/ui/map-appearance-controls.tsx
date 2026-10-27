@@ -243,8 +243,8 @@ export function CommonRoutesNotice({
               style={{ textShadow: '0 1px 2px var(--background), 0 0 6px var(--background)' }}
             >
               {[
-                { label: viewerLabel, color: colors.own, width: 1.5 },
-                { label: ownerLabel, color: colors.other, width: 1 },
+                { label: viewerLabel.toLowerCase(), color: colors.own, width: 1.5 },
+                { label: ownerLabel.toLowerCase(), color: colors.other, width: 1 },
                 { label: 'overlap', color: colors.overlap, width: 3 },
               ].map(({ label, color, width }, index) => (
                 <span key={index} className="inline-flex min-w-0 items-center gap-1.5">
