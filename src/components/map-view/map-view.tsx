@@ -260,13 +260,12 @@ export function MapView({
             other: allGeoData,
             overlap: commonRoutes.data,
           }
-        : showMapAppearanceControls
-          ? { own: allGeoData, other: EMPTY_ROUTES, overlap: EMPTY_ROUTES }
-          : null,
-    [commonRoutes, allGeoData, showMapAppearanceControls],
+        : { own: allGeoData, other: EMPTY_ROUTES, overlap: EMPTY_ROUTES },
+    [commonRoutes, allGeoData],
   )
-  const heatmap = useRouteHeatmap(heatmapSources, renderMode === 'hotspots')
-  const heatmapStatus = renderMode === 'hotspots' ? (heatmap.loading ? 'building hotspots…' : heatmap.error) : undefined
+  const sampledStyleActive = renderMode === 'hotspots'
+  const heatmap = useRouteHeatmap(heatmapSources, sampledStyleActive)
+  const heatmapStatus = sampledStyleActive ? (heatmap.loading ? 'sampling routes…' : heatmap.error) : undefined
 
   return (
     <AppShell
@@ -348,6 +347,14 @@ export function MapView({
         />
       )}
       {showMapAppearanceControls && <PersonalMapAppearance appearance={personalAppearance} status={heatmapStatus} />}
+      {singleMapStyleEnabled && sampledStyleActive && heatmap.error && !showMapAppearanceControls && (
+        <span
+          role="status"
+          className="absolute right-4 bottom-[calc(var(--map-drawer-height,4rem)+0.75rem)] z-20 rounded-lg bg-panel px-3 py-2 text-xs-compact md:bottom-4"
+        >
+          {heatmap.error}
+        </span>
+      )}
       {overlays}
     </AppShell>
   )

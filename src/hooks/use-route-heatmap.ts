@@ -14,7 +14,7 @@ export function useRouteHeatmap(sources: RouteHeatmapSources | null, enabled: bo
     let live = true
     let worker: Worker | undefined
     const fail = () => {
-      if (live) setResult({ sources, error: 'hotspots unavailable; showing routes' })
+      if (live) setResult({ sources, error: 'route sampling unavailable; showing routes' })
       worker?.terminate()
     }
     try {

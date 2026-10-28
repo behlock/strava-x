@@ -242,7 +242,7 @@ export function SharingControls({
       {!currentSlug && open ? (
         <label
           className={cn(
-            'inline-flex h-8 max-w-[46vw] min-w-0 items-center rounded-lg border bg-control px-2.5 text-base-compact tracking-wider md:h-[35px] md:max-w-xs md:px-4 md:text-xs-compact',
+            'inline-flex h-8 max-w-[min(46vw,8rem)] min-w-0 items-center rounded-lg border bg-control px-2.5 text-base-compact tracking-wider md:h-[35px] md:max-w-xs md:px-4 md:text-xs-compact',
             message ? 'border-red-500/60' : 'border-panel-border',
           )}
         >
@@ -308,7 +308,7 @@ export function SharingControls({
         data-settled-open={settledOpen}
         style={currentSlug ? { marginRight: 0 } : undefined}
         className={cn(
-          'profile-menu-reveal absolute top-[calc(100%+0.75rem)] right-[calc(-0.5rem-1px)] shrink-0 md:right-0',
+          'profile-menu-reveal absolute top-[calc(100%+0.75rem)] left-[calc(-0.5rem-1px)] shrink-0 md:right-0 md:left-auto',
           !currentSlug && 'md:static',
         )}
         onTransitionEnd={(event) => {
@@ -399,7 +399,7 @@ export function SharingControls({
                 currentSlug
                   ? 'top-[calc(100%+8.5rem)] md:top-[calc(100%+4.5rem)]'
                   : 'top-[calc(100%+4.5rem)] md:top-[calc(100%+0.5rem)]',
-                'absolute right-[calc(-0.5rem-1px)] w-max max-w-[min(20rem,calc(100vw-5rem))] rounded-lg border border-panel-border bg-panel px-2.5 py-1.5 md:right-0 md:max-w-xs',
+                'absolute left-[calc(-0.5rem-1px)] w-max max-w-[min(20rem,calc(100vw-5rem))] rounded-lg border border-panel-border bg-panel px-2.5 py-1.5 md:right-0 md:left-auto md:max-w-xs',
               )
             : 'sr-only',
           message ? 'text-red-600 dark:text-red-400' : 'text-panel-muted',

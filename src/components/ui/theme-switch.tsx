@@ -15,7 +15,7 @@ export function ThemeSwitch() {
   const label = mounted ? `Switch to ${nextTheme} mode` : 'Toggle theme'
 
   return (
-    <Tooltip text="theme" shortcut={SHORTCUTS['toggle-theme'].label}>
+    <Tooltip text="theme">
       <button
         type="button"
         aria-label={label}

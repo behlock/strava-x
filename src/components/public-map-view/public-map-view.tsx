@@ -50,7 +50,7 @@ function PublicHeader({
   )
   return (
     <HeaderBar
-      showProfileMenu={isConnected}
+      showProfileMenu
       profilePhotoUrl={profile?.photoUrl}
       onDisconnect={isConnected ? disconnect : undefined}
       logo={

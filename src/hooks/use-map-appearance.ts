@@ -2,14 +2,14 @@
 
 import { useCallback } from 'react'
 import { useLocalStorageItem, writeLocalStorage } from '@/hooks/use-local-storage'
+import { useMapStyle } from '@/hooks/use-map-style'
 import { config } from '@/lib/config'
 import {
   COMPARISON_PALETTES,
   COMPARISON_RENDER_MODES,
-  DEFAULT_PERSONAL_APPEARANCE,
+  DEFAULT_PERSONAL_PALETTE,
   DEFAULT_COMPARISON_ICON,
   DEFAULT_COMPARISON_PALETTE,
-  DEFAULT_COMPARISON_RENDER_MODE,
   type RouteAppearance,
   type ComparisonAppearance,
   type ComparisonIconId,
@@ -40,16 +40,18 @@ function useRouteAppearance(
 }
 
 export function usePersonalMapAppearance(): RouteAppearance {
-  return useRouteAppearance('personal-map', DEFAULT_PERSONAL_APPEARANCE)
+  const { style } = useMapStyle()
+  return useRouteAppearance('personal-map', { paletteId: DEFAULT_PERSONAL_PALETTE, renderMode: style })
 }
 
 const ICON_KEY = 'strava-x:overlap-icon:v2'
 const setIcon = (id: ComparisonIconId) => writeLocalStorage(ICON_KEY, id)
 
 export function useComparisonAppearance(): ComparisonAppearance {
+  const { style } = useMapStyle()
   const appearance = useRouteAppearance('overlap', {
     paletteId: DEFAULT_COMPARISON_PALETTE,
-    renderMode: DEFAULT_COMPARISON_RENDER_MODE,
+    renderMode: style,
   })
   const icon = useLocalStorageItem(ICON_KEY)
   return {

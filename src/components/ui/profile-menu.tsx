@@ -1,9 +1,11 @@
 'use client'
 
 import { type ReactNode, useCallback, useEffect, useId, useRef, useState } from 'react'
-import { Plus, Unplug } from 'lucide-react'
+import { Plus, Settings2, Unplug } from 'lucide-react'
 
 import { cn } from '@/lib/utils'
+import { LogoutDialog } from './logout-dialog'
+import { MapStyleToggle } from './map-style-toggle'
 import { ThemeSwitch } from './theme-switch'
 import { Tooltip } from './tooltip'
 
@@ -15,6 +17,7 @@ interface ProfileMenuProps {
 
 export function ProfileMenu({ onDisconnect, profilePhotoUrl, children }: ProfileMenuProps) {
   const [open, setOpen] = useState(false)
+  const [confirmingLogout, setConfirmingLogout] = useState(false)
   const [settledOpen, setSettledOpen] = useState(false)
   const [loadedPhotoUrl, setLoadedPhotoUrl] = useState<string | null>(null)
   const [failedPhotoUrl, setFailedPhotoUrl] = useState<string | null>(null)
@@ -47,10 +50,9 @@ export function ProfileMenu({ onDisconnect, profilePhotoUrl, children }: Profile
     }
   }, [open, collapse])
 
-  const choose = (action: () => void) => {
-    collapse()
-    triggerRef.current?.focus()
-    action()
+  const closeConfirmation = () => {
+    setConfirmingLogout(false)
+    setTimeout(() => triggerRef.current?.focus({ preventScroll: true }), 0)
   }
 
   return (
@@ -74,7 +76,7 @@ export function ProfileMenu({ onDisconnect, profilePhotoUrl, children }: Profile
         className="mobile-touch-target relative flex size-9 shrink-0 items-center justify-center rounded-lg floating-control text-foreground focus-ring md:size-[35px]"
       >
         {showPhoto && (
-          <span className="pointer-events-none absolute inset-0 overflow-hidden rounded-[inherit]">
+          <span className="pointer-events-none absolute inset-0 overflow-hidden rounded-[calc(var(--radius-lg)-1px)]">
             {/* Strava photos load directly because their remote hosts vary by athlete. */}
             <img
               src={profilePhotoUrl}
@@ -93,6 +95,7 @@ export function ProfileMenu({ onDisconnect, profilePhotoUrl, children }: Profile
             />
           </span>
         )}
+        {!showPhoto && !open && <Settings2 className="size-4" aria-hidden="true" />}
         <Plus
           aria-hidden="true"
           className={cn(
@@ -118,22 +121,35 @@ export function ProfileMenu({ onDisconnect, profilePhotoUrl, children }: Profile
           data-open={open}
           className="profile-menu-items flex max-w-[calc(100vw-2rem)] items-center rounded-lg border border-panel-border p-2 md:max-w-none md:border-0 md:p-0"
         >
+          {children}
+          <MapStyleToggle />
           <ThemeSwitch />
           {onDisconnect && (
-            <Tooltip text="disconnect Strava">
+            <Tooltip text="log out">
               <button
                 type="button"
-                aria-label="Disconnect Strava"
-                onClick={() => choose(onDisconnect)}
+                aria-label="Log out"
+                onClick={() => {
+                  collapse()
+                  setConfirmingLogout(true)
+                }}
                 className="mobile-touch-target inline-flex size-8 shrink-0 items-center justify-center rounded-lg floating-control focus-ring md:size-[35px]"
               >
                 <Unplug className="size-4" strokeWidth={1.75} aria-hidden="true" />
               </button>
             </Tooltip>
           )}
-          {children}
         </div>
       </div>
+      {confirmingLogout && onDisconnect && (
+        <LogoutDialog
+          onCancel={closeConfirmation}
+          onConfirm={() => {
+            closeConfirmation()
+            onDisconnect()
+          }}
+        />
+      )}
     </div>
   )
 }

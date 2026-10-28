@@ -11,6 +11,6 @@ self.onmessage = (event: MessageEvent<RouteHeatmapSources>) => {
       },
     })
   } catch {
-    self.postMessage({ error: 'hotspots unavailable; showing routes' })
+    self.postMessage({ error: 'route sampling unavailable; showing routes' })
   }
 }

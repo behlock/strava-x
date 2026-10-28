@@ -68,12 +68,9 @@ export const COMPARISON_RENDER_MODES = [
   { id: 'hotspots', description: 'activity concentrations around routes' },
 ] as const
 export type ComparisonRenderMode = (typeof COMPARISON_RENDER_MODES)[number]['id']
-export const DEFAULT_COMPARISON_RENDER_MODE: ComparisonRenderMode = 'glow'
+export const DEFAULT_COMPARISON_RENDER_MODE: ComparisonRenderMode = 'routes'
 
-export const DEFAULT_PERSONAL_APPEARANCE = {
-  paletteId: 'graphite',
-  renderMode: 'routes',
-} as const
+export const DEFAULT_PERSONAL_PALETTE: ComparisonPaletteId = 'graphite'
 
 export interface RouteAppearance {
   paletteId: ComparisonPaletteId

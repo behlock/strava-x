@@ -66,7 +66,7 @@ export function HeaderBar({
           {status}
         </div>
         {sidebar && !sidebar.mobile && (
-          <Tooltip text={sidebar.open ? 'hide sidebar' : 'show sidebar'} shortcut={SHORTCUTS['toggle-ui'].label}>
+          <Tooltip text={sidebar.open ? 'hide sidebar' : 'show sidebar'}>
             <button
               type="button"
               aria-label={sidebar.open ? 'Hide sidebar' : 'Show sidebar'}

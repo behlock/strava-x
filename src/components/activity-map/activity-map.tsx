@@ -13,7 +13,7 @@ import { ACTIVITY_TYPE_COLORS, DEFAULT_ACTIVITY_COLOR } from '@/lib/activity-col
 import { config } from '@/lib/config'
 import { boundsOf } from '@/lib/geo-utils'
 import { applyMapTheme } from '@/lib/map-theme'
-import { routePaint } from '@/lib/route-paint'
+import { heatmapPaint } from '@/lib/heatmap-paint'
 import {
   comparisonColors,
   DEFAULT_COMPARISON_PALETTE,
@@ -25,7 +25,6 @@ import {
 import {
   comparisonLinePaint,
   comparisonGlowPaint,
-  comparisonHeatmapPaint,
   personalRouteColor,
   personalRoutePaint,
 } from '@/lib/comparison-paint'
@@ -254,9 +253,7 @@ export const ActivityMap = memo(function ActivityMap({
             paint={
               commonRoutes
                 ? comparisonLinePaint(colors.other, 'other', renderMode)
-                : personalAppearance
-                  ? personalRoutePaint(isDark, personalColor, renderMode, hasVisibleHighlight)
-                  : routePaint(isDark, hasVisibleHighlight)
+                : personalRoutePaint(isDark, personalColor, renderMode, hasVisibleHighlight)
             }
           />
           {(commonRoutes || personalAppearance) && renderMode === 'glow' && (
@@ -305,7 +302,7 @@ export const ActivityMap = memo(function ActivityMap({
                 beforeId="all-activities-layer"
                 type="heatmap"
                 filter={layerFilter}
-                paint={comparisonHeatmapPaint(colors[role])}
+                paint={heatmapPaint(isDark, 0.85, role === 'overlap' ? undefined : colors[role])}
               />
             </Source>
           ))}
@@ -316,10 +313,7 @@ export const ActivityMap = memo(function ActivityMap({
               beforeId="all-activities-layer"
               type="heatmap"
               filter={layerFilter}
-              paint={{
-                ...comparisonHeatmapPaint(personalColor),
-                ...(hasVisibleHighlight ? { 'heatmap-opacity': 0.15 } : {}),
-              }}
+              paint={heatmapPaint(isDark, hasVisibleHighlight ? 0.15 : 0.8)}
             />
           </Source>
         )}

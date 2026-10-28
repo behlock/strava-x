@@ -3,6 +3,8 @@
 import { Combine, Layers2, LoaderCircle, ScanLine, Settings2 } from 'lucide-react'
 import { useId, useRef, useState } from 'react'
 import { useTheme } from 'next-themes'
+
+import { heatmapColors } from '@/lib/heatmap-paint'
 import { useSwipeGesture } from '@/hooks/use-swipe-gesture'
 import { HeaderChip } from '@/components/ui/header-bar'
 import { Tooltip } from '@/components/ui/tooltip'
@@ -182,6 +184,8 @@ export function CommonRoutesNotice({
   const pickerId = useId()
   const isDark = resolvedTheme === 'dark'
   const colors = comparisonColors(appearance?.paletteId ?? DEFAULT_COMPARISON_PALETTE, isDark)
+  const requestedMode = appearance?.renderMode ?? DEFAULT_COMPARISON_RENDER_MODE
+  const renderMode = requestedMode === 'hotspots' && heatmapStatus ? 'routes' : requestedMode
   const showDebug = config.MAP_STYLE_DEBUG && Boolean(appearance)
   const hidden = state.status === 'ready' && hiddenWhile === 'ready'
   const swipe = useSwipeGesture({
@@ -245,7 +249,11 @@ export function CommonRoutesNotice({
               {[
                 { label: viewerLabel.toLowerCase(), color: colors.own, width: 1.5 },
                 { label: ownerLabel.toLowerCase(), color: colors.other, width: 1 },
-                { label: 'overlap', color: colors.overlap, width: 3 },
+                {
+                  label: 'overlap',
+                  color: renderMode === 'hotspots' ? heatmapColors(isDark)[3] : colors.overlap,
+                  width: 3,
+                },
               ].map(({ label, color, width }, index) => (
                 <span key={index} className="inline-flex min-w-0 items-center gap-1.5">
                   <svg
@@ -261,11 +269,7 @@ export function CommonRoutesNotice({
                       y2="6"
                       stroke={color}
                       strokeWidth={width}
-                      strokeDasharray={
-                        index === 0 && (appearance?.renderMode ?? DEFAULT_COMPARISON_RENDER_MODE) === 'routes'
-                          ? '6 4'
-                          : undefined
-                      }
+                      strokeDasharray={index === 0 && renderMode === 'routes' ? '6 4' : undefined}
                     />
                   </svg>
                   <span className="max-w-20 truncate" title={label}>

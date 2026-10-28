@@ -1,6 +1,6 @@
-import type { HeatmapLayerSpecification, LineLayerSpecification } from 'mapbox-gl'
-import { comparisonColors, type ComparisonPaletteId, type ComparisonRenderMode } from './comparison-appearance'
+import type { LineLayerSpecification } from 'mapbox-gl'
 import { routePaint } from './route-paint'
+import { comparisonColors, type ComparisonPaletteId, type ComparisonRenderMode } from './comparison-appearance'
 
 type Role = 'own' | 'other' | 'overlap'
 
@@ -8,15 +8,21 @@ export function personalRouteColor(paletteId: ComparisonPaletteId, isDark: boole
   return paletteId === 'graphite' ? (isDark ? '#C2C2C2' : '#555555') : comparisonColors(paletteId, isDark).own
 }
 
-/** Keep the original personal view as the baseline, including activity highlighting. */
 export function personalRoutePaint(
   isDark: boolean,
   color: string,
   mode: ComparisonRenderMode,
   highlighted: boolean,
 ): LineLayerSpecification['paint'] {
-  if (mode === 'routes')
-    return { ...routePaint(isDark, highlighted), 'line-color': color, 'line-blur': 0, 'line-dasharray': [1, 0] }
+  if (mode === 'routes' || mode === 'hotspots') {
+    return {
+      ...routePaint(isDark, highlighted),
+      'line-color': color,
+      'line-blur': 0,
+      'line-dasharray': [1, 0],
+      ...(mode === 'hotspots' ? { 'line-opacity': highlighted ? 0.015 : 0.06 } : {}),
+    }
+  }
   return { ...comparisonLinePaint(color, 'own', mode), ...(highlighted ? { 'line-opacity': 0.035 } : {}) }
 }
 
@@ -70,34 +76,5 @@ export function comparisonGlowPaint(color: string): LineLayerSpecification['pain
     'line-width': ['interpolate', ['linear'], ['zoom'], 5, 3, 12, 7, 16, 12],
     'line-blur': ['interpolate', ['linear'], ['zoom'], 5, 2, 12, 5, 16, 8],
     'line-opacity': 0.08,
-  }
-}
-
-function rgba(hex: string, alpha: number): string {
-  const value = parseInt(hex.slice(1), 16)
-  return `rgba(${value >> 16},${(value >> 8) & 255},${value & 255},${alpha})`
-}
-
-export function comparisonHeatmapPaint(color: string): HeatmapLayerSpecification['paint'] {
-  return {
-    'heatmap-weight': ['get', 'weight'],
-    'heatmap-intensity': ['interpolate', ['linear'], ['zoom'], 5, 0.04, 12, 0.12, 16, 0.6],
-    'heatmap-radius': ['interpolate', ['linear'], ['zoom'], 5, 4, 12, 12, 16, 24],
-    'heatmap-opacity': 0.85,
-    'heatmap-color': [
-      'interpolate',
-      ['linear'],
-      ['heatmap-density'],
-      0,
-      rgba(color, 0),
-      0.15,
-      rgba(color, 0.15),
-      0.4,
-      rgba(color, 0.45),
-      0.7,
-      rgba(color, 0.8),
-      1,
-      color,
-    ],
   }
 }

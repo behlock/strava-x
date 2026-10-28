@@ -4,8 +4,9 @@ import { createRequire } from 'node:module'
 import { loadTs } from './load-ts.mjs'
 
 const { sampleRouteHeatmap } = loadTs('src/lib/route-heatmap.ts')
-const { comparisonLinePaint, comparisonGlowPaint, comparisonHeatmapPaint, personalRouteColor, personalRoutePaint } =
+const { comparisonLinePaint, comparisonGlowPaint, personalRouteColor, personalRoutePaint } =
   loadTs('src/lib/comparison-paint.ts')
+const { heatmapPaint, heatmapColors } = loadTs('src/lib/heatmap-paint.ts')
 const { routePaint } = loadTs('src/lib/route-paint.ts')
 const { COMPARISON_PALETTES, COMPARISON_RENDER_MODES } = loadTs('src/lib/comparison-appearance.ts')
 const { validate } = createRequire(import.meta.url)('mapbox-gl/dist/style-spec/index.cjs')
@@ -118,7 +119,12 @@ test('every palette and render mode validates against the installed Mapbox speci
         const layers = ['own', 'other', 'overlap'].flatMap((role) => [
           { id: role, type: 'line', source: 'routes', paint: comparisonLinePaint(colors[role], role, mode.id) },
           { id: `${role}-glow`, type: 'line', source: 'routes', paint: comparisonGlowPaint(colors[role]) },
-          { id: `${role}-heat`, type: 'heatmap', source: 'points', paint: comparisonHeatmapPaint(colors[role]) },
+          {
+            id: `${role}-heat`,
+            type: 'heatmap',
+            source: 'points',
+            paint: heatmapPaint(theme === 'dark', 0.85, colors[role]),
+          },
         ])
         const personalColor = personalRouteColor(palette.id, theme === 'dark')
         layers.push(
@@ -128,7 +134,7 @@ test('every palette and render mode validates against the installed Mapbox speci
             source: 'routes',
             paint: personalRoutePaint(theme === 'dark', personalColor, mode.id, highlighted),
           })),
-          { id: 'personal-heat', type: 'heatmap', source: 'points', paint: comparisonHeatmapPaint(personalColor) },
+          { id: 'personal-heat', type: 'heatmap', source: 'points', paint: heatmapPaint(theme === 'dark') },
         )
         const errors = validate({
           version: 8,
@@ -154,4 +160,15 @@ test('personal graphite routes preserve the original appearance and highlighting
       assert.deepEqual(personal['line-dasharray'], [1, 0])
     }
   }
+})
+
+test('stone heatmaps adapt to the theme and preserve intensity when dimming selection', () => {
+  for (const dark of [false, true]) {
+    const normal = heatmapPaint(dark)
+    const dimmed = heatmapPaint(dark, 0.15)
+    assert.equal(normal['heatmap-color'].at(-1), heatmapColors(dark).at(-1))
+    assert.deepEqual(dimmed['heatmap-color'], normal['heatmap-color'])
+    assert.ok(dimmed['heatmap-opacity'] < normal['heatmap-opacity'])
+  }
+  assert.notDeepEqual(heatmapPaint(false)['heatmap-color'], heatmapPaint(true)['heatmap-color'])
 })

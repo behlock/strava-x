@@ -53,6 +53,7 @@ export function Header({
   const showSharing = (hasActivities || isStravaSyncing) && stravaConnected
   return (
     <HeaderBar
+      showProfileMenu={stravaConnected || hasActivities}
       profilePhotoUrl={stravaConnected ? profilePhotoUrl : null}
       profileControls={showSharing ? sharingControls : null}
       onConnect={stravaAvailable && !stravaConnected ? onStravaConnect : undefined}
