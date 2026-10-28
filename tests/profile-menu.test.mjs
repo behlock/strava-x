@@ -15,7 +15,6 @@ function fixture() {
   const slots = []
   let cursor = 0,
     disconnects = 0
-  const Dialog = () => null
   const { ProfileMenu } = loadTs('src/components/ui/profile-menu.tsx', {
     react: {
       useState(initial) {
@@ -36,7 +35,6 @@ function fixture() {
       useEffect() {},
       useCallback: (fn) => fn,
     },
-    './logout-dialog': { LogoutDialog: Dialog },
     './map-style-toggle': { MapStyleToggle: () => null },
     './theme-switch': { ThemeSwitch: () => null },
     './tooltip': { Tooltip: () => null },
@@ -47,7 +45,6 @@ function fixture() {
   }
   return {
     render,
-    Dialog,
     get disconnects() {
       return disconnects
     },
@@ -60,12 +57,15 @@ test('opening logout confirmation and cancelling never disconnects', () => {
   find(tree, (node) => node.props?.['aria-label'] === 'Log out').props.onClick()
   assert.equal(ui.disconnects, 0)
   tree = ui.render()
-  const dialog = find(tree, (node) => node.type === ui.Dialog)
-  assert.ok(dialog)
-  dialog.props.onCancel()
+  assert.equal(
+    find(tree, (node) => node.type === 'dialog'),
+    undefined,
+  )
+  assert.ok(find(tree, (node) => node.props?.role === 'status' && node.props.children === 'log out?'))
+  find(tree, (node) => node.props?.['aria-label'] === 'Cancel log out').props.onClick()
   assert.equal(ui.disconnects, 0)
   assert.equal(
-    find(ui.render(), (node) => node.type === ui.Dialog),
+    find(ui.render(), (node) => node.props?.['aria-label'] === 'Confirm log out'),
     undefined,
   )
 })
@@ -73,10 +73,10 @@ test('opening logout confirmation and cancelling never disconnects', () => {
 test('only confirming logout invokes the disconnect action', () => {
   const ui = fixture()
   find(ui.render(), (node) => node.props?.['aria-label'] === 'Log out').props.onClick()
-  find(ui.render(), (node) => node.type === ui.Dialog).props.onConfirm()
+  find(ui.render(), (node) => node.props?.['aria-label'] === 'Confirm log out').props.onClick()
   assert.equal(ui.disconnects, 1)
   assert.equal(
-    find(ui.render(), (node) => node.type === ui.Dialog),
+    find(ui.render(), (node) => node.props?.['aria-label'] === 'Confirm log out'),
     undefined,
   )
 })

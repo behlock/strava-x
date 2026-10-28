@@ -1,10 +1,9 @@
 'use client'
 
 import { type ReactNode, useCallback, useEffect, useId, useRef, useState } from 'react'
-import { Plus, Settings2, Unplug } from 'lucide-react'
+import { Check, Plus, Settings2, Unplug, X } from 'lucide-react'
 
 import { cn } from '@/lib/utils'
-import { LogoutDialog } from './logout-dialog'
 import { MapStyleToggle } from './map-style-toggle'
 import { ThemeSwitch } from './theme-switch'
 import { Tooltip } from './tooltip'
@@ -25,10 +24,12 @@ export function ProfileMenu({ onDisconnect, profilePhotoUrl, children }: Profile
   const rootRef = useRef<HTMLDivElement>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
   const actionsId = useId()
+  const logoutQuestionId = useId()
 
   const collapse = useCallback(() => {
     setSettledOpen(false)
     setOpen(false)
+    setConfirmingLogout(false)
   }, [])
 
   useEffect(() => {
@@ -70,8 +71,11 @@ export function ProfileMenu({ onDisconnect, profilePhotoUrl, children }: Profile
         aria-expanded={open}
         aria-controls={actionsId}
         onClick={() => {
-          setSettledOpen(false)
-          setOpen((value) => !value)
+          if (open) collapse()
+          else {
+            setSettledOpen(false)
+            setOpen(true)
+          }
         }}
         className="mobile-touch-target relative flex size-9 shrink-0 items-center justify-center rounded-lg floating-control text-foreground focus-ring md:size-[35px]"
       >
@@ -119,37 +123,57 @@ export function ProfileMenu({ onDisconnect, profilePhotoUrl, children }: Profile
           role="group"
           aria-label="Profile controls"
           data-open={open}
-          className="profile-menu-items flex max-w-[calc(100vw-2rem)] items-center rounded-lg border border-panel-border p-2 md:max-w-none md:border-0 md:p-0"
+          className="profile-menu-items relative flex max-w-[calc(100vw-2rem)] items-center rounded-lg border border-panel-border p-2 md:max-w-none md:border-0 md:p-0"
         >
           {children}
           <MapStyleToggle />
           <ThemeSwitch />
-          {onDisconnect && (
-            <Tooltip text="log out">
-              <button
-                type="button"
-                aria-label="Log out"
-                onClick={() => {
-                  collapse()
-                  setConfirmingLogout(true)
-                }}
-                className="mobile-touch-target inline-flex size-8 shrink-0 items-center justify-center rounded-lg floating-control focus-ring md:size-[35px]"
-              >
-                <Unplug className="size-4" strokeWidth={1.75} aria-hidden="true" />
-              </button>
-            </Tooltip>
-          )}
+          {onDisconnect &&
+            (confirmingLogout ? (
+              <>
+                <button
+                  type="button"
+                  aria-label="Cancel log out"
+                  autoFocus
+                  onClick={closeConfirmation}
+                  className="mobile-touch-target inline-flex size-8 shrink-0 items-center justify-center rounded-lg floating-control focus-ring md:size-[35px]"
+                >
+                  <X className="size-3.5" aria-hidden="true" />
+                </button>
+                <button
+                  type="button"
+                  aria-label="Confirm log out"
+                  aria-describedby={logoutQuestionId}
+                  onClick={() => {
+                    collapse()
+                    onDisconnect()
+                  }}
+                  className="mobile-touch-target inline-flex size-8 shrink-0 items-center justify-center rounded-lg floating-control text-red-600 focus-ring md:size-[35px] dark:text-red-400"
+                >
+                  <Check className="size-3.5" aria-hidden="true" />
+                </button>
+                <div
+                  id={logoutQuestionId}
+                  role="status"
+                  className="absolute top-[calc(100%+0.5rem)] right-0 w-max rounded-lg border border-panel-border bg-panel px-2.5 py-1.5 text-xs-compact text-panel-muted"
+                >
+                  log out?
+                </div>
+              </>
+            ) : (
+              <Tooltip text="log out">
+                <button
+                  type="button"
+                  aria-label="Log out"
+                  onClick={() => setConfirmingLogout(true)}
+                  className="mobile-touch-target inline-flex size-8 shrink-0 items-center justify-center rounded-lg floating-control focus-ring md:size-[35px]"
+                >
+                  <Unplug className="size-4" strokeWidth={1.75} aria-hidden="true" />
+                </button>
+              </Tooltip>
+            ))}
         </div>
       </div>
-      {confirmingLogout && onDisconnect && (
-        <LogoutDialog
-          onCancel={closeConfirmation}
-          onConfirm={() => {
-            closeConfirmation()
-            onDisconnect()
-          }}
-        />
-      )}
     </div>
   )
 }
