@@ -54,7 +54,7 @@ export function CommonRoutesToggle({
         disabled={disabled}
         onClick={onToggle}
         className={cn(
-          'mobile-touch-target flex size-7 shrink-0 items-center justify-center border-l border-solid border-panel-border focus-ring-inset transition-colors hover:bg-control-hover disabled:cursor-not-allowed disabled:opacity-50',
+          'mobile-touch-target flex h-[34px] w-8 shrink-0 items-center justify-center border-l border-solid border-panel-border focus-ring-inset transition-colors hover:bg-control-hover disabled:cursor-not-allowed disabled:opacity-50 md:h-[33px] md:w-7',
           enabled && 'bg-selection text-selection-foreground hover:bg-selection',
         )}
       >
