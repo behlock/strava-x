@@ -140,5 +140,23 @@ test(
     ])
     assert.equal(await db.findShareBySlug('racing'), null)
     if (published) assert((await db.cleanupCandidates()).some((item) => item.pathname === 'racing-path'))
+
+    const cleanupMigration = readFileSync('db/005_drop_legacy_published_maps.sql', 'utf8')
+    await query('DELETE FROM map_shares WHERE athlete_id=1')
+    await assert.rejects(query(cleanupMigration), /accounts missing from map_shares/)
+    await db.ensureShare(1)
+    const sharesBeforeDrop = await query('SELECT row_to_json(map_shares) FROM map_shares ORDER BY athlete_id')
+    const cleanupBeforeDrop = await db.cleanupCandidates()
+    await query(cleanupMigration)
+    assert.deepEqual(
+      await query("SELECT json_build_object('exists', to_regclass('public.published_maps') IS NOT NULL)"),
+      [{ exists: false }],
+    )
+    assert.deepEqual(
+      await query('SELECT row_to_json(map_shares) FROM map_shares ORDER BY athlete_id'),
+      sharesBeforeDrop,
+    )
+    assert.deepEqual(await db.cleanupCandidates(), cleanupBeforeDrop)
+    await query(cleanupMigration)
   },
 )

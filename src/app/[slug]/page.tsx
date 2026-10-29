@@ -31,9 +31,9 @@ const lookup = cache(async (rawSlug: string) => {
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { slug } = await params
   const row = await lookup(slug)
-  if (!row) return { title: `${SITE_NAME} · Not found` }
+  if (!row) return { title: SITE_NAME }
   return {
-    title: `${SITE_NAME} · ${row.slug}`,
+    title: SITE_NAME,
     description: `${row.displayName}'s map of ${row.activityCount} Strava activities`,
   }
 }
