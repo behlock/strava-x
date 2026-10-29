@@ -1,6 +1,6 @@
 'use client'
 
-import { type ReactNode, useCallback, useEffect, useId, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import { Check, Plus, Settings2, Unplug, X } from 'lucide-react'
 
 import { cn } from '@/lib/utils'
@@ -9,12 +9,11 @@ import { ThemeSwitch } from './theme-switch'
 import { Tooltip } from './tooltip'
 
 interface ProfileMenuProps {
-  children?: ReactNode
   onDisconnect?: () => void
   profilePhotoUrl?: string | null
 }
 
-export function ProfileMenu({ onDisconnect, profilePhotoUrl, children }: ProfileMenuProps) {
+export function ProfileMenu({ onDisconnect, profilePhotoUrl }: ProfileMenuProps) {
   const [open, setOpen] = useState(false)
   const [confirmingLogout, setConfirmingLogout] = useState(false)
   const [settledOpen, setSettledOpen] = useState(false)
@@ -125,7 +124,6 @@ export function ProfileMenu({ onDisconnect, profilePhotoUrl, children }: Profile
           data-open={open}
           className="profile-menu-items relative flex max-w-[calc(100vw-2rem)] items-center rounded-lg border border-panel-border p-2 md:max-w-none md:border-0 md:p-0"
         >
-          {children}
           <MapStyleToggle />
           <ThemeSwitch />
           {onDisconnect &&

@@ -204,6 +204,12 @@ test('closed sharing controls do not check availability or allow submission', as
 test('published maps expose a link and unpublish action, without name editing', () => {
   const fixture = controls()
   const tree = fixture.runtime.render(fixture.Component, fixture.props)
+  const trigger = find(tree, (node) => node.props?.['aria-label'] === 'Sharing options')
+  assert.ok(find(trigger, (node) => node.type === 'span' && [node.props.children].flat().join('') === '/owner'))
+  assert.equal(
+    find(trigger, (node) => node.type === 'span' && node.props.children === 'share map'),
+    undefined,
+  )
   assert.equal(
     find(tree, (node) => node.type === 'input'),
     undefined,
@@ -214,11 +220,12 @@ test('published maps expose a link and unpublish action, without name editing', 
   fixture.runtime.unmount()
 })
 
-test('unpublished maps use an icon trigger and cannot submit while closed', () => {
+test('unpublished maps use a labelled trigger and cannot submit while closed', () => {
   const fixture = controls({ currentSlug: null, open: false })
   const tree = fixture.runtime.render(fixture.Component, fixture.props)
   const trigger = find(tree, (node) => node.props?.['aria-label'] === 'Share map')
-  assert.equal(trigger.props.variant, 'icon')
+  assert.equal(trigger.props.variant, 'text')
+  assert.ok(find(trigger, (node) => node.type === 'span' && node.props.children === 'share map'))
   assert.equal(
     find(tree, (node) => node.type === 'input'),
     undefined,

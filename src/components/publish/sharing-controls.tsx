@@ -281,7 +281,7 @@ export function SharingControls({
       ) : (
         <HeaderChip
           ref={triggerRef}
-          variant={currentSlug ? 'text' : 'icon'}
+          variant="text"
           aria-label={currentSlug ? 'Sharing options' : 'Share map'}
           aria-expanded={open}
           tooltip={isSyncing ? 'syncing...' : currentSlug ? 'sharing options' : 'share map'}
@@ -289,14 +289,17 @@ export function SharingControls({
           tooltipHidden={open}
           disabled={busy}
           onClick={open ? () => close() : openControls}
-          className={cn('md:h-[35px]', currentSlug && 'max-w-[40vw]')}
+          className={cn('h-9 gap-2 md:h-[35px]', currentSlug && 'max-w-[40vw]')}
         >
           {isSyncing ? (
             <LoaderCircle className="size-4 motion-safe:animate-spin" aria-hidden="true" />
           ) : currentSlug ? (
             <span className="truncate">/{currentSlug}</span>
           ) : (
-            <Share2 className="size-4" aria-hidden="true" />
+            <>
+              <Share2 className="size-3.5" aria-hidden="true" />
+              <span>share map</span>
+            </>
           )}
         </HeaderChip>
       )}
@@ -309,7 +312,7 @@ export function SharingControls({
         data-settled-open={settledOpen}
         style={currentSlug ? { marginRight: 0 } : undefined}
         className={cn(
-          'profile-menu-reveal absolute top-[calc(100%+0.75rem)] left-[calc(-0.5rem-1px)] shrink-0 md:right-0 md:left-auto',
+          'profile-menu-reveal absolute top-[calc(100%+0.75rem)] right-0 shrink-0',
           !currentSlug && 'md:static',
         )}
         onTransitionEnd={(event) => {

@@ -1,21 +1,12 @@
 'use client'
 
-import {
-  type ReactNode,
-  cloneElement,
-  isValidElement,
-  useCallback,
-  useEffect,
-  useId,
-  useLayoutEffect,
-  useRef,
-  useState,
-} from 'react'
+import { type ReactNode, cloneElement, isValidElement, useCallback, useEffect, useId, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { autoUpdate, flip, hide as hideReference, offset, shift, useFloating } from '@floating-ui/react-dom'
 
 export type TooltipAlign = 'center' | 'start' | 'end'
 
-// Match Radix's warm-up and skip-delay defaults across all tooltip triggers.
+// Delay initial hover, then allow quick movement between tooltips.
 const HOVER_DELAY = 700
 const SKIP_DELAY_WINDOW = 300
 let warmUntil = 0
@@ -30,7 +21,6 @@ interface TooltipProps {
   disabled?: boolean
 }
 
-/** Viewport positioning keeps bubbles clear of clipping and animated menus. */
 export function Tooltip({
   children,
   text,
@@ -40,11 +30,21 @@ export function Tooltip({
   disabled = false,
 }: TooltipProps) {
   const [visible, setVisible] = useState(false)
-  const [coordinates, setCoordinates] = useState<{ left: number; top: number } | null>(null)
-  const triggerRef = useRef<HTMLDivElement>(null)
-  const bubbleRef = useRef<HTMLDivElement>(null)
   const id = useId()
   const shown = visible && !disabled
+  const {
+    refs: { setReference, setFloating },
+    floatingStyles,
+    isPositioned,
+    middlewareData,
+  } = useFloating({
+    open: shown,
+    placement: align === 'center' ? position : `${position}-${align}`,
+    strategy: 'fixed',
+    middleware: [offset(8), flip({ padding: 8 }), shift({ padding: 8 }), hideReference()],
+    whileElementsMounted: (reference, floating, update) =>
+      autoUpdate(reference, floating, update, { animationFrame: true }),
+  })
   const pendingRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const leaveRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -105,34 +105,6 @@ export function Tooltip({
     return () => document.removeEventListener('keydown', dismiss)
   }, [shown, hide])
 
-  useLayoutEffect(() => {
-    if (!shown) return
-    let frame: number
-    const update = () => {
-      const trigger = triggerRef.current?.getBoundingClientRect()
-      const bubble = bubbleRef.current?.getBoundingClientRect()
-      if (!trigger || !bubble) return
-      if (!trigger.width || !trigger.height) {
-        hide()
-        return
-      }
-      const desiredLeft =
-        align === 'start'
-          ? trigger.left
-          : align === 'end'
-            ? trigger.right - bubble.width
-            : trigger.left + (trigger.width - bubble.width) / 2
-      const desiredTop = position === 'top' ? trigger.top - bubble.height - 8 : trigger.bottom + 8
-      const left = Math.max(8, Math.min(desiredLeft, window.innerWidth - bubble.width - 8))
-      const top = Math.max(8, Math.min(desiredTop, window.innerHeight - bubble.height - 8))
-      setCoordinates((previous) => (previous?.left === left && previous.top === top ? previous : { left, top }))
-      // Track the trigger while profile controls animate or the viewport scrolls.
-      frame = requestAnimationFrame(update)
-    }
-    update()
-    return () => cancelAnimationFrame(frame)
-  }, [shown, text, shortcut, align, position, hide])
-
   const child = isValidElement<{ 'aria-describedby'?: string }>(children)
     ? cloneElement(children, {
         'aria-describedby':
@@ -142,7 +114,7 @@ export function Tooltip({
 
   return (
     <div
-      ref={triggerRef}
+      ref={setReference}
       className="relative inline-flex min-w-0"
       onPointerEnter={(event) => {
         if (event.pointerType !== 'touch') hover()
@@ -161,16 +133,15 @@ export function Tooltip({
       {shown &&
         createPortal(
           <div
-            ref={bubbleRef}
+            ref={setFloating}
             id={id}
             role="tooltip"
-            className="pointer-events-auto fixed z-50 max-w-[calc(100vw-16px)] rounded-lg border border-panel-border bg-panel px-2.5 py-1.5 text-center font-mono text-xs-compact font-medium break-words text-foreground"
+            className="pointer-events-auto fixed z-50 w-max max-w-[calc(100vw-16px)] rounded-lg border border-panel-border bg-panel px-2.5 py-1.5 text-center font-mono text-xs-compact font-medium break-words text-foreground"
             onPointerEnter={cancelTimers}
             onPointerLeave={leave}
             style={{
-              left: coordinates?.left ?? 0,
-              top: coordinates?.top ?? 0,
-              visibility: coordinates ? 'visible' : 'hidden',
+              ...floatingStyles,
+              visibility: isPositioned && !middlewareData.hide?.referenceHidden ? 'visible' : 'hidden',
             }}
           >
             <span className="inline-flex items-center gap-3">

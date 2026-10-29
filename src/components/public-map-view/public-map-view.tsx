@@ -4,6 +4,7 @@ import { useStravaAuth, type UseStravaAuth } from '@/hooks/use-strava-auth'
 import { useCommonRoutes } from '@/hooks/use-common-routes'
 import { useComparisonAppearance } from '@/hooks/use-map-appearance'
 import { useStravaProfile } from '@/hooks/use-strava-profile'
+import { usePublish } from '@/hooks/use-publish'
 import Link from 'next/link'
 import { type ReactNode, useCallback, useEffect, useState } from 'react'
 
@@ -11,6 +12,7 @@ import { ACTIVITY_TYPES, type Activity } from '@/models/activity'
 import type { ComparisonFilters } from '@/lib/comparison-filters'
 import type { StravaProfile } from '@/lib/strava-profile'
 import { MapView } from '@/components/map-view'
+import { SharingControls } from '@/components/publish'
 import { HEADER_LOGO_CLASS, HeaderBar, Tooltip } from '@/components/ui'
 import { loadPublishedMap } from '@/lib/published-map'
 import { SITE_NAME } from '@/lib/site'
@@ -41,6 +43,16 @@ function PublicHeader({
   children?: ReactNode
 }) {
   const { isConnected, disconnect } = auth
+  const { currentSlug, refreshCurrentSlug, isPublishing, publish, unpublish, checkSlug } = usePublish({
+    getAccessToken: auth.getAccessToken,
+  })
+  const [sharingOpen, setSharingOpen] = useState(false)
+  useEffect(() => {
+    if (!isConnected) return
+    const controller = new AbortController()
+    void refreshCurrentSlug(controller.signal).catch(() => {})
+    return () => controller.abort()
+  }, [isConnected, refreshCurrentSlug])
   const byline = (
     <span
       tabIndex={updatedAt ? 0 : undefined}
@@ -71,7 +83,25 @@ function PublicHeader({
           </div>
         </div>
       }
-    />
+    >
+      {isConnected && currentSlug && (
+        <SharingControls
+          open={sharingOpen}
+          onOpen={() => {
+            void refreshCurrentSlug().catch(() => {})
+            setSharingOpen(true)
+          }}
+          onClose={() => setSharingOpen(false)}
+          currentSlug={currentSlug}
+          isPublishing={isPublishing}
+          isSyncing={false}
+          estimatedSizeBytes={0}
+          publish={publish}
+          unpublish={unpublish}
+          checkSlug={checkSlug}
+        />
+      )}
+    </HeaderBar>
   )
 }
 

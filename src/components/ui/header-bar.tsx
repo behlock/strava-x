@@ -25,7 +25,6 @@ interface HeaderBarProps {
   onConnect?: () => void
   onDisconnect?: () => void
   profilePhotoUrl?: string | null
-  profileControls?: ReactNode
   showProfileMenu?: boolean
 }
 
@@ -37,7 +36,6 @@ export function HeaderBar({
   onConnect,
   onDisconnect,
   profilePhotoUrl,
-  profileControls,
   showProfileMenu = Boolean(onDisconnect),
 }: HeaderBarProps) {
   const sidebar = useContext(SidebarContext)
@@ -94,9 +92,7 @@ export function HeaderBar({
           </button>
         )}
         {showProfileMenu ? (
-          <ProfileMenu onDisconnect={onDisconnect} profilePhotoUrl={profilePhotoUrl}>
-            {profileControls}
-          </ProfileMenu>
+          <ProfileMenu onDisconnect={onDisconnect} profilePhotoUrl={profilePhotoUrl} />
         ) : (
           <ThemeSwitch />
         )}
