@@ -7,6 +7,7 @@ import { ArrowRight, ArrowUpRight } from 'lucide-react'
 import { Pill } from '@/components/ui'
 import { StravaAuthError } from '@/components/ui/strava-auth-error'
 import { cn } from '@/lib/utils'
+import { SITE_NAME } from '@/lib/site'
 import { useFocusTrap } from '@/hooks/use-focus-trap'
 
 const DEMO_MAP_PATH = '/walid'
@@ -36,13 +37,19 @@ export function WelcomePanel({ open, onConnect }: WelcomePanelProps) {
         role="dialog"
         aria-modal="true"
         aria-labelledby="welcome-title"
+        aria-describedby="welcome-description"
         tabIndex={-1}
         className="relative mx-4 w-full max-w-md space-y-5 rounded-xl border border-panel-border bg-panel p-5 focus:outline-hidden"
       >
         <div className="flex items-center justify-between gap-4">
           <h2 id="welcome-title" className="text-sm-compact tracking-wider">
-            welcome to strava—x
+            welcome to {SITE_NAME}
           </h2>
+        </div>
+
+        <div id="welcome-description" className="space-y-3 text-xs-compact leading-relaxed text-panel-muted">
+          <p>{SITE_NAME} lets you see your activities on an interactive map</p>
+          <p>you can share your map with anyone, and compare maps to see which routes you&apos;ve both taken</p>
         </div>
 
         <Suspense fallback={null}>
