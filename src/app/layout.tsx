@@ -35,7 +35,7 @@ export const metadata: Metadata = {
     title: SITE_NAME,
     description: SITE_DESCRIPTION,
     siteName: SITE_NAME,
-    images: [{ url: '/og-image.png', width: 1200, height: 630, alt: `${SITE_NAME} — activity map preview` }],
+    images: [{ url: '/og-image.png', width: 1200, height: 630, alt: `${SITE_NAME} wordmark` }],
   },
   twitter: {
     card: 'summary_large_image',
