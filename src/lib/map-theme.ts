@@ -3,7 +3,7 @@ import type { Map } from 'mapbox-gl'
 const backgroundLayers = new WeakMap<Map, string>()
 
 /** Local presentation overrides for the configured Mapbox styles. */
-export function applyMapTheme(map: Map, isDark: boolean) {
+export function applyMapTheme(map: Map, isDark: boolean, sharedBase = false) {
   const land = isDark ? '#181818' : '#F5F5F5'
   const cachedBackground = backgroundLayers.get(map)
   // getStyle serializes every layer. Tile/style events are frequent, so use
@@ -24,6 +24,13 @@ export function applyMapTheme(map: Map, isDark: boolean) {
   if (map.getPaintProperty(background.id, 'background-color') === land) return
 
   for (const layer of layers) {
+    if (layer.type !== 'background' && !('source-layer' in layer && layer['source-layer'])) continue
+    if ('source-layer' in layer && layer['source-layer'] === 'routes') continue
+    // Paint-only theme changes preserve sources, tiles, placement and the WebGL context.
+    if (layer.type === 'background') map.setPaintProperty(layer.id, 'background-color-transition', { duration: 0 })
+    if (layer.type === 'fill') map.setPaintProperty(layer.id, 'fill-color-transition', { duration: 0 })
+    if (layer.type === 'line') map.setPaintProperty(layer.id, 'line-color-transition', { duration: 0 })
+    if (layer.type === 'symbol') map.setPaintProperty(layer.id, 'text-color-transition', { duration: 0 })
     const sourceLayer = 'source-layer' in layer ? layer['source-layer'] : undefined
     if (sourceLayer === 'road' && layer.type === 'line') {
       map.setPaintProperty(layer.id, 'line-color', isDark ? '#303030' : '#DEDEDE')
@@ -38,6 +45,12 @@ export function applyMapTheme(map: Map, isDark: boolean) {
         17,
         0.65,
       ])
+    } else if (sharedBase && layer.type === 'line' && sourceLayer) {
+      map.setPaintProperty(
+        layer.id,
+        'line-color',
+        sourceLayer === 'waterway' ? (isDark ? '#242424' : '#E7E7E7') : isDark ? '#383838' : '#D4D4D4',
+      )
     } else if (layer.type === 'fill') {
       if (sourceLayer === 'water') {
         map.setPaintProperty(layer.id, 'fill-color', isDark ? '#242424' : '#E7E7E7')
@@ -47,6 +60,8 @@ export function applyMapTheme(map: Map, isDark: boolean) {
         map.setPaintProperty(layer.id, 'fill-color', isDark ? '#202020' : '#EBEBEB')
         map.setPaintProperty(layer.id, 'fill-outline-color', isDark ? '#242424' : '#E5E5E5')
         map.setPaintProperty(layer.id, 'fill-opacity', ['interpolate', ['linear'], ['zoom'], 13, 0, 16, 0.65])
+      } else if (sharedBase && sourceLayer) {
+        map.setPaintProperty(layer.id, 'fill-color', isDark ? '#1D1D1D' : '#EEEEEE')
       }
     } else if (layer.type === 'symbol') {
       if (sourceLayer === 'poi_label' || sourceLayer === 'airport_label') {

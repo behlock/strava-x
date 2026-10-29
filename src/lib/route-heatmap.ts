@@ -7,7 +7,7 @@ export interface RouteHeatmapSources {
   other: ActivityFeatureCollection
   overlap: ActivityFeatureCollection
 }
-export type RouteHeatmaps = Record<keyof RouteHeatmapSources, RouteHeatmapData>
+export type RouteHeatmaps = Record<keyof RouteHeatmapSources, string>
 
 const SPACING_METRES = 100
 const MAX_POINTS = 1_000_000
@@ -27,7 +27,7 @@ function distance(a: number[], b: number[]): number {
 }
 
 /** Equal-distance samples: denser GPS recording must not look like more visits. */
-export function sampleRouteHeatmap(data: ActivityFeatureCollection): RouteHeatmapData {
+export function sampleRouteHeatmap(data: ActivityFeatureCollection, maxPoints = MAX_POINTS): RouteHeatmapData {
   const result: RouteHeatmapData = { type: 'FeatureCollection', features: [] }
   for (const feature of data.features) {
     const coordinates = feature.geometry.coordinates
@@ -44,7 +44,7 @@ export function sampleRouteHeatmap(data: ActivityFeatureCollection): RouteHeatma
     }
     if (!segments.length) continue
     const count = Math.ceil(total / SPACING_METRES)
-    if (result.features.length + count > MAX_POINTS) throw new Error('heatmap_too_large')
+    if (result.features.length + count > maxPoints) throw new Error('heatmap_too_large')
     const step = total / count
     let segmentIndex = 0,
       travelled = 0

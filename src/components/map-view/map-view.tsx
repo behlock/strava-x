@@ -26,6 +26,9 @@ const ActivityMap = dynamic(() => import('@/components/activity-map').then((mod)
 
 interface MapViewProps {
   activities: Activity[]
+  publicTiles?: string
+  publicHeatTiles?: string
+  onPublicTileError?: () => void
   /** Show activity list loading states (used during initial sync). */
   loading?: boolean
   /** Frame the complete library’s busiest area instead of restoring an old viewport. */
@@ -44,6 +47,7 @@ interface MapViewProps {
    */
   mode?: MapPositionMode
   commonRoutes?: CommonRoutesState | null
+  retainedComparison?: Extract<CommonRoutesState, { status: 'ready' }> | null
   comparisonAppearance?: ComparisonAppearance
   comparisonViewer?: string
   onComparisonFiltersChange?: (filters: ComparisonFilters) => void
@@ -59,6 +63,9 @@ const EMPTY_ROUTES: ActivityFeatureCollection = { type: 'FeatureCollection', fea
 
 export function MapView({
   activities: allActivities,
+  publicTiles,
+  publicHeatTiles,
+  onPublicTileError,
   loading = false,
   preferBusiestArea = false,
   header,
@@ -66,6 +73,7 @@ export function MapView({
   externalMapRef,
   mode = 'own',
   commonRoutes,
+  retainedComparison,
   comparisonAppearance,
   comparisonOwner,
   comparisonViewer,
@@ -188,7 +196,7 @@ export function MapView({
   const handleActivityNavigate = useCallback((activity: Activity) => {
     const coords = activity.feature?.geometry.coordinates
     if (!coords?.length) return
-    const [longitude, latitude] = coords[Math.floor(coords.length / 2)]
+    const [longitude, latitude] = activity.navigationCoordinate ?? coords[Math.floor(coords.length / 2)]
     mapRef.current?.flyTo({ latitude, longitude, zoom: 13 })
   }, [])
 
@@ -251,17 +259,22 @@ export function MapView({
   const singleMapStyleEnabled = commonRoutes?.status !== 'ready'
   const showMapAppearanceControls = config.MAP_STYLE_DEBUG && singleMapStyleEnabled && hasActivities
   const renderMode = singleMapStyleEnabled ? personalAppearance.renderMode : comparisonAppearance?.renderMode
-  const commonData = commonRoutes?.status === 'ready' ? commonRoutes.data : undefined
+  const comparisonData = commonRoutes?.status === 'ready' ? commonRoutes : retainedComparison
+  const commonData = comparisonData?.data
+  const ownHeatRoutes = comparisonData?.ownRoutes
+  const overlapHeatRoutes = comparisonData?.data
   const heatmapSources = useMemo(
     () =>
-      commonRoutes?.status === 'ready'
+      ownHeatRoutes && overlapHeatRoutes
         ? {
-            own: commonRoutes.ownRoutes,
-            other: allGeoData,
-            overlap: commonRoutes.data,
+            own: ownHeatRoutes,
+            other: publicTiles ? EMPTY_ROUTES : allGeoData,
+            overlap: overlapHeatRoutes,
           }
-        : { own: allGeoData, other: EMPTY_ROUTES, overlap: EMPTY_ROUTES },
-    [commonRoutes, allGeoData],
+        : publicTiles
+          ? null
+          : { own: allGeoData, other: EMPTY_ROUTES, overlap: EMPTY_ROUTES },
+    [ownHeatRoutes, overlapHeatRoutes, allGeoData, publicTiles],
   )
   const sampledStyleActive = renderMode === 'hotspots'
   const heatmap = useRouteHeatmap(heatmapSources, sampledStyleActive)
@@ -322,8 +335,12 @@ export function MapView({
       <ActivityMap
         ref={setMapRef}
         data={allGeoData}
+        publicTiles={publicTiles}
+        publicHeatTiles={publicHeatTiles}
+        onPublicTileError={onPublicTileError}
         commonRoutes={commonData}
-        ownRoutes={commonRoutes?.status === 'ready' ? commonRoutes.ownRoutes : undefined}
+        ownRoutes={comparisonData?.ownRoutes}
+        comparisonVisible={commonRoutes?.status === 'ready'}
         comparisonPaletteId={comparisonAppearance?.paletteId}
         comparisonRenderMode={comparisonAppearance?.renderMode}
         personalAppearance={singleMapStyleEnabled ? personalAppearance : undefined}

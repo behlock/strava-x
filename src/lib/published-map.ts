@@ -5,11 +5,17 @@ interface PublishedPayload {
   version: number
   updatedAt?: string
   activities: SerializedActivity[]
+  tiles?: string
+  fullUrl?: string
+  heatTiles?: string
 }
 
 interface LoadedMap {
   activities: Activity[]
   updatedAt: string | null
+  tiles?: string
+  fullUrl?: string
+  heatTiles?: string
 }
 
 // Strict Mode and overlapping mounts share one download and one JSON parse.
@@ -27,6 +33,9 @@ export function loadPublishedMap(url: string): Promise<LoadedMap> {
     if (payload.version !== 1) console.warn('[public-map-view] unknown payload version', payload.version)
     const timestamp = payload.updatedAt
     return {
+      fullUrl: payload.fullUrl,
+      tiles: payload.tiles,
+      heatTiles: payload.heatTiles,
       activities: deserializeActivities(payload.activities),
       updatedAt: typeof timestamp === 'string' && Number.isFinite(Date.parse(timestamp)) ? timestamp : null,
     }

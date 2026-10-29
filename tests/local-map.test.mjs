@@ -36,6 +36,7 @@ test('development reads only valid map slugs and handles missing or malformed fi
   let contents = JSON.stringify(payload)
   const { loadLocalMap } = loadTs('src/lib/local-map.ts', {
     'node:fs/promises': {
+      stat: async () => ({ mtimeMs: contents, size: contents?.length }),
       readFile: async (path) => {
         reads++
         assert.ok(path.endsWith('/.local-maps/pierre.json'))

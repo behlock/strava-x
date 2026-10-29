@@ -15,11 +15,22 @@ const headers = {
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ slug: string }> }) {
   const checked = validateSlug((await params).slug)
   if (!checked.ok) return new Response(null, { status: 404, headers })
+  const query = _req?.nextUrl.searchParams
+  if (query?.get('view') === 'render' || query?.has('tile')) {
+    const { servePublicRender } = await import('@/lib/public-render-server')
+    return servePublicRender(checked.slug, _req.nextUrl.searchParams)
+  }
   try {
     const local = await loadLocalMap(checked.slug)
-    if (local) return Response.json(local, { headers })
+    if (local) {
+      if (query?.has('revision') && query.get('revision') !== 'local')
+        return new Response(null, { status: 404, headers })
+      return Response.json(local, { headers })
+    }
     const row = await findShareBySlug(checked.slug)
     if (!row?.snapshot_path) return new Response(null, { status: 404, headers })
+    if (query?.has('revision') && query.get('revision') !== row.revision)
+      return new Response(null, { status: 404, headers })
     const blob = await readPrivateSnapshot(row.snapshot_path)
     if (!blob || blob.statusCode !== 200) return new Response(null, { status: 503, headers })
     let handedOff = false

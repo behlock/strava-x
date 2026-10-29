@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { dirname, resolve } from 'node:path'
 import ts from 'typescript'
+import { pathToFileURL } from 'node:url'
 
 // Small test loader: transpile the actual source, with explicit I/O fakes.
 // Production imports/resolution are still checked by tsc and next build.
@@ -27,7 +28,12 @@ export function loadTs(entry, mocks = {}) {
         esModuleInterop: true,
       },
     })
-    new Function('require', 'module', 'exports', outputText)(localRequire, mod, mod.exports)
+    new Function(
+      'require',
+      'module',
+      'exports',
+      outputText.replaceAll('import.meta.url', JSON.stringify(pathToFileURL(file).href)),
+    )(localRequire, mod, mod.exports)
     return mod.exports
   }
   return load(entry)

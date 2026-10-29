@@ -13,6 +13,8 @@ export interface Activity {
   /** One of `ACTIVITY_TYPES`, or the raw lowercased Strava sport type for anything unmapped. */
   type: string | null
   date?: Date
+  /** Full-route midpoint retained by a simplified public preview. */
+  navigationCoordinate?: [number, number]
   feature: ActivityFeature | null
   /** Kilometers. */
   distance: number

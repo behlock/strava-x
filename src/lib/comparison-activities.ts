@@ -4,7 +4,11 @@ import { isActivityCacheFresh, type ActivitySyncStatus } from '@/lib/activity-sy
 import type { Activity } from '@/models/activity'
 
 /** Verify the session's account before reading its cache. */
-export async function loadComparisonActivities(accessToken: string, signal: AbortSignal): Promise<Activity[]> {
+export async function loadComparisonActivities(
+  accessToken: string,
+  signal: AbortSignal,
+  cacheOnly = false,
+): Promise<Activity[]> {
   const options = {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -19,6 +23,7 @@ export async function loadComparisonActivities(accessToken: string, signal: Abor
     signal.throwIfAborted()
     if (cached && isActivityCacheFresh(cached.sync, status)) return cached.activities
   }
+  if (cacheOnly) throw new Error('comparison_not_cached')
   const response = await fetch('/api/activities/sync', options)
   if (!response.ok) {
     const body = await response.json().catch(() => null)

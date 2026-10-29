@@ -410,3 +410,27 @@ test('link availability fails closed with a controlled, uncached database error'
   assert.equal(response.headers.get('cache-control'), 'no-store')
   assert.deepEqual(await response.json(), { available: false, reason: 'sharing_unavailable' })
 })
+
+test('full precision downloads stream unchanged and reject obsolete manifest revisions before reading storage', async () => {
+  let reads = 0
+  const stream = new Blob(['x'.repeat(5 * 1024 * 1024)]).stream()
+  const { GET } = loadTs('src/app/api/maps/[slug]/route.ts', {
+    '@/lib/local-map': { loadLocalMap: async () => null },
+    '@/lib/sharing-db': { findShareBySlug: async () => row },
+    '@/lib/sharing-storage': {
+      readPrivateSnapshot: async () => {
+        reads++
+        return { statusCode: 200, stream }
+      },
+    },
+  })
+  const request = (revision) => ({ nextUrl: new URL(`http://localhost/api/maps/owner?view=full&revision=${revision}`) })
+  const context = { params: Promise.resolve({ slug: 'owner' }) }
+  assert.equal((await GET(request('obsolete'), context)).status, 404)
+  assert.equal(reads, 0)
+  const response = await GET(request(row.revision), context)
+  assert.equal(response.status, 200)
+  assert.equal(response.body, stream)
+  assert.equal((await response.arrayBuffer()).byteLength, 5 * 1024 * 1024)
+  assert.equal(reads, 1)
+})

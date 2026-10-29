@@ -1,8 +1,9 @@
-export type ShortcutId = 'toggle-ui' | 'toggle-theme'
+export type ShortcutId = 'toggle-ui' | 'toggle-theme' | 'toggle-map-style'
 
 export const SHORTCUTS = {
   'toggle-ui': { key: 's', label: 'S', aria: 'S' },
   'toggle-theme': { key: 't', label: 'T', aria: 'T' },
+  'toggle-map-style': { key: 'm', label: 'M', aria: 'M' },
 } as const
 
 type ShortcutKeyEvent = Pick<KeyboardEvent, 'key' | 'code' | 'metaKey' | 'ctrlKey' | 'altKey' | 'shiftKey'>

@@ -105,21 +105,27 @@ export default function HomePage() {
       }
       setSyncError(null)
       // Account ownership must be known before any cached library is shown.
-      const [share, status] = await Promise.all([
-        refreshCurrentSlug(signal).catch(() => undefined),
-        fetch('/api/activities/status', {
-          method: 'POST',
-          signal,
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ accessToken: auth.accessToken }),
-        })
-          .then(async (response) => (response.ok ? ((await response.json()) as ActivitySyncStatus) : null))
-          .catch(() => null),
-      ])
+      const sharePromise = refreshCurrentSlug(signal).catch(() => undefined)
+      const status = await fetch('/api/activities/status', {
+        method: 'POST',
+        signal,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ accessToken: auth.accessToken }),
+      })
+        .then(async (response) => (response.ok ? ((await response.json()) as ActivitySyncStatus) : null))
+        .catch(() => null)
       if (!isLive()) return
-      if (status && share && status.athleteId !== share.athleteId) return
+      // A verified status is enough to restore the personal map. Sharing UI
+      // metadata can finish independently; it must not gate IndexedDB reads.
+      const restore = status ? restoreActivities(status.athleteId, signal) : null
+      const share = await sharePromise
+      if (!isLive()) return
+      if (status && share && status.athleteId !== share.athleteId) {
+        await clearActivities()
+        return
+      }
       const athleteId = status?.athleteId ?? share?.athleteId
-      const cached = athleteId ? await restoreActivities(athleteId, signal) : null
+      const cached = restore ? await restore : athleteId ? await restoreActivities(athleteId, signal) : null
       if (!isLive()) return
       if (
         status &&
@@ -194,6 +200,7 @@ export default function HomePage() {
     beginSync,
     refreshCurrentSlug,
     restoreActivities,
+    clearActivities,
     forgetCurrentSlug,
   ])
 

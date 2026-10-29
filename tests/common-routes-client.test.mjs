@@ -32,6 +32,11 @@ function fixture({
   let cursor = 0
   const react = {
     useCallback: (fn) => fn,
+    useRef(initial) {
+      const i = cursor++
+      slots[i] ??= { current: initial }
+      return slots[i]
+    },
     useState(initial) {
       const i = cursor++
       slots[i] ??= { value: initial }
@@ -56,7 +61,17 @@ function fixture({
   const { useCommonRoutes: renderHook } = loadTs('src/hooks/use-common-routes.ts', {
     react,
     '@/lib/comparison-activities': { loadComparisonActivities: load },
-    '@/lib/run-route-comparison': { runRouteComparison: compare },
+    '@/lib/run-route-comparison': {
+      createRouteComparisonClient: () => ({
+        run: (other, own, signal, filters) => {
+          const filter = (a) =>
+            !filters ||
+            (filters.types.includes(a.type) && (filters.cutoff === null || a.date.getTime() <= filters.cutoff))
+          return compare(other.filter(filter), own.filter(filter), signal)
+        },
+        dispose() {},
+      }),
+    },
   })
   return {
     render(filters) {

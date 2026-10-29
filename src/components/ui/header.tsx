@@ -3,6 +3,7 @@
 import { type ReactNode, Suspense } from 'react'
 
 import { HEADER_LOGO_CLASS, HeaderBar } from './header-bar'
+import { SITE_NAME } from '@/lib/site'
 import { StravaAuthError } from './strava-auth-error'
 import { Tooltip } from './tooltip'
 
@@ -60,7 +61,7 @@ export function Header({
       onDisconnect={stravaConnected ? onStravaDisconnect : undefined}
       logo={
         <button type="button" onClick={onLogoClick} className={HEADER_LOGO_CLASS}>
-          strava—x
+          {SITE_NAME}
         </button>
       }
       // Errors are not gated on the connection: an expired session sets the

@@ -44,7 +44,7 @@ export default async function PublicMapPage({ params }: PageProps) {
   if (!row) notFound()
 
   const blobUrl = `/api/maps/${encodeURIComponent(slug)}`
-  preload(blobUrl, { as: 'fetch', crossOrigin: 'anonymous' })
+  preload(`${blobUrl}?view=render`, { as: 'fetch', crossOrigin: 'anonymous' })
 
   return <PublicMapView key={slug} slug={slug} blobUrl={blobUrl} />
 }

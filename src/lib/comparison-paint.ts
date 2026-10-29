@@ -1,5 +1,5 @@
 import type { LineLayerSpecification } from 'mapbox-gl'
-import { routePaint } from './route-paint'
+import { routePaint, INSTANT_LINE_TRANSITIONS } from './route-paint'
 import { comparisonColors, type ComparisonPaletteId, type ComparisonRenderMode } from './comparison-appearance'
 
 type Role = 'own' | 'other' | 'overlap'
@@ -35,6 +35,7 @@ export function comparisonLinePaint(
   const overlap = role === 'overlap'
   if (mode === 'routes')
     return {
+      ...INSTANT_LINE_TRANSITIONS,
       'line-color': color,
       'line-width': overlap
         ? ['interpolate', ['linear'], ['zoom'], 5, 1.5, 12, 2.5, 16, 3.5]
@@ -51,6 +52,7 @@ export function comparisonLinePaint(
     }
   const hotspots = mode === 'hotspots'
   return {
+    ...INSTANT_LINE_TRANSITIONS,
     'line-color': color,
     'line-width': [
       'interpolate',
@@ -66,12 +68,12 @@ export function comparisonLinePaint(
     'line-opacity': hotspots ? (overlap ? 0.2 : 0.12) : overlap ? 0.16 : 0.1,
     'line-blur': mode === 'glow' ? 0.8 : 0,
     'line-dasharray': [1, 0],
-    'line-opacity-transition': { duration: 0 },
   }
 }
 
 export function comparisonGlowPaint(color: string): LineLayerSpecification['paint'] {
   return {
+    ...INSTANT_LINE_TRANSITIONS,
     'line-color': color,
     'line-width': ['interpolate', ['linear'], ['zoom'], 5, 3, 12, 7, 16, 12],
     'line-blur': ['interpolate', ['linear'], ['zoom'], 5, 2, 12, 5, 16, 8],

@@ -3,19 +3,24 @@
 import { CircleDot } from 'lucide-react'
 
 import { useMapStyle } from '@/hooks/use-map-style'
+import { useKeyboardShortcut } from '@/hooks/use-keyboard-shortcut'
+import { SHORTCUTS } from '@/lib/keyboard-shortcuts'
 import { Tooltip } from './tooltip'
 
 export function MapStyleToggle() {
   const { style, setStyle } = useMapStyle()
   const isHeat = style === 'hotspots'
+  const toggleStyle = () => setStyle(isHeat ? 'routes' : 'hotspots')
+  useKeyboardShortcut('toggle-map-style', toggleStyle)
 
   return (
-    <Tooltip text="map style">
+    <Tooltip text="map style" shortcut={SHORTCUTS['toggle-map-style'].label}>
       <button
         type="button"
         aria-label="Heat map"
+        aria-keyshortcuts={SHORTCUTS['toggle-map-style'].aria}
         aria-pressed={isHeat}
-        onClick={() => setStyle(isHeat ? 'routes' : 'hotspots')}
+        onClick={toggleStyle}
         className="mobile-touch-target flex size-8 shrink-0 items-center justify-center rounded-lg floating-control focus-ring md:size-[35px]"
       >
         <CircleDot

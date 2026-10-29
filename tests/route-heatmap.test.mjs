@@ -172,3 +172,87 @@ test('stone heatmaps adapt to the theme and preserve intensity when dimming sele
   }
   assert.notDeepEqual(heatmapPaint(false)['heatmap-color'], heatmapPaint(true)['heatmap-color'])
 })
+
+test('heatmap sampling rejects a point budget before allocating the oversized result', () => {
+  const data = collection(
+    line([
+      [0, 0],
+      [0.01, 0],
+    ]),
+  )
+  assert.throws(() => sampleRouteHeatmap(data, 2), /heatmap_too_large/)
+})
+
+test('heatmap cache bounds total retained bytes, preserves active sources, and revokes URLs on unmount', async (t) => {
+  const MiB = 1024 * 1024
+  const revoked = []
+  t.mock.method(URL, 'revokeObjectURL', (url) => revoked.push(url))
+  t.mock.method(URL, 'createObjectURL', () => 'blob:new')
+  t.mock.method(globalThis, 'setTimeout', (fn) => {
+    queueMicrotask(fn)
+    return 0
+  })
+  t.mock.method(globalThis, 'clearTimeout', () => {})
+  const previousDocument = globalThis.document,
+    previousWorker = globalThis.Worker
+  globalThis.document = { visibilityState: 'visible', addEventListener() {}, removeEventListener() {} }
+  const workers = []
+  globalThis.Worker = class {
+    constructor() {
+      workers.push(this)
+    }
+    postMessage() {}
+    terminate() {
+      this.terminated = true
+    }
+  }
+  t.after(() => {
+    if (previousDocument === undefined) delete globalThis.document
+    else globalThis.document = previousDocument
+    if (previousWorker === undefined) delete globalThis.Worker
+    else globalThis.Worker = previousWorker
+  })
+  for (const activeBytes of [20 * MiB, 40 * MiB]) {
+    const active = collection(),
+      old = collection(),
+      incoming = collection()
+    const cache = new Map([
+      [active, { url: 'blob:active', bytes: activeBytes }],
+      [old, { url: 'blob:old', bytes: 40 * MiB }],
+    ])
+    const effects = [],
+      cleanups = []
+    let result
+    const { useRouteHeatmap: renderHook } = loadTs('src/hooks/use-route-heatmap.ts', {
+      react: {
+        useRef: () => ({ current: cache }),
+        useState: () => [
+          null,
+          (value) => {
+            result = value
+          },
+        ],
+        useEffect: (fn) => effects.push(fn),
+      },
+    })
+    renderHook({ own: active, other: incoming, overlap: incoming }, true)
+    effects.forEach((fn) => cleanups.push(fn()))
+    await new Promise(setImmediate)
+    const worker = workers.at(-1)
+    worker.onmessage({ data: { blobs: [{ size: 30 * MiB }] } })
+    assert.equal(worker.terminated, true)
+    if (activeBytes === 20 * MiB) {
+      assert.deepEqual(result.data, { own: 'blob:active', other: 'blob:new', overlap: 'blob:new' })
+      assert.equal(cache.has(old), false)
+      assert.ok(revoked.includes('blob:old'))
+      assert.ok([...cache.values()].reduce((n, entry) => n + entry.bytes, 0) <= 64 * MiB)
+    } else {
+      assert.match(result.error, /showing routes/)
+      assert.equal(cache.has(incoming), false)
+      assert.equal(cache.get(active).url, 'blob:active')
+    }
+    cleanups.reverse().forEach((cleanup) => cleanup?.())
+    assert.equal(cache.size, 0)
+    assert.ok(revoked.includes('blob:active'))
+  }
+})

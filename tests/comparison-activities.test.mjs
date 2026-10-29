@@ -71,3 +71,15 @@ test('account changes during sync and cancellation while restoring discard the r
   })
   await assert.rejects(load('token', controller.signal), { name: 'AbortError' })
 })
+
+test('speculative preparation never starts a Strava sync for a missing or stale cache', async (t) => {
+  const requests = []
+  t.mock.method(globalThis, 'fetch', async (url) => {
+    requests.push(url)
+    return Response.json(status)
+  })
+  for (const cached of [null, { activities: [], sync: { ...fresh, version: 'old' } }]) {
+    await assert.rejects(loader(async () => cached)('token', signal(), true), /comparison_not_cached/)
+  }
+  assert.deepEqual(requests, ['/api/activities/status', '/api/activities/status'])
+})

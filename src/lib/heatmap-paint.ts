@@ -21,6 +21,7 @@ export function heatmapPaint(isDark: boolean, opacity = 0.8, color?: string): He
     'heatmap-intensity': ['interpolate', ['linear'], ['zoom'], 5, 0.01, 12, 0.035, 16, 0.2],
     'heatmap-radius': ['interpolate', ['linear'], ['zoom'], 5, 5, 12, 12, 16, 20],
     'heatmap-opacity': opacity,
+    'heatmap-opacity-transition': { duration: 0 },
     'heatmap-color': color
       ? [
           'interpolate',
