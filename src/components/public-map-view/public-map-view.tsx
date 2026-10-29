@@ -44,7 +44,7 @@ function PublicHeader({
   const byline = (
     <span
       tabIndex={updatedAt ? 0 : undefined}
-      className="inline-flex h-7 max-w-[24vw] min-w-0 items-center rounded-lg px-2 text-xs-compact focus-ring-inset"
+      className="inline-flex h-7 max-w-[24vw] min-w-0 cursor-default items-center rounded-lg px-2 text-xs-compact focus-ring-inset"
     >
       <span className="truncate">/{slug}</span>
     </span>

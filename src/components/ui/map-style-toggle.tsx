@@ -14,7 +14,7 @@ export function MapStyleToggle() {
   useKeyboardShortcut('toggle-map-style', toggleStyle)
 
   return (
-    <Tooltip text="map style" shortcut={SHORTCUTS['toggle-map-style'].label}>
+    <Tooltip text="map style">
       <button
         type="button"
         aria-label="Heat map"

@@ -120,6 +120,7 @@ interface HeaderChipProps extends ButtonHTMLAttributes<HTMLButtonElement> {
    * menu is open). Toggling `tooltip` itself would remount the button.
    */
   tooltipHidden?: boolean
+  tooltipWhenDisabled?: boolean
   ref?: Ref<HTMLButtonElement>
 }
 
@@ -128,6 +129,7 @@ export function HeaderChip({
   tooltip,
   tooltipAlign,
   tooltipHidden = false,
+  tooltipWhenDisabled = false,
   className,
   ...props
 }: HeaderChipProps) {
@@ -136,7 +138,7 @@ export function HeaderChip({
   )
   if (!tooltip) return button
   return (
-    <Tooltip text={tooltip} align={tooltipAlign} disabled={props.disabled || tooltipHidden}>
+    <Tooltip text={tooltip} align={tooltipAlign} disabled={tooltipHidden || (props.disabled && !tooltipWhenDisabled)}>
       {button}
     </Tooltip>
   )

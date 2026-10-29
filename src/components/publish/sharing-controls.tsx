@@ -284,7 +284,8 @@ export function SharingControls({
           variant={currentSlug ? 'text' : 'icon'}
           aria-label={currentSlug ? 'Sharing options' : 'Share map'}
           aria-expanded={open}
-          tooltip={isSyncing ? 'syncing activities' : currentSlug ? 'sharing options' : 'share map'}
+          tooltip={isSyncing ? 'syncing...' : currentSlug ? 'sharing options' : 'share map'}
+          tooltipWhenDisabled={isSyncing}
           tooltipHidden={open}
           disabled={busy}
           onClick={open ? () => close() : openControls}
