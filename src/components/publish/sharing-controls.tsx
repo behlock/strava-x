@@ -281,6 +281,7 @@ export function SharingControls({
           variant="text"
           aria-label={currentSlug ? 'Sharing options' : 'Share map'}
           aria-expanded={open}
+          aria-busy={isSyncing}
           tooltip={isSyncing ? 'syncing...' : currentSlug ? 'sharing options' : 'share map'}
           tooltipWhenDisabled={isSyncing}
           tooltipHidden={open}
@@ -288,16 +289,15 @@ export function SharingControls({
           onClick={open ? () => close() : openControls}
           className={cn('h-9 gap-2 md:h-[35px]', currentSlug && 'max-w-[40vw]')}
         >
-          {isSyncing ? (
-            <LoaderCircle className="size-4 motion-safe:animate-spin" aria-hidden="true" />
-          ) : currentSlug ? (
+          {isSyncing && <LoaderCircle className="size-4 shrink-0 motion-safe:animate-spin" aria-hidden="true" />}
+          {currentSlug ? (
             <span className="truncate">/{currentSlug}</span>
-          ) : (
+          ) : !isSyncing ? (
             <>
               <Share2 className="size-3.5" aria-hidden="true" />
               <span>share map</span>
             </>
-          )}
+          ) : null}
         </HeaderChip>
       )}
       <div

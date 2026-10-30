@@ -264,3 +264,28 @@ test('sharing copies the full map URL and announces success', async (t) => {
   assert.ok(find(tree, (node) => node.props?.label === 'Link copied'))
   fixture.runtime.unmount()
 })
+
+test('verified address appears during sync instead of waiting for sync to finish', () => {
+  const render = renderer()
+  const SharingControls = component(render.react)
+  const syncing = { ...props, open: false, isSyncing: true, currentSlug: null }
+  let tree = render.render(SharingControls, syncing)
+  assert.equal(
+    find(tree, (node) => node.type === 'span' && node.props.children?.includes?.('owner')),
+    undefined,
+  )
+  tree = render.render(SharingControls, { ...syncing, currentSlug: 'owner' })
+  const trigger = find(tree, (node) => node.props?.['aria-label'] === 'Sharing options')
+  assert.equal(trigger.props['aria-busy'], true)
+  assert.equal(trigger.props.disabled, true)
+  assert(find(trigger, (node) => node.type === 'span' && node.props.children?.includes?.('owner')))
+  assert(find(trigger, (node) => node.props?.className?.includes('animate-spin')))
+  tree = render.render(SharingControls, { ...props, open: false })
+  const ready = find(tree, (node) => node.props?.['aria-label'] === 'Sharing options')
+  assert(find(ready, (node) => node.type === 'span' && node.props.children?.includes?.('owner')))
+  assert.equal(
+    find(ready, (node) => node.props?.className?.includes('animate-spin')),
+    undefined,
+  )
+  render.unmount()
+})
