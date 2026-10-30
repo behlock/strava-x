@@ -45,7 +45,7 @@ test('random selection uses only active published snapshots and deprioritizes th
   assert.equal(await randomPublishedMap('my-map'), 'friend')
   assert.match(query, /WHERE active AND slug IS NOT NULL AND snapshot_path IS NOT NULL/)
   assert.match(query, /CASE WHEN slug = ANY/)
-  assert.deepEqual(values, ['my-map', []])
+  assert.deepEqual(values, [null, 'my-map', []])
 })
 
 test('explore remembers visited maps and starts a new cycle when the pool is exhausted', async () => {
@@ -70,4 +70,18 @@ test('explore remembers visited maps and starts a new cycle when the pool is exh
   response = await GET(request())
   assert.match(response.headers.get('set-cookie'), /^explore_seen=second-map,first-map;/)
   assert.match(response.headers.get('set-cookie'), /HttpOnly; SameSite=Lax; Secure/)
+})
+
+test('Explore passes own-map exclusion independently of current map and history', async () => {
+  let args
+  const { GET } = loadTs('src/app/explore/route.ts', {
+    '@/lib/explore': {
+      pickExploreMap: async (...values) => {
+        args = values
+        return 'another-map'
+      },
+    },
+  })
+  await GET(new Request('https://example.com/explore?from=friend&own=my-map'))
+  assert.deepEqual(args, ['friend', ['friend'], 'my-map'])
 })

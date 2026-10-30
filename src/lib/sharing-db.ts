@@ -17,9 +17,14 @@ export interface ShareRow {
 }
 const sql = () => neon(process.env.POSTGRES_URL || process.env.DATABASE_URL || '')
 
-export async function randomPublishedMap(exclude: string | null, visited: string[] = []): Promise<string | null> {
+export async function randomPublishedMap(
+  exclude: string | null,
+  visited: string[] = [],
+  own: string | null = null,
+): Promise<string | null> {
   const rows = await sql()`SELECT slug FROM map_shares
     WHERE active AND slug IS NOT NULL AND snapshot_path IS NOT NULL
+      AND slug <> COALESCE(${own}::text, '')
     ORDER BY CASE WHEN slug = ${exclude} THEN 1 ELSE 0 END,
       CASE WHEN slug = ANY(${visited}::text[]) THEN 1 ELSE 0 END, random()
     LIMIT 1`

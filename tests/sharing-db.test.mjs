@@ -165,9 +165,12 @@ test(
 
     // Exercise the actual PostgreSQL selection and array parameters, not just SQL shape.
     assert.equal(await db.randomPublishedMap(null), 'deletion-test')
+    assert.equal(await db.randomPublishedMap(null, [], 'deletion-test'), null)
     assert.equal(await db.randomPublishedMap('deletion-test', ['deletion-test']), 'deletion-test')
     await db.compareAndSwapShare(await db.ensureShare(8), write('explore-second', 'explore-second-path'))
     await db.compareAndSwapShare(await db.ensureShare(9), write('explore-third', 'explore-third-path'))
+    assert.equal(await db.randomPublishedMap('explore-second', [], 'deletion-test'), 'explore-third')
+    assert.equal(await db.randomPublishedMap('explore-second', ['explore-third'], 'deletion-test'), 'explore-third')
     assert.equal(await db.randomPublishedMap('deletion-test', ['deletion-test', 'explore-second']), 'explore-third')
     assert.notEqual(
       await db.randomPublishedMap('deletion-test', ['deletion-test', 'explore-second', 'explore-third']),

@@ -4,6 +4,7 @@ import { usePathname } from 'next/navigation'
 import { Suspense, useRef } from 'react'
 import { ArrowRight, ArrowUpRight } from 'lucide-react'
 
+import { ExploreButton } from '@/components/ui/explore-button'
 import { StravaAuthError } from '@/components/ui/strava-auth-error'
 import { cn } from '@/lib/utils'
 import { SITE_NAME } from '@/lib/site'
@@ -66,15 +67,10 @@ export function WelcomePanel({ open, onConnect }: WelcomePanelProps) {
             connect your strava
           </button>
           {/* Keep the community directory code available for a future launch. */}
-          {/* Native navigation requests a new random redirect on every click, without router prefetch/cache. */}
-          {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
-          <a
-            href="/explore"
-            className={cn(BUTTON, 'border-panel-border hover:border-foreground hover:bg-foreground/5')}
-          >
+          <ExploreButton className={cn(BUTTON, 'border-panel-border hover:border-foreground hover:bg-foreground/5')}>
             <ArrowUpRight className={BUTTON_ICON} aria-hidden="true" />
             <span className="flex-1">explore</span>
-          </a>
+          </ExploreButton>
         </div>
       </div>
     </div>

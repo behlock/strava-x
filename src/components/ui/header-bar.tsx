@@ -1,7 +1,7 @@
 'use client'
 
 import { type ButtonHTMLAttributes, type ReactNode, type Ref, useContext } from 'react'
-import { usePathname } from 'next/navigation'
+import { ExploreButton } from './explore-button'
 import { Compass, ArrowRight, PanelLeft } from 'lucide-react'
 
 import { cn } from '@/lib/utils'
@@ -44,7 +44,6 @@ export function HeaderBar({
   showProfileMenu = Boolean(onDisconnect),
 }: HeaderBarProps) {
   const sidebar = useContext(SidebarContext)
-  const pathname = usePathname()
   useKeyboardShortcut('toggle-ui', () => sidebar?.toggle(), Boolean(sidebar))
   return (
     <header
@@ -98,13 +97,9 @@ export function HeaderBar({
         {children}
         {/* Community directory (/maps) is parked for now; explore opens a random published map. */}
         <Tooltip text="explore">
-          <a
-            href={`/explore?from=${encodeURIComponent(pathname.slice(1))}`}
-            aria-label="Explore a random map"
-            className="mobile-touch-target inline-flex size-9 shrink-0 items-center justify-center rounded-lg floating-control focus-ring md:size-[35px]"
-          >
+          <ExploreButton className="mobile-touch-target inline-flex size-9 shrink-0 items-center justify-center rounded-lg floating-control focus-ring md:size-[35px]">
             <Compass className="size-4" aria-hidden="true" />
-          </a>
+          </ExploreButton>
         </Tooltip>
         {onConnect && (
           <button

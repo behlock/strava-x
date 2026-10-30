@@ -8,6 +8,9 @@ const headers = { 'Cache-Control': 'private, no-store, max-age=0', 'X-Robots-Tag
 export async function GET(request: Request) {
   const from = new URL(request.url).searchParams.get('from')
   const checked = from ? validateSlug(from) : null
+  // Public address exclusion only; this query parameter never grants access.
+  const ownParam = new URL(request.url).searchParams.get('own')
+  const own = ownParam ? validateSlug(ownParam) : null
   const current = checked?.ok ? checked.slug : null
   const cookie =
     request.headers
@@ -27,7 +30,7 @@ export async function GET(request: Request) {
     ]),
   ].slice(-100)
   try {
-    const slug = await pickExploreMap(current, visited)
+    const slug = await pickExploreMap(current, visited, own?.ok ? own.slug : null)
     // Only validated internal map addresses can become redirect destinations.
     const destination = slug && validateSlug(slug).ok ? `/${slug}` : '/'
     const history =
