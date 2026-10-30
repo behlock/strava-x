@@ -32,6 +32,7 @@ import {
 import type { RouteHeatmaps } from '@/lib/route-heatmap'
 
 interface FitOptions {
+  animate?: boolean
   padding?: PaddingOptions
 }
 
@@ -197,7 +198,7 @@ export const ActivityMap = memo(function ActivityMap({
     mapRef.current?.fitBounds(bounds, {
       padding: options?.padding ?? DEFAULT_PADDING,
       retainPadding: false,
-      duration: 500,
+      duration: options?.animate === false ? 0 : 250,
       maxZoom: 16,
     })
   }, [])

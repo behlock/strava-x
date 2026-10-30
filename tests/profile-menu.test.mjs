@@ -54,29 +54,29 @@ function fixture() {
 test('opening logout confirmation and cancelling never disconnects', () => {
   const ui = fixture()
   let tree = ui.render()
-  find(tree, (node) => node.props?.['aria-label'] === 'Log out').props.onClick()
+  find(tree, (node) => node.props?.['aria-label'] === 'Disconnect').props.onClick()
   assert.equal(ui.disconnects, 0)
   tree = ui.render()
   assert.equal(
     find(tree, (node) => node.type === 'dialog'),
     undefined,
   )
-  assert.ok(find(tree, (node) => node.props?.role === 'status' && node.props.children === 'log out?'))
-  find(tree, (node) => node.props?.['aria-label'] === 'Cancel log out').props.onClick()
+  assert.ok(find(tree, (node) => node.props?.role === 'status' && node.props.children === 'disconnect?'))
+  find(tree, (node) => node.props?.['aria-label'] === 'Cancel disconnect').props.onClick()
   assert.equal(ui.disconnects, 0)
   assert.equal(
-    find(ui.render(), (node) => node.props?.['aria-label'] === 'Confirm log out'),
+    find(ui.render(), (node) => node.props?.['aria-label'] === 'Confirm disconnect'),
     undefined,
   )
 })
 
 test('only confirming logout invokes the disconnect action', () => {
   const ui = fixture()
-  find(ui.render(), (node) => node.props?.['aria-label'] === 'Log out').props.onClick()
-  find(ui.render(), (node) => node.props?.['aria-label'] === 'Confirm log out').props.onClick()
+  find(ui.render(), (node) => node.props?.['aria-label'] === 'Disconnect').props.onClick()
+  find(ui.render(), (node) => node.props?.['aria-label'] === 'Confirm disconnect').props.onClick()
   assert.equal(ui.disconnects, 1)
   assert.equal(
-    find(ui.render(), (node) => node.props?.['aria-label'] === 'Confirm log out'),
+    find(ui.render(), (node) => node.props?.['aria-label'] === 'Confirm disconnect'),
     undefined,
   )
 })

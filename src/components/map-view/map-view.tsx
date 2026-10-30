@@ -193,12 +193,15 @@ export function MapView({
     }
   }, [])
 
-  const handleActivityNavigate = useCallback((activity: Activity) => {
-    const coords = activity.feature?.geometry.coordinates
-    if (!coords?.length) return
-    const [longitude, latitude] = activity.navigationCoordinate ?? coords[Math.floor(coords.length / 2)]
-    mapRef.current?.flyTo({ latitude, longitude, zoom: 13 })
-  }, [])
+  const handleActivityNavigate = useCallback(
+    (activity: Activity) => {
+      if (hoverPanTimeoutRef.current) clearTimeout(hoverPanTimeoutRef.current)
+      setHighlightedActivityId(activity.id)
+      const coords = activity.feature?.geometry.coordinates as LngLat[] | undefined
+      if (coords?.length) mapRef.current?.fitToBounds(coords, { padding: computePadding(), animate: false })
+    },
+    [computePadding],
+  )
 
   // Filter changes re-render a large list and the map source; keep the
   // controls responsive by marking them as transitions.
@@ -232,7 +235,7 @@ export function MapView({
   )
 
   const handleClusterSelect = useCallback(
-    (id: string | null, toggle = false) => {
+    (id: string | null, toggle = false, animate = true) => {
       setHighlightedActivityId(null)
       if (hoverPanTimeoutRef.current) clearTimeout(hoverPanTimeoutRef.current)
       if (id === null || (toggle && (selectedCluster?.id ?? selectedLocation?.id) === id)) {
@@ -248,7 +251,7 @@ export function MapView({
           [minLng, minLat],
           [maxLng, maxLat],
         ],
-        { padding: computePadding() },
+        { padding: computePadding(), animate },
       )
     },
     [clusters, computePadding, selectedLocation, selectedCluster],

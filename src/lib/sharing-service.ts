@@ -1,3 +1,4 @@
+import { topRunningCity } from './top-running-city'
 import type { ShareRow, ShareWrite } from './sharing-db'
 import { canonicalSnapshot } from './share-snapshot'
 import { digest, readProof, type SnapshotProof } from './sharing-proof'
@@ -32,6 +33,7 @@ function existingValues(row: ShareRow): ShareWrite {
     activityCount: row.activity_count,
     sizeBytes: row.size_bytes,
     updatedAt: row.updated_at,
+    topCity: row.top_city ?? null,
   }
 }
 
@@ -48,6 +50,7 @@ export async function mutateShare(store: SharingStore, input: Mutation): Promise
       fingerprint: null,
       activityCount: 0,
       sizeBytes: 0,
+      topCity: null,
     })
   } else if (input.action === 'rename') {
     if (!current.active || !input.slug) throw new SharingError('publication_changed')
@@ -70,6 +73,7 @@ export async function mutateShare(store: SharingStore, input: Mutation): Promise
     if (Buffer.byteLength(canonical) > 25 * 1024 * 1024) throw new SharingError('payload_too_large')
     const fingerprint = digest(canonical)
     if (proof.fingerprint !== fingerprint) throw new SharingError('invalid_snapshot')
+    const topCity = await topRunningCity(JSON.parse(canonical))
     const updatedAt = new Date().toISOString()
     const body = `{"version":1,"updatedAt":${JSON.stringify(updatedAt)},"activities":${canonical}}`
     const snapshotPath = await store.upload(input.athleteId, body)
@@ -78,6 +82,7 @@ export async function mutateShare(store: SharingStore, input: Mutation): Promise
       slug: input.action === 'update' ? current.slug : input.slug,
       snapshotPath,
       fingerprint,
+      topCity,
       updatedAt,
       activityCount: (input.activities as unknown[]).length,
       displayName: input.displayName,

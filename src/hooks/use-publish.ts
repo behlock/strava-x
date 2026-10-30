@@ -3,6 +3,7 @@
 import { useCallback, useRef, useState } from 'react'
 import { validateSlug } from '@/lib/slug'
 import type { ShareState, VerifiedSnapshot } from '@/lib/share-snapshot'
+import { clearPublishedOwner, getPublishedOwnerEpoch, rememberPublishedOwner } from '@/lib/published-owner'
 
 const PUBLISH_ERRORS = [
   'invalid_slug',
@@ -44,13 +45,15 @@ export function usePublish({ getAccessToken }: { getAccessToken: () => Promise<s
   const snapshot = useRef<VerifiedSnapshot | null>(null)
   const generation = useRef(0)
   const writing = useRef(false)
-  const acceptState = useCallback((next: ShareState) => {
+  const acceptState = useCallback((next: ShareState, ownerEpoch: number) => {
     state.current = next
     setCurrentSlug(next.slug)
+    rememberPublishedOwner(next, ownerEpoch)
   }, [])
   const refreshCurrentSlug = useCallback(
     async (signal?: AbortSignal) => {
       const version = generation.current
+      const ownerEpoch = getPublishedOwnerEpoch()
       const token = await getAccessToken()
       if (!token || signal?.aborted) return
       const res = await fetch('/api/publish/me', {
@@ -66,7 +69,7 @@ export function usePublish({ getAccessToken }: { getAccessToken: () => Promise<s
       if (state.current?.athleteId === next.athleteId && BigInt(next.revision) < BigInt(state.current.revision)) return
       if (snapshot.current?.athleteId !== next.athleteId || snapshot.current?.revision !== next.revision)
         snapshot.current = null
-      acceptState(next)
+      acceptState(next, ownerEpoch)
       return next
     },
     [getAccessToken, acceptState],
@@ -85,6 +88,7 @@ export function usePublish({ getAccessToken }: { getAccessToken: () => Promise<s
       if (signal?.aborted) return { error: 'cancelled' }
       writing.current = true
       const version = ++generation.current
+      const ownerEpoch = getPublishedOwnerEpoch()
       setIsPublishing(true)
       try {
         const accessToken = await getAccessToken()
@@ -154,7 +158,7 @@ export function usePublish({ getAccessToken }: { getAccessToken: () => Promise<s
         }
         const next = (await res.json()) as PublishResult
         if (!signal?.aborted && version === generation.current) {
-          acceptState(next)
+          acceptState(next, ownerEpoch)
           // A proof is bound to exactly one revision, never rebase it silently.
           if (next.revision !== before.revision) snapshot.current = null
         }
@@ -203,6 +207,7 @@ export function usePublish({ getAccessToken }: { getAccessToken: () => Promise<s
     snapshot.current = null
     state.current = null
     setCurrentSlug(null)
+    clearPublishedOwner()
   }, [])
   const beginSync = useCallback(() => {
     snapshot.current = null
@@ -212,7 +217,7 @@ export function usePublish({ getAccessToken }: { getAccessToken: () => Promise<s
     async (verified: VerifiedSnapshot, next: ShareState, version: number, signal: AbortSignal) => {
       if (signal.aborted || generation.current !== version || writing.current) return
       if (state.current?.athleteId === next.athleteId && BigInt(state.current.revision) > BigInt(next.revision)) return
-      acceptState(next)
+      acceptState(next, getPublishedOwnerEpoch())
       snapshot.current = verified
       if (!next.slug) return
       return mutate('update', undefined, signal)

@@ -111,7 +111,7 @@ export function ActivityList({
 
       if (e.key === 'Enter') {
         const selected = sortedActivities[current]
-        if (selected) onActivityClick(selected)
+        if (selected) onActivityNavigate(selected)
         return
       }
 
@@ -124,7 +124,6 @@ export function ActivityList({
       selectedIndexRef.current = next
       pointerLockRef.current = pointerRef.current ?? { x: Number.NaN, y: Number.NaN }
       const activity = sortedActivities[next]
-      onActivityHover(activity.id)
       onActivityNavigate(activity)
       const parent = parentRef.current
       if (!parent) return
@@ -133,7 +132,7 @@ export function ActivityList({
         if (selectedIndexRef.current === next) scrollIndexIntoView(parent, next)
       })
     },
-    [sortedActivities, highlightedActivityId, onActivityHover, onActivityNavigate, onActivityClick],
+    [sortedActivities, highlightedActivityId, onActivityNavigate],
   )
 
   if (loading) {
@@ -196,13 +195,15 @@ export function ActivityList({
                       : 'hover:bg-control-hover',
                   )}
                   style={{ height: row.size, transform: `translateY(${row.start}px)` }}
-                  onMouseEnter={(e) => {
+                  onPointerEnter={(e) => {
+                    if (e.pointerType === 'touch') return
                     pointerRef.current = { x: e.clientX, y: e.clientY }
                     if (pointerLockRef.current) return
                     selectedIndexRef.current = row.index
                     onActivityHover(activity.id)
                   }}
-                  onMouseLeave={() => {
+                  onPointerLeave={(event) => {
+                    if (event.pointerType === 'touch') return
                     if (pointerLockRef.current) return
                     onActivityHover(null)
                   }}

@@ -2,6 +2,7 @@ import { type NextRequest } from 'next/server'
 import { findShareBySlug } from '@/lib/sharing-db'
 import { readPrivateSnapshot } from '@/lib/sharing-storage'
 import { validateSlug } from '@/lib/slug'
+import { enforceRateLimit } from '@/lib/api'
 import { loadLocalMap } from '@/lib/local-map'
 
 export const runtime = 'nodejs'
@@ -16,7 +17,11 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ slu
   const checked = validateSlug((await params).slug)
   if (!checked.ok) return new Response(null, { status: 404, headers })
   const query = _req?.nextUrl.searchParams
-  if (query?.get('view') === 'render' || query?.has('tile')) {
+  if (query?.get('view') === 'thumbnail') {
+    const limited = enforceRateLimit(_req, 'map-thumbnail', { windowMs: 60_000, max: 120 })
+    if (limited) return limited
+  }
+  if (query?.get('view') === 'thumbnail' || query?.get('view') === 'render' || query?.has('tile')) {
     const { servePublicRender } = await import('@/lib/public-render-server')
     return servePublicRender(checked.slug, _req.nextUrl.searchParams)
   }

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useSyncExternalStore } from 'react'
 
 import { STRAVA_CONNECTED_COOKIE } from '@/lib/cookies'
+import { clearPublishedOwner } from '@/lib/published-owner'
 
 const REFRESH_SKEW_SECONDS = 60
 
@@ -39,6 +40,7 @@ function subscribeSession(listener: () => void): () => void {
 }
 
 function notifySessionChange(): void {
+  if (!hasConnectedCookie()) clearPublishedOwner()
   for (const listener of sessionListeners) listener()
 }
 
@@ -138,6 +140,7 @@ export function useStravaAuth(): UseStravaAuth {
 
   const resolveAccessToken = useCallback(async (): Promise<AccessTokenResult> => {
     if (!hasConnectedCookie()) {
+      clearPublishedOwner()
       tokenRef.current = null
       return { status: 'unauthenticated' }
     }

@@ -115,3 +115,53 @@ test('large manifests bind full precision comparisons to the same published revi
   live = { ...row, revision: 'b' }
   assert.equal((await s.serve(query)).status, 404)
 })
+
+test('static thumbnails are SVG, reuse storage, and are revoked with the map', async () => {
+  let live = row
+  const s = server({ readRow: async () => live })
+  const response = await s.serve('view=thumbnail')
+  assert.equal(response.status, 200)
+  assert.equal(response.headers.get('content-type'), 'image/svg+xml')
+  const svg = await response.text()
+  assert.match(svg, /<path d="M/)
+  assert.doesNotMatch(svg, /NaN|Infinity|<script/)
+  assert.equal((await s.serve('view=thumbnail')).status, 200)
+  assert.equal(s.reads(), 1)
+  live = null
+  assert.equal((await s.serve('view=thumbnail')).status, 404)
+})
+
+test('thumbnail access is rechecked after storage loading', async () => {
+  let live = row
+  const s = server({
+    readRow: async () => live,
+    onRead: () => {
+      live = null
+    },
+  })
+  assert.equal((await s.serve('view=thumbnail')).status, 404)
+})
+
+test('thumbnail preparation bounds concurrent downloads while cached previews stay available', async () => {
+  const releases = []
+  const { servePublicRender } = loadTs('src/lib/public-render-server.ts', {
+    './sharing-db': { findShareBySlug: async (slug) => ({ ...row, snapshot_path: `private/${slug}` }) },
+    './local-map': { loadLocalMap: async () => null },
+    './sharing-storage': {
+      readPrivateSnapshot: async (path, signal) => {
+        assert.ok(signal instanceof AbortSignal)
+        if (path !== 'private/cached') await new Promise((resolve) => releases.push(resolve))
+        return { statusCode: 200, stream: new Blob([JSON.stringify({ version: 1, activities: [] })]).stream() }
+      },
+    },
+  })
+  const query = new URLSearchParams('view=thumbnail')
+  assert.equal((await servePublicRender('cached', query)).status, 200)
+  const inFlight = Array.from({ length: 4 }, (_, i) => servePublicRender(`pending-${i}`, query))
+  await new Promise((resolve) => setImmediate(resolve))
+  assert.equal(releases.length, 4)
+  assert.equal((await servePublicRender('overflow', query)).status, 503)
+  assert.equal((await servePublicRender('cached', query)).status, 200)
+  releases.forEach((release) => release())
+  assert.ok((await Promise.all(inFlight)).every((response) => response.status === 200))
+})

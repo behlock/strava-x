@@ -1,7 +1,8 @@
 'use client'
 
 import { type ButtonHTMLAttributes, type ReactNode, type Ref, useContext } from 'react'
-import { ArrowRight, PanelLeft } from 'lucide-react'
+import { usePathname } from 'next/navigation'
+import { Compass, ArrowRight, PanelLeft } from 'lucide-react'
 
 import { cn } from '@/lib/utils'
 import { Tooltip, type TooltipAlign } from './tooltip'
@@ -17,6 +18,7 @@ export const HEADER_LOGO_CLASS =
 
 interface HeaderBarProps {
   logo: ReactNode
+  center?: ReactNode
   /** Status messages shown beside the logo. */
   status?: ReactNode
   /** Action chips, rendered right-aligned. */
@@ -25,20 +27,24 @@ interface HeaderBarProps {
   onConnect?: () => void
   onDisconnect?: () => void
   profilePhotoUrl?: string | null
+  framedLogo?: boolean
   showProfileMenu?: boolean
 }
 
 export function HeaderBar({
   logo,
+  center,
   status,
   children,
   className,
   onConnect,
   onDisconnect,
   profilePhotoUrl,
+  framedLogo = false,
   showProfileMenu = Boolean(onDisconnect),
 }: HeaderBarProps) {
   const sidebar = useContext(SidebarContext)
+  const pathname = usePathname()
   useKeyboardShortcut('toggle-ui', () => sidebar?.toggle(), Boolean(sidebar))
   return (
     <header
@@ -48,15 +54,19 @@ export function HeaderBar({
         paddingRight: 'max(1rem, env(safe-area-inset-right, 0px))',
       }}
       className={cn(
-        'flex items-center justify-between gap-2 bg-linear-to-b from-background/90 to-transparent px-4 py-3',
+        'relative flex items-center justify-between gap-2 bg-linear-to-b from-background/90 to-transparent px-4 py-3',
+        center && 'flex-wrap md:flex-nowrap',
         className,
       )}
     >
       <div
         className={cn(
           'flex min-w-0 items-center gap-3',
-          sidebar && !sidebar.mobile && 'justify-between rounded-xl border border-panel-border bg-panel px-3 py-1.5',
-          sidebar && !sidebar.mobile && 'w-56 lg:w-64 xl:w-72',
+          sidebar && !sidebar.mobile && 'h-[35px] justify-between rounded-xl border border-panel-border bg-panel px-3',
+          sidebar && !sidebar.mobile && 'w-56 shrink-0 lg:w-64 xl:w-72',
+          framedLogo &&
+            !sidebar &&
+            'md:h-[35px] md:w-56 md:shrink-0 md:rounded-xl md:border md:border-panel-border md:bg-panel md:px-3 md:py-0 lg:w-64 xl:w-72',
         )}
       >
         <div className="flex min-w-0 items-center gap-3">
@@ -79,8 +89,23 @@ export function HeaderBar({
           </Tooltip>
         )}
       </div>
+      {center && (
+        <div className="order-last flex w-full min-w-0 justify-center md:absolute md:top-1/2 md:left-1/2 md:order-none md:w-auto md:max-w-[24vw] md:-translate-x-1/2 md:-translate-y-1/2">
+          {center}
+        </div>
+      )}
       <div className="flex shrink-0 items-center gap-3">
         {children}
+        {/* Community directory (/maps) is parked for now; explore opens a random published map. */}
+        <Tooltip text="explore">
+          <a
+            href={`/explore?from=${encodeURIComponent(pathname.slice(1))}`}
+            aria-label="Explore a random map"
+            className="mobile-touch-target inline-flex size-9 shrink-0 items-center justify-center rounded-lg floating-control focus-ring md:size-[35px]"
+          >
+            <Compass className="size-4" aria-hidden="true" />
+          </a>
+        </Tooltip>
         {onConnect && (
           <button
             type="button"

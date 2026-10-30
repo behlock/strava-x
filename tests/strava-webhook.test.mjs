@@ -86,3 +86,18 @@ test('storage errors are not acknowledged, allowing Strava to retry', async () =
   })
   assert.equal((await POST(request())).status, 503)
 })
+
+test('deletions and visibility changes invalidate snapshots, ordinary updates do not', async () => {
+  const changes = []
+  const { POST } = route(async (...args) => changes.push(args))
+  await POST(request({ ...event, aspect_type: 'delete' }))
+  await POST(request({ ...event, aspect_type: 'update', updates: { private: 'true' } }))
+  await POST(request({ ...event, aspect_type: 'update', updates: { visibility: 'followers_only' } }))
+  await POST(request({ ...event, aspect_type: 'update', updates: { type: 'Run' } }))
+  await POST(request())
+  assert.deepEqual(
+    changes.map((args) => args[3]),
+    [true, true, true, false, false],
+  )
+  assert.ok(changes.every((args) => args[2] === false))
+})

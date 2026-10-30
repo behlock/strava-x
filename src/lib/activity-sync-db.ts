@@ -15,7 +15,12 @@ export async function getActivityVersion(athleteId: number): Promise<string> {
   return `${prefix}:${rows[0].version}`
 }
 
-export async function recordActivityChange(athleteId: number, eventKey: string, revoked: boolean): Promise<void> {
+export async function recordActivityChange(
+  athleteId: number,
+  eventKey: string,
+  revoked: boolean,
+  invalidateSnapshot = false,
+): Promise<void> {
   await sql()`
     WITH changed AS (
       INSERT INTO athlete_activity_versions (athlete_id, version, last_event_key)
@@ -28,10 +33,11 @@ export async function recordActivityChange(athleteId: number, eventKey: string, 
       RETURNING athlete_id
     ), locked AS (
       SELECT athlete_id, snapshot_path FROM map_shares
-      WHERE athlete_id IN (SELECT athlete_id FROM changed) AND ${revoked}
+      WHERE athlete_id IN (SELECT athlete_id FROM changed) AND ${revoked || invalidateSnapshot}
       FOR UPDATE
     ), stopped AS (
-      UPDATE map_shares AS shares SET active=false, revision=revision+1, snapshot_path=NULL,
+      UPDATE map_shares AS shares SET active=CASE WHEN ${revoked} THEN false ELSE shares.active END,
+        revision=revision+1, snapshot_path=NULL,
         fingerprint=NULL, activity_count=0, size_bytes=0, updated_at=NULL
       FROM locked WHERE shares.athlete_id=locked.athlete_id
       RETURNING locked.snapshot_path

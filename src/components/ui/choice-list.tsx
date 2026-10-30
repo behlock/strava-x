@@ -7,7 +7,7 @@ interface ChoiceListProps {
   label: string
   options: { id: string | null; label: string; count: number }[]
   selectedId: string | null
-  onSelect: (id: string | null, toggle: boolean) => void
+  onSelect: (id: string | null, toggle: boolean, animate?: boolean) => void
   onHover?: (id: string | null) => void
   className?: string
 }
@@ -25,7 +25,9 @@ export function ChoiceList({ label, options, selectedId, onSelect, onHover, clas
       aria-label={label}
       aria-activedescendant={current >= 0 ? `${id}-${current}` : undefined}
       className={cn('space-y-0.5 px-2 py-3 focus-ring-inset', className)}
-      onMouseLeave={() => onHover?.(null)}
+      onPointerLeave={(event) => {
+        if (event.pointerType !== 'touch') onHover?.(null)
+      }}
       onKeyDown={(event) => {
         let index: number
         switch (event.key) {
@@ -45,14 +47,14 @@ export function ChoiceList({ label, options, selectedId, onSelect, onHover, clas
           case ' ':
             if (current < 0) return
             event.preventDefault()
-            onSelect(options[current].id, true)
+            onSelect(options[current].id, true, false)
             return
           default:
             return
         }
         if (!options[index]) return
         event.preventDefault()
-        onSelect(options[index].id, false)
+        onSelect(options[index].id, false, false)
         ;(ref.current?.children[index] as HTMLElement | undefined)?.scrollIntoView({ block: 'nearest' })
       }}
     >
@@ -66,7 +68,9 @@ export function ChoiceList({ label, options, selectedId, onSelect, onHover, clas
             ref.current?.focus({ preventScroll: true })
             onSelect(option.id, true)
           }}
-          onMouseEnter={() => onHover?.(option.id)}
+          onPointerEnter={(event) => {
+            if (event.pointerType !== 'touch') onHover?.(option.id)
+          }}
           className={cn(
             'relative flex min-h-11 w-full cursor-pointer items-center justify-between gap-2 rounded-lg px-3 py-1.5 text-left text-xs-compact tracking-wider transition-colors md:min-h-0',
             selectedId === option.id ? 'bg-selection font-medium text-selection-foreground' : 'hover:bg-control-hover',

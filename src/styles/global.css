@@ -6,6 +6,7 @@
 @layer base {
   :root {
     /* Restrained neutral surfaces; colour belongs to the activity data. */
+    --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
     --background: #f5f5f5;
     --foreground: #292929;
     --muted: hsl(0 0% 84%);
@@ -67,10 +68,10 @@
   --text-lg-compact--line-height: 20px;
 
   /* A shared rounded scale for controls, panels, and dialogs. */
-  --radius-sm: 3px;
-  --radius-md: 4px;
+  --radius-sm: 8px;
+  --radius-md: 8px;
   --radius-lg: 8px;
-  --radius-xl: 12px;
+  --radius-xl: 8px;
 }
 
 @layer base {
@@ -79,9 +80,24 @@
   }
   html {
     color-scheme: light;
+    -webkit-text-size-adjust: 100%;
+    overscroll-behavior: none;
   }
   html.dark {
     color-scheme: dark;
+  }
+  button,
+  [role='button'] {
+    touch-action: manipulation;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+  a {
+    touch-action: manipulation;
+  }
+  button:enabled:active,
+  [role='option']:active {
+    opacity: 0.75;
   }
   body {
     @apply bg-background font-mono text-foreground;
@@ -145,50 +161,60 @@
   display: none;
 }
 
+/* Inline space changes immediately; only the contents transition. */
 .profile-menu-reveal {
-  max-width: 0;
+  display: none;
   margin-right: 0;
-  overflow: hidden;
-  transition:
-    max-width 400ms cubic-bezier(0.25, 0.1, 0.25, 1),
-    margin-right 400ms cubic-bezier(0.25, 0.1, 0.25, 1);
 }
 .profile-menu-reveal[data-open='true'] {
-  max-width: 350px;
+  display: block;
   margin-right: 7px;
-  transition-timing-function: cubic-bezier(0.4, 0, 0.5, 1);
-}
-/* Let tooltips and shadows escape after the horizontal reveal finishes. */
-.profile-menu-reveal[data-settled-open='true'] {
-  overflow: visible;
 }
 .profile-menu-items {
-  gap: 0;
-  opacity: 0;
-  transition:
-    opacity 400ms cubic-bezier(0.25, 0.1, 0.25, 1),
-    gap 400ms cubic-bezier(0.25, 0.1, 0.25, 1);
-}
-.profile-menu-items[data-open='true'] {
   gap: 7px;
   opacity: 1;
-  transition-timing-function: cubic-bezier(0.4, 0, 0.5, 1);
+  transform: translateX(0);
+  transform-origin: right top;
+  transition:
+    opacity 160ms var(--ease-out),
+    transform 180ms var(--ease-out);
+}
+@starting-style {
+  .profile-menu-items {
+    opacity: 0;
+    transform: translateX(4px);
+  }
 }
 @media (width < 48rem) {
   .profile-menu-reveal[data-open='true'] {
     margin-right: 0;
   }
-  .profile-menu-items[data-open='true'] {
+  .profile-menu-items {
     gap: 12px;
   }
 }
-@media (prefers-reduced-motion: reduce) {
-  .profile-menu-reveal,
-  .profile-menu-items {
-    transition: none;
+/* Keyboard actions must respond immediately. */
+.control-group:has(:focus-visible) .profile-menu-items,
+.control-group:has(:focus-visible) svg,
+.control-group:has(:focus-visible) img {
+  transition: none;
+}
+@media (pointer: coarse) {
+  input[type='text'],
+  textarea,
+  select {
+    font-size: 16px;
   }
-  .profile-menu-reveal {
-    overflow: visible;
+}
+@media (prefers-reduced-motion: reduce) {
+  .profile-menu-items {
+    transition: opacity 160ms var(--ease-out);
+    transform: none;
+  }
+  @starting-style {
+    .profile-menu-items {
+      transform: none;
+    }
   }
 }
 
@@ -212,24 +238,12 @@
   }
 }
 
-.collapsible-panel {
-  transition:
-    min-height 200ms ease,
-    flex-grow 200ms ease;
-}
+/* Frequent panel toggles should not reflow the map controls over time. */
 .collapsible-panel-body {
   grid-template-rows: 1fr;
-  opacity: 1;
-  visibility: visible;
-  transition:
-    grid-template-rows 200ms ease,
-    opacity 160ms ease,
-    visibility 200ms;
 }
 .collapsible-panel[data-expanded='false'] > .collapsible-panel-body {
-  grid-template-rows: 0fr;
-  opacity: 0;
-  visibility: hidden;
+  display: none;
 }
 
 /* Sections share one grid cell so a crossfade never stacks two sheets.
@@ -238,8 +252,8 @@
   opacity: 1;
   transform: translateY(0);
   transition:
-    opacity 160ms ease-out,
-    transform 180ms ease-out,
+    opacity 160ms var(--ease-out),
+    transform 180ms var(--ease-out),
     display 180ms allow-discrete;
 }
 .mobile-sheet[hidden] {
@@ -247,6 +261,9 @@
   opacity: 0;
   transform: translateY(8px);
   pointer-events: none;
+}
+[data-keyboard='true'] .mobile-sheet {
+  transition: none;
 }
 .mobile-sheet-slot[data-switching='true'] .mobile-sheet {
   transform: none;

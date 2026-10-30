@@ -94,7 +94,6 @@ export function SharingControls({
   const [copied, setCopied] = useState(false)
   const [origin, setOrigin] = useState('')
   const [confirmingStop, setConfirmingStop] = useState(false)
-  const [settledOpen, setSettledOpen] = useState(false)
   const statusId = useId()
   const stopQuestionId = useId()
   const input = draft ?? currentSlug ?? suggestedAddress ?? ''
@@ -121,7 +120,6 @@ export function SharingControls({
     (restoreFocus = true) => {
       session.current.version++
       reset()
-      setSettledOpen(false)
       onClose()
       if (restoreFocus) triggerRef.current?.focus({ preventScroll: true })
     },
@@ -133,7 +131,6 @@ export function SharingControls({
     session.current.version++
     reset()
     setOrigin(window.location.origin)
-    setSettledOpen(window.matchMedia('(prefers-reduced-motion: reduce)').matches)
     onOpen()
   }
 
@@ -222,7 +219,7 @@ export function SharingControls({
       ref={rootRef}
       aria-label="Sharing"
       aria-busy={busy}
-      className="relative flex shrink-0 flex-row-reverse items-center"
+      className="control-group relative flex shrink-0 flex-row-reverse items-center"
       onSubmit={(event) => {
         event.preventDefault()
         if (confirmingStop) void stop()
@@ -309,15 +306,11 @@ export function SharingControls({
         inert={!open}
         aria-hidden={!open}
         data-open={open}
-        data-settled-open={settledOpen}
         style={currentSlug ? { marginRight: 0 } : undefined}
         className={cn(
           'profile-menu-reveal absolute top-[calc(100%+0.75rem)] right-0 shrink-0',
           !currentSlug && 'md:static',
         )}
-        onTransitionEnd={(event) => {
-          if (event.target === event.currentTarget && event.propertyName === 'max-width') setSettledOpen(open)
-        }}
       >
         <div
           data-open={open}

@@ -8,7 +8,7 @@ export type ActivityFeature = Feature<LineString, { id?: string }>
 
 export interface Activity {
   id: string
-  /** Unknown legacy visibility is never eligible for sharing. */
+  /** Source visibility metadata; publishing includes all imported activities. */
   visibility?: 'everyone' | 'followers_only' | 'only_me' | 'unknown'
   /** One of `ACTIVITY_TYPES`, or the raw lowercased Strava sport type for anything unmapped. */
   type: string | null

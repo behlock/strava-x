@@ -42,7 +42,7 @@ export function TimelinePanel({ dateRange, selectedDate, onDateChange }: Timelin
       }}
     >
       <div className="flex flex-col gap-1 px-3 py-2">
-        <div className="flex justify-between px-2 text-xs-compact text-panel-muted">
+        <div className="flex justify-between text-xs-compact text-panel-muted">
           <span>{formatMonth(dateRange.min)}</span>
           <span>{formatMonth(cutoffDate)}</span>
         </div>

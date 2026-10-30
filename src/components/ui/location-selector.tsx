@@ -7,7 +7,7 @@ interface LocationSelectorProps {
   clusters: ActivityCluster[]
   totalActivityCount: number
   selectedClusterId: string | null
-  onClusterSelect: (id: string | null, toggle?: boolean) => void
+  onClusterSelect: (id: string | null, toggle?: boolean, animate?: boolean) => void
 }
 export function LocationSelector({
   clusters,

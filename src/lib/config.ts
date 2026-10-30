@@ -1,4 +1,6 @@
 export const config = {
+  // Parked until the community directory is ready to launch; Explore remains available.
+  COMMUNITY_DIRECTORY: false,
   MAP_STYLE_DEBUG: process.env.NEXT_PUBLIC_MAP_STYLE_DEBUG === 'true',
   STATS_TRACKING_URL: process.env.NEXT_PUBLIC_STATS_TRACKING_URL || '',
   MAPBOX_ACCESS_TOKEN: process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN || '',

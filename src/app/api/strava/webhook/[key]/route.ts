@@ -58,6 +58,11 @@ export async function POST(req: NextRequest, { params }: WebhookContext) {
   const revoked = event.object_type === 'athlete' && event.updates?.authorized === 'false'
   const keys = Object.keys(event.updates ?? {})
   const titleOnly = event.aspect_type === 'update' && keys.length === 1 && keys[0] === 'title'
+  // Do not serve deleted/restricted routes while waiting for the owner to
+  // return. Preserve the address and sharing intent for their next full sync.
+  const invalidateSnapshot =
+    event.object_type === 'activity' &&
+    (event.aspect_type === 'delete' || keys.some((key) => key === 'private' || key === 'visibility'))
   if ((event.object_type === 'activity' && !titleOnly) || revoked) {
     const key = createHash('sha256')
       .update(
@@ -71,7 +76,7 @@ export async function POST(req: NextRequest, { params }: WebhookContext) {
       )
       .digest('hex')
     try {
-      await recordActivityChange(Number(event.owner_id), key, revoked)
+      await recordActivityChange(Number(event.owner_id), key, revoked, invalidateSnapshot)
     } catch {
       return jsonError('webhook_unavailable', 503)
     }

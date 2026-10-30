@@ -6,6 +6,7 @@ import { useComparisonAppearance } from '@/hooks/use-map-appearance'
 import { useStravaProfile } from '@/hooks/use-strava-profile'
 import { usePublish } from '@/hooks/use-publish'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { type ReactNode, useCallback, useEffect, useState } from 'react'
 
 import { ACTIVITY_TYPES, type Activity } from '@/models/activity'
@@ -43,6 +44,7 @@ function PublicHeader({
   children?: ReactNode
 }) {
   const { isConnected, disconnect } = auth
+  const router = useRouter()
   const { currentSlug, refreshCurrentSlug, isPublishing, publish, unpublish, checkSlug } = usePublish({
     getAccessToken: auth.getAccessToken,
   })
@@ -50,13 +52,17 @@ function PublicHeader({
   useEffect(() => {
     if (!isConnected) return
     const controller = new AbortController()
-    void refreshCurrentSlug(controller.signal).catch(() => {})
+    void refreshCurrentSlug(controller.signal)
+      .then((share) => {
+        if (!controller.signal.aborted && share?.slug === slug) router.replace('/')
+      })
+      .catch(() => {})
     return () => controller.abort()
-  }, [isConnected, refreshCurrentSlug])
+  }, [isConnected, refreshCurrentSlug, slug, router])
   const byline = (
     <span
       tabIndex={updatedAt ? 0 : undefined}
-      className="inline-flex h-[34px] max-w-[24vw] min-w-0 cursor-default items-center rounded-lg px-2 text-xs-compact focus-ring-inset md:h-[33px]"
+      className="inline-flex h-[34px] max-w-[24vw] min-w-0 cursor-default items-center rounded-lg px-2 text-xs-compact focus-ring-inset md:h-[31px]"
     >
       <span className="truncate">/{slug}</span>
     </span>
@@ -67,20 +73,14 @@ function PublicHeader({
       profilePhotoUrl={profile?.photoUrl}
       onDisconnect={isConnected ? disconnect : undefined}
       logo={
-        <div className="flex min-w-0 items-center gap-2">
-          <Link href="/" className={HEADER_LOGO_CLASS}>
-            {SITE_NAME}
-          </Link>
-          <div className="flex min-w-0 items-center overflow-hidden rounded-lg border border-panel-border bg-foreground/5">
-            {updatedAt ? (
-              <Tooltip text={`updated ${formatUpdatedAt(updatedAt)}`} align="start">
-                {byline}
-              </Tooltip>
-            ) : (
-              byline
-            )}
-            {children}
-          </div>
+        <Link href="/" className={HEADER_LOGO_CLASS}>
+          {SITE_NAME}
+        </Link>
+      }
+      center={
+        <div className="flex min-w-0 items-center rounded-lg border border-panel-border bg-panel">
+          {updatedAt ? <Tooltip text={`updated ${formatUpdatedAt(updatedAt)}`}>{byline}</Tooltip> : byline}
+          {children}
         </div>
       }
     >

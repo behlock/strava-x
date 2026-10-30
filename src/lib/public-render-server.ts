@@ -1,3 +1,4 @@
+import { renderMapThumbnail } from './map-thumbnail'
 import geojsonvt from 'geojson-vt'
 import { fromGeojsonVt } from 'vt-pbf'
 import { findShareBySlug } from './sharing-db'
@@ -17,6 +18,7 @@ const PUBLIC_HEADERS = {
 interface Asset {
   payload: PublicSnapshot
   preview: PublicSnapshot
+  thumbnail?: Partial<Record<'light' | 'dark', string>>
   routeIndex?: ReturnType<typeof geojsonvt>
   heatIndex?: ReturnType<typeof geojsonvt>
   estimatedBytes: number
@@ -49,7 +51,7 @@ async function assetFor(path: string): Promise<Asset> {
   // Avoid accumulating arbitrary numbers of in-flight snapshot downloads.
   if (pending.size >= 4) throw new Error('render_busy')
   const request = (async () => {
-    const blob = await readPrivateSnapshot(path)
+    const blob = await readPrivateSnapshot(path, AbortSignal.timeout(15_000))
     if (!blob || blob.statusCode !== 200) throw new Error('snapshot_unavailable')
     const reader = blob.stream.getReader()
     const chunks: Uint8Array[] = []
@@ -112,7 +114,13 @@ export async function servePublicRender(slug: string, query: URLSearchParams): P
     } else asset = await assetFor(row!.snapshot_path!)
     let body: string | Uint8Array
     let contentType = 'application/json'
-    if (numbers) {
+    if (query.get('view') === 'thumbnail') {
+      const theme = query.get('theme') === 'dark' ? 'dark' : 'light'
+      asset.thumbnail ??= {}
+      asset.thumbnail[theme] ??= renderMapThumbnail(asset.payload.activities, theme === 'dark')
+      body = asset.thumbnail[theme]!
+      contentType = 'image/svg+xml'
+    } else if (numbers) {
       if (asset.estimatedBytes > LIMIT) throw new Error('snapshot_too_large')
       // geojson-vt lazily retains generated tiles. Rebuild periodically to bound it.
       if (++asset.tileRequests > 256) {

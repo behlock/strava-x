@@ -44,6 +44,7 @@ function fixture() {
     fingerprint: null,
     activity_count: 0,
     size_bytes: 0,
+    top_city: null,
     updated_at: null,
   }
   const uploads = new Map(),
@@ -61,6 +62,7 @@ function fixture() {
         fingerprint: next.fingerprint,
         activity_count: next.activityCount,
         size_bytes: next.sizeBytes,
+        top_city: next.topCity,
         updated_at: next.updatedAt,
       }
       return { ...row }
@@ -261,4 +263,27 @@ test('storage failure preserves current snapshot; ambiguous commit errors never 
   }
   await assert.rejects(update(f), /connection lost/)
   assert.deepEqual(f.discards, [])
+})
+
+test('publication stores the running city, preserves it on rename, and clears it on stop', async () => {
+  const f = fixture()
+  const activities = payload()
+  activities[0].feature.geometry.coordinates = [
+    [-0.12, 51.51],
+    [-0.11, 51.52],
+  ]
+  await mutateShare(f.store, {
+    athleteId: 1,
+    displayName: null,
+    revision: '0',
+    action: 'create',
+    slug: 'owner',
+    activities,
+    proof: signed(activities),
+  })
+  assert.equal(f.row.top_city, 'London')
+  await mutateShare(f.store, { athleteId: 1, displayName: null, revision: '1', action: 'rename', slug: 'renamed' })
+  assert.equal(f.row.top_city, 'London')
+  await mutateShare(f.store, { athleteId: 1, displayName: null, revision: '2', action: 'stop' })
+  assert.equal(f.row.top_city, null)
 })

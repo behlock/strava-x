@@ -2,9 +2,16 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { loadTs } from './load-ts.mjs'
 
-function renderHeader(connected, ownSlug, updates = [], actions = {}) {
+function renderHeader(connected, ownSlug, updates = [], actions = {}, effects = [], redirects = []) {
   const { PublicMapView } = loadTs('src/components/public-map-view/public-map-view.tsx', {
-    react: { useState: (value) => [value, (next) => updates.push(next)], useEffect() {}, useCallback: (fn) => fn },
+    react: {
+      useState: (value) => [value, (next) => updates.push(next)],
+      useEffect(effect) {
+        effects.push(effect)
+      },
+      useCallback: (fn) => fn,
+    },
+    'next/navigation': { useRouter: () => ({ replace: (url) => redirects.push(url) }) },
     'next/link': { __esModule: true, default: () => null },
     '@/hooks/use-strava-auth': {
       useStravaAuth: () => ({ isConnected: connected, getAccessToken() {}, disconnect() {} }),
@@ -46,4 +53,30 @@ test('viewing another map opens the signed-in owner’s sharing controls without
 test('guests and unpublished accounts never show another account’s map pill', () => {
   assert.equal(renderHeader(false, 'old-owner').props.children, false)
   assert.equal(renderHeader(true, null).props.children, null)
+})
+
+test('verified owners are redirected to their personal map, other viewers stay public', async () => {
+  for (const slug of ['friend', 'owner', null]) {
+    const effects = [],
+      redirects = []
+    renderHeader(true, null, [], { refreshCurrentSlug: async () => ({ slug }) }, effects, redirects)
+    const cleanup = effects.at(-1)()
+    await new Promise((resolve) => setImmediate(resolve))
+    assert.deepEqual(redirects, slug === 'friend' ? ['/'] : [])
+    cleanup()
+  }
+})
+
+test('an ownership response arriving after navigation cannot redirect', async () => {
+  let resolve
+  const pending = new Promise((done) => {
+    resolve = done
+  })
+  const effects = [],
+    redirects = []
+  renderHeader(true, null, [], { refreshCurrentSlug: () => pending }, effects, redirects)
+  effects.at(-1)()()
+  resolve({ slug: 'friend' })
+  await new Promise((done) => setImmediate(done))
+  assert.deepEqual(redirects, [])
 })

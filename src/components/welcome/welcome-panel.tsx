@@ -1,16 +1,13 @@
 'use client'
 
-import Link from 'next/link'
+import { usePathname } from 'next/navigation'
 import { Suspense, useRef } from 'react'
 import { ArrowRight, ArrowUpRight } from 'lucide-react'
 
-import { Pill } from '@/components/ui'
 import { StravaAuthError } from '@/components/ui/strava-auth-error'
 import { cn } from '@/lib/utils'
 import { SITE_NAME } from '@/lib/site'
 import { useFocusTrap } from '@/hooks/use-focus-trap'
-
-const DEMO_MAP_PATH = '/walid'
 
 interface WelcomePanelProps {
   open: boolean
@@ -23,14 +20,17 @@ const BUTTON_ICON = 'size-3.5 shrink-0'
 
 export function WelcomePanel({ open, onConnect }: WelcomePanelProps) {
   const dialogRef = useRef<HTMLDivElement>(null)
+  const rootRef = useRef<HTMLDivElement>(null)
+  const pathname = usePathname()
+  const visible = open && pathname !== '/maps'
 
   // Focus starts on the dialog itself so no ring shows on open.
-  useFocusTrap(dialogRef, { active: open, initialFocus: dialogRef })
+  useFocusTrap(dialogRef, { active: visible, initialFocus: dialogRef, modalRoot: rootRef })
 
-  if (!open) return null
+  if (!visible) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
+    <div ref={rootRef} className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="absolute inset-0 bg-background/60 backdrop-blur-xs" aria-hidden="true" />
       <div
         ref={dialogRef}
@@ -65,14 +65,16 @@ export function WelcomePanel({ open, onConnect }: WelcomePanelProps) {
             <ArrowRight className={BUTTON_ICON} aria-hidden="true" />
             connect your strava
           </button>
-          <Link
-            href={DEMO_MAP_PATH}
+          {/* Keep the community directory code available for a future launch. */}
+          {/* Native navigation requests a new random redirect on every click, without router prefetch/cache. */}
+          {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
+          <a
+            href="/explore"
             className={cn(BUTTON, 'border-panel-border hover:border-foreground hover:bg-foreground/5')}
           >
             <ArrowUpRight className={BUTTON_ICON} aria-hidden="true" />
-            <span className="flex-1">explore example map</span>
-            <Pill>{DEMO_MAP_PATH}</Pill>
-          </Link>
+            <span className="flex-1">explore</span>
+          </a>
         </div>
       </div>
     </div>

@@ -59,13 +59,7 @@ export function Panel({ title, grow = false, className, children, onExpandedChan
       >
         <span className="text-xs-compact tracking-wider text-panel-muted">{title}</span>
         <span className="flex items-center gap-2 text-xs-compact text-panel-muted">
-          <ChevronDown
-            aria-hidden="true"
-            className={cn(
-              'size-3.5 transition-transform duration-200 motion-reduce:transition-none',
-              !expanded && '-rotate-90',
-            )}
-          />
+          <ChevronDown aria-hidden="true" className={cn('size-3.5', !expanded && '-rotate-90')} />
         </span>
       </button>
       <div
@@ -83,7 +77,7 @@ const SKELETON_WIDTHS = ['75%', '50%', '66%']
 
 export function PanelSkeleton({ rows = 3, rowClassName }: { rows?: number; rowClassName?: string }) {
   return (
-    <div className="animate-pulse space-y-2 p-3">
+    <div className="space-y-2 p-3 motion-safe:animate-pulse">
       {Array.from({ length: rows }, (_, i) => (
         <div
           key={i}

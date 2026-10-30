@@ -95,6 +95,12 @@ export function MobileDrawer({
           ? 'right-3 left-3 max-h-[calc(100dvh-5rem-env(safe-area-inset-top,0px))] gap-2 pb-[calc(0.75rem+env(safe-area-inset-bottom,0px))]'
           : 'inset-x-0',
       )}
+      onKeyDownCapture={(event) => {
+        event.currentTarget.dataset.keyboard = 'true'
+      }}
+      onPointerDownCapture={(event) => {
+        delete event.currentTarget.dataset.keyboard
+      }}
       onKeyDown={(event) => {
         if (event.key === 'Escape' && activeSection) {
           event.preventDefault()

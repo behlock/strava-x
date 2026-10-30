@@ -24,14 +24,7 @@ export function ThemeSwitch() {
         onClick={() => setTheme(nextTheme)}
         className="mobile-touch-target inline-flex size-8 shrink-0 items-center justify-center rounded-lg floating-control focus-ring disabled:opacity-50 md:size-[35px]"
       >
-        <svg
-          width="14"
-          height="14"
-          viewBox="0 0 10 10"
-          fill="none"
-          aria-hidden="true"
-          className="transition-[rotate] duration-150 motion-reduce:transition-none dark:rotate-180"
-        >
+        <svg width="14" height="14" viewBox="0 0 10 10" fill="none" aria-hidden="true" className="dark:rotate-180">
           <path
             fillRule="evenodd"
             clipRule="evenodd"

@@ -4,6 +4,18 @@ const SLUG_REGEX = /^[a-z0-9][a-z0-9-]{0,28}[a-z0-9]$/
 // Blocks slugs that would shadow existing top-level routes or look wrong in a URL bar.
 // Keep in sync with any new top-level App Router entries added under src/app.
 const RESERVED_SLUGS = new Set([
+  'maps',
+  'explore',
+  'search',
+  'help',
+  'support',
+  'contact',
+  'community',
+  'feed',
+  'profile',
+  'notifications',
+  'billing',
+  'docs',
   'api',
   'auth',
   'publish',

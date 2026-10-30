@@ -16,7 +16,6 @@ interface ProfileMenuProps {
 export function ProfileMenu({ onDisconnect, profilePhotoUrl }: ProfileMenuProps) {
   const [open, setOpen] = useState(false)
   const [confirmingLogout, setConfirmingLogout] = useState(false)
-  const [settledOpen, setSettledOpen] = useState(false)
   const [loadedPhotoUrl, setLoadedPhotoUrl] = useState<string | null>(null)
   const [failedPhotoUrl, setFailedPhotoUrl] = useState<string | null>(null)
   const showPhoto = profilePhotoUrl && profilePhotoUrl !== failedPhotoUrl
@@ -26,7 +25,6 @@ export function ProfileMenu({ onDisconnect, profilePhotoUrl }: ProfileMenuProps)
   const logoutQuestionId = useId()
 
   const collapse = useCallback(() => {
-    setSettledOpen(false)
     setOpen(false)
     setConfirmingLogout(false)
   }, [])
@@ -58,7 +56,7 @@ export function ProfileMenu({ onDisconnect, profilePhotoUrl }: ProfileMenuProps)
   return (
     <div
       ref={rootRef}
-      className="relative flex shrink-0 flex-row-reverse items-center"
+      className="control-group relative flex shrink-0 flex-row-reverse items-center"
       onBlur={(event) => {
         if (event.relatedTarget && !event.currentTarget.contains(event.relatedTarget)) collapse()
       }}
@@ -72,7 +70,6 @@ export function ProfileMenu({ onDisconnect, profilePhotoUrl }: ProfileMenuProps)
         onClick={() => {
           if (open) collapse()
           else {
-            setSettledOpen(false)
             setOpen(true)
           }
         }}
@@ -88,7 +85,7 @@ export function ProfileMenu({ onDisconnect, profilePhotoUrl }: ProfileMenuProps)
               onLoad={() => setLoadedPhotoUrl(profilePhotoUrl)}
               onError={() => setFailedPhotoUrl(profilePhotoUrl)}
               className={cn(
-                'absolute inset-0 size-full object-cover transition-[opacity,rotate] duration-300 ease-[cubic-bezier(0,0,0.58,1)] motion-reduce:transition-none',
+                'absolute inset-0 size-full object-cover transition-[opacity,rotate] duration-150 ease-[var(--ease-out)] motion-reduce:transition-none',
                 open
                   ? '-rotate-45 opacity-0'
                   : loadedPhotoUrl === profilePhotoUrl
@@ -102,7 +99,7 @@ export function ProfileMenu({ onDisconnect, profilePhotoUrl }: ProfileMenuProps)
         <Plus
           aria-hidden="true"
           className={cn(
-            'absolute size-[19px] transition-[opacity,rotate] duration-300 ease-[cubic-bezier(0,0,0.58,1)] motion-reduce:transition-none',
+            'absolute size-[19px] transition-[opacity,rotate] duration-150 ease-[var(--ease-out)] motion-reduce:transition-none',
             open ? 'rotate-45 opacity-100' : 'rotate-90 opacity-0',
           )}
         />
@@ -112,11 +109,7 @@ export function ProfileMenu({ onDisconnect, profilePhotoUrl }: ProfileMenuProps)
         inert={!open}
         aria-hidden={!open}
         data-open={open}
-        data-settled-open={settledOpen}
         className="profile-menu-reveal absolute top-[calc(100%+0.75rem)] right-0 shrink-0 rounded-lg bg-panel md:static md:bg-transparent"
-        onTransitionEnd={(event) => {
-          if (event.target === event.currentTarget && event.propertyName === 'max-width') setSettledOpen(open)
-        }}
       >
         <div
           role="group"
@@ -131,7 +124,7 @@ export function ProfileMenu({ onDisconnect, profilePhotoUrl }: ProfileMenuProps)
               <>
                 <button
                   type="button"
-                  aria-label="Cancel log out"
+                  aria-label="Cancel disconnect"
                   autoFocus
                   onClick={closeConfirmation}
                   className="mobile-touch-target inline-flex size-8 shrink-0 items-center justify-center rounded-lg floating-control focus-ring md:size-[35px]"
@@ -140,7 +133,7 @@ export function ProfileMenu({ onDisconnect, profilePhotoUrl }: ProfileMenuProps)
                 </button>
                 <button
                   type="button"
-                  aria-label="Confirm log out"
+                  aria-label="Confirm disconnect"
                   aria-describedby={logoutQuestionId}
                   onClick={() => {
                     collapse()
@@ -155,14 +148,14 @@ export function ProfileMenu({ onDisconnect, profilePhotoUrl }: ProfileMenuProps)
                   role="status"
                   className="absolute top-[calc(100%+0.5rem)] right-0 w-max rounded-lg border border-panel-border bg-panel px-2.5 py-1.5 text-xs-compact text-panel-muted"
                 >
-                  log out?
+                  disconnect?
                 </div>
               </>
             ) : (
-              <Tooltip text="log out">
+              <Tooltip text="disconnect">
                 <button
                   type="button"
-                  aria-label="Log out"
+                  aria-label="Disconnect"
                   onClick={() => setConfirmingLogout(true)}
                   className="mobile-touch-target inline-flex size-8 shrink-0 items-center justify-center rounded-lg floating-control focus-ring md:size-[35px]"
                 >

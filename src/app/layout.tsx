@@ -3,6 +3,7 @@ import { JetBrains_Mono } from 'next/font/google'
 import Script from 'next/script'
 import { preconnect } from 'react-dom'
 import { ThemeProvider } from 'next-themes'
+import { BrowserTheme } from '@/components/ui/browser-theme'
 
 import '@/styles/global.css'
 import { config } from '@/lib/config'
@@ -17,8 +18,9 @@ const jetbrainsMono = JetBrains_Mono({
 export const viewport: Viewport = {
   colorScheme: 'light dark',
   viewportFit: 'cover',
+  interactiveWidget: 'resizes-content',
   themeColor: [
-    { media: '(prefers-color-scheme: light)', color: '#d9d9d9' },
+    { media: '(prefers-color-scheme: light)', color: '#f5f5f5' },
     { media: '(prefers-color-scheme: dark)', color: '#141414' },
   ],
 }
@@ -53,14 +55,16 @@ export const metadata: Metadata = {
   manifest: '/site.webmanifest',
 }
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default function RootLayout({ children, modal }: { children: React.ReactNode; modal?: React.ReactNode }) {
   preconnect('https://api.mapbox.com', { crossOrigin: 'anonymous' })
   return (
     <html lang="en" className={jetbrainsMono.variable} suppressHydrationWarning>
       <body className="h-full">
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
+          <BrowserTheme />
           {config.STATS_TRACKING_URL && <Script src={config.STATS_TRACKING_URL} crossOrigin="anonymous" />}
           {children}
+          {modal}
         </ThemeProvider>
       </body>
     </html>

@@ -17,8 +17,8 @@ export async function writePrivateSnapshot(athleteId: number, body: string): Pro
   })
   return result.pathname
 }
-export async function readPrivateSnapshot(pathname: string) {
-  return get(pathname, { access: 'private', token: privateToken() })
+export async function readPrivateSnapshot(pathname: string, abortSignal?: AbortSignal) {
+  return get(pathname, { access: 'private', token: privateToken(), abortSignal })
 }
 /** Best effort; rows are removed only after the storage deletion succeeds. */
 export async function drainBlobCleanup() {

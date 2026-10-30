@@ -54,7 +54,7 @@ export function CommonRoutesToggle({
         disabled={disabled}
         onClick={onToggle}
         className={cn(
-          'mobile-touch-target flex h-[34px] w-8 shrink-0 items-center justify-center border-l border-solid border-panel-border focus-ring-inset transition-colors hover:bg-control-hover disabled:cursor-not-allowed disabled:opacity-50 md:h-[33px] md:w-7',
+          'mobile-touch-target flex h-[34px] w-8 shrink-0 items-center justify-center border-l border-solid border-panel-border focus-ring-inset transition-colors hover:bg-control-hover disabled:cursor-not-allowed disabled:opacity-50 md:h-[31px] md:w-7',
           enabled && 'bg-selection text-selection-foreground hover:bg-selection',
         )}
       >
@@ -351,7 +351,7 @@ export function PersonalMapAppearance({ appearance, status }: { appearance: Rout
             open && 'sticky top-0 z-10 justify-between gap-3 bg-panel px-3 py-2',
           )}
         >
-          {open && <span className="text-xs-compact">map style</span>}
+          {open && <span className="text-xs-compact">style</span>}
           <HeaderChip
             ref={trigger}
             tooltip="map appearance"

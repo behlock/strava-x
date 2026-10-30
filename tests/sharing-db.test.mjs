@@ -12,7 +12,13 @@ const exec = promisify(execFile)
 if (socket && !/^\/tmp\/strava-sharing-pg\.[a-zA-Z0-9]+$/.test(socket))
   throw new Error('Use a disposable test database socket')
 const literal = (value) =>
-  value == null ? 'NULL' : typeof value === 'boolean' ? String(value) : "'" + String(value).replaceAll("'", "''") + "'"
+  Array.isArray(value)
+    ? `ARRAY[${value.map(literal).join(',')}]::text[]`
+    : value == null
+      ? 'NULL'
+      : typeof value === 'boolean'
+        ? String(value)
+        : "'" + String(value).replaceAll("'", "''") + "'"
 async function query(sql) {
   const result = await exec('psql', [
     '-X',
@@ -41,6 +47,7 @@ async function query(sql) {
 const sql = async (parts, ...values) => {
   let text = parts.reduce((out, part, index) => out + part + (index < values.length ? literal(values[index]) : ''), '')
   text = text
+    .replace('SELECT slug FROM map_shares', "SELECT json_build_object('slug',slug) FROM map_shares")
     .replace(
       'SELECT version FROM athlete_activity_versions',
       "SELECT json_build_object('version',version) FROM athlete_activity_versions",
@@ -77,6 +84,7 @@ test(
       "INSERT INTO published_maps (slug,athlete_id,blob_url,blob_pathname,activity_count,size_bytes) VALUES ('legacy',1,'https://example.invalid/legacy.json','published/1/legacy.json',1,1)",
     )
     await query(readFileSync('db/003_safe_sharing.sql', 'utf8'))
+    await query(readFileSync('db/006_map_gallery.sql', 'utf8'))
     const legacy = await db.findShareBySlug('legacy')
     assert.equal(legacy.snapshot_path, null)
     assert.equal((await db.cleanupCandidates())[0].store, 'legacy')
@@ -140,6 +148,31 @@ test(
     ])
     assert.equal(await db.findShareBySlug('racing'), null)
     if (published) assert((await db.cleanupCandidates()).some((item) => item.pathname === 'racing-path'))
+
+    const fresh = await db.ensureShare(7)
+    const visible = await db.compareAndSwapShare(fresh, write('deletion-test', 'before-deletion'))
+    await syncDb.recordActivityChange(7, 'activity-deleted', false, true)
+    const invalidated = await db.findShareBySlug('deletion-test')
+    assert.equal(invalidated.active, true)
+    assert.equal(invalidated.snapshot_path, null)
+    assert.equal(invalidated.fingerprint, null)
+    assert.notEqual(invalidated.revision, visible.revision)
+    assert.equal(await db.compareAndSwapShare(visible, write('deletion-test', 'stale-proof')), null)
+    assert((await db.cleanupCandidates()).some((item) => item.pathname === 'before-deletion'))
+    await syncDb.recordActivityChange(7, 'activity-deleted', false, true)
+    assert.equal((await db.ensureShare(7)).revision, invalidated.revision)
+    assert(await db.compareAndSwapShare(invalidated, write('deletion-test', 'verified-new-snapshot')))
+
+    // Exercise the actual PostgreSQL selection and array parameters, not just SQL shape.
+    assert.equal(await db.randomPublishedMap(null), 'deletion-test')
+    assert.equal(await db.randomPublishedMap('deletion-test', ['deletion-test']), 'deletion-test')
+    await db.compareAndSwapShare(await db.ensureShare(8), write('explore-second', 'explore-second-path'))
+    await db.compareAndSwapShare(await db.ensureShare(9), write('explore-third', 'explore-third-path'))
+    assert.equal(await db.randomPublishedMap('deletion-test', ['deletion-test', 'explore-second']), 'explore-third')
+    assert.notEqual(
+      await db.randomPublishedMap('deletion-test', ['deletion-test', 'explore-second', 'explore-third']),
+      'deletion-test',
+    )
 
     const cleanupMigration = readFileSync('db/005_drop_legacy_published_maps.sql', 'utf8')
     await query('DELETE FROM map_shares WHERE athlete_id=1')
