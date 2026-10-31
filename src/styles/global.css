@@ -56,22 +56,24 @@
   --color-selection-foreground: var(--selection-foreground);
   --color-selection-muted: var(--selection-muted);
 
-  --text-xs-compact: 10px;
-  --text-xs-compact--line-height: 14px;
-  --text-xs-compact--letter-spacing: 0.05em;
-  --text-sm-compact: 11px;
-  --text-sm-compact--line-height: 16px;
-  --text-sm-compact--letter-spacing: 0.02em;
-  --text-base-compact: 12px;
-  --text-base-compact--line-height: 18px;
-  --text-lg-compact: 14px;
-  --text-lg-compact--line-height: 20px;
+  --text-xs-compact: calc(10px * var(--ui-type-scale, 1));
+  --text-xs-compact--line-height: calc(14px * var(--ui-type-scale, 1) * var(--ui-line-scale, 1));
+  --text-xs-compact--letter-spacing: calc(0.05em * var(--ui-tracking-scale, 1));
+  --text-sm-compact: calc(11px * var(--ui-type-scale, 1));
+  --text-sm-compact--line-height: calc(16px * var(--ui-type-scale, 1) * var(--ui-line-scale, 1));
+  --text-sm-compact--letter-spacing: calc(0.02em * var(--ui-tracking-scale, 1));
+  --text-base-compact: calc(12px * var(--ui-type-scale, 1));
+  --text-base-compact--line-height: calc(18px * var(--ui-type-scale, 1) * var(--ui-line-scale, 1));
+  --text-lg-compact: calc(14px * var(--ui-type-scale, 1));
+  --text-lg-compact--line-height: calc(20px * var(--ui-type-scale, 1) * var(--ui-line-scale, 1));
+
+  --tracking-wider: calc(0.05em * var(--ui-tracking-scale, 1));
 
   /* A shared rounded scale for controls, panels, and dialogs. */
-  --radius-sm: 8px;
-  --radius-md: 8px;
-  --radius-lg: 8px;
-  --radius-xl: 8px;
+  --radius-sm: var(--ui-radius, 8px);
+  --radius-md: var(--ui-radius, 8px);
+  --radius-lg: var(--ui-radius, 8px);
+  --radius-xl: var(--ui-radius, 8px);
 }
 
 @layer base {

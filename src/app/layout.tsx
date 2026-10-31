@@ -3,6 +3,7 @@ import { JetBrains_Mono } from 'next/font/google'
 import Script from 'next/script'
 import { preconnect } from 'react-dom'
 import { ThemeProvider } from 'next-themes'
+import { DesignTuning } from '@/components/dev/design-tuning'
 import { BrowserTheme } from '@/components/ui/browser-theme'
 
 import '@/styles/global.css'
@@ -65,6 +66,7 @@ export default function RootLayout({ children, modal }: { children: React.ReactN
           {config.STATS_TRACKING_URL && <Script src={config.STATS_TRACKING_URL} crossOrigin="anonymous" />}
           {children}
           {modal}
+          <DesignTuning />
         </ThemeProvider>
       </body>
     </html>
