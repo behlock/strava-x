@@ -3,19 +3,16 @@
 import { type ReactNode, startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import dynamic from 'next/dynamic'
 
-import { ACTIVITY_TYPES, type Activity, type ActivityFeatureCollection } from '@/models/activity'
+import { ACTIVITY_TYPES, type Activity } from '@/models/activity'
 import type { LngLat } from '@/models/map'
 import { activitiesToGeoData } from '@/lib/activities'
 import type { ComparisonFilters } from '@/lib/comparison-filters'
-import { config } from '@/lib/config'
 import type { ActivityMapRef } from '@/components/activity-map'
 import { ActivityList, AppShell, FilterPanel, LocationSelector, MapSkeleton, TimelinePanel } from '@/components/ui'
 import { useActivityClusters } from '@/hooks/use-activity-clusters'
 import type { CommonRoutesState } from '@/hooks/use-common-routes'
 import type { ComparisonAppearance } from '@/lib/comparison-appearance'
-import { useRouteHeatmap } from '@/hooks/use-route-heatmap'
-import { usePersonalMapAppearance } from '@/hooks/use-map-appearance'
-import { CommonRoutesNotice, PersonalMapAppearance } from '@/components/ui/map-appearance-controls'
+import { CommonRoutesNotice } from '@/components/ui/map-appearance-controls'
 import { useIsMobile } from '@/hooks/use-media-query'
 import { type MapPositionMode, usePersistedMapPosition } from '@/hooks/use-persisted-map-position'
 
@@ -59,7 +56,6 @@ const DESKTOP_PADDING = { top: 80, bottom: 80, left: 100, right: 80 }
 const MOBILE_PADDING_TOP = 80
 const MOBILE_MAX_BOTTOM_RATIO = 0.4
 const MOBILE_MAX_VERTICAL_RATIO = 0.8
-const EMPTY_ROUTES: ActivityFeatureCollection = { type: 'FeatureCollection', features: [] }
 
 export function MapView({
   activities: allActivities,
@@ -258,30 +254,8 @@ export function MapView({
   )
 
   const hasActivities = allActivities.length > 0
-  const personalAppearance = usePersonalMapAppearance()
-  const singleMapStyleEnabled = commonRoutes?.status !== 'ready'
-  const showMapAppearanceControls = config.MAP_STYLE_DEBUG && singleMapStyleEnabled && hasActivities
-  const renderMode = singleMapStyleEnabled ? personalAppearance.renderMode : comparisonAppearance?.renderMode
   const comparisonData = commonRoutes?.status === 'ready' ? commonRoutes : retainedComparison
   const commonData = comparisonData?.data
-  const ownHeatRoutes = comparisonData?.ownRoutes
-  const overlapHeatRoutes = comparisonData?.data
-  const heatmapSources = useMemo(
-    () =>
-      ownHeatRoutes && overlapHeatRoutes
-        ? {
-            own: ownHeatRoutes,
-            other: publicTiles ? EMPTY_ROUTES : allGeoData,
-            overlap: overlapHeatRoutes,
-          }
-        : publicTiles
-          ? null
-          : { own: allGeoData, other: EMPTY_ROUTES, overlap: EMPTY_ROUTES },
-    [ownHeatRoutes, overlapHeatRoutes, allGeoData, publicTiles],
-  )
-  const sampledStyleActive = renderMode === 'hotspots'
-  const heatmap = useRouteHeatmap(heatmapSources, sampledStyleActive)
-  const heatmapStatus = sampledStyleActive ? (heatmap.loading ? 'sampling routes…' : heatmap.error) : undefined
 
   return (
     <AppShell
@@ -345,9 +319,6 @@ export function MapView({
         ownRoutes={comparisonData?.ownRoutes}
         comparisonVisible={commonRoutes?.status === 'ready'}
         comparisonPaletteId={comparisonAppearance?.paletteId}
-        comparisonRenderMode={comparisonAppearance?.renderMode}
-        personalAppearance={singleMapStyleEnabled ? personalAppearance : undefined}
-        heatmaps={heatmap.data}
         highlightedActivityId={highlightedActivityId}
         typeFilter={selectedActivityTypes}
         dateCutoff={cutoffTime}
@@ -362,18 +333,8 @@ export function MapView({
           appearance={comparisonAppearance}
           ownerLabel={comparisonOwner ?? 'them'}
           viewerLabel={comparisonViewer ?? 'me'}
-          heatmapStatus={heatmapStatus}
           onRetry={onComparisonRetry}
         />
-      )}
-      {showMapAppearanceControls && <PersonalMapAppearance appearance={personalAppearance} status={heatmapStatus} />}
-      {singleMapStyleEnabled && sampledStyleActive && heatmap.error && !showMapAppearanceControls && (
-        <span
-          role="status"
-          className="absolute right-4 bottom-[calc(var(--map-drawer-height,4rem)+0.75rem)] z-20 rounded-lg bg-panel px-3 py-2 text-xs-compact md:bottom-4"
-        >
-          {heatmap.error}
-        </span>
       )}
       {overlays}
     </AppShell>

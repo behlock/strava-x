@@ -4,7 +4,6 @@ import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import { Check, Plus, Settings2, Unplug, X } from 'lucide-react'
 
 import { cn } from '@/lib/utils'
-import { MapStyleToggle } from './map-style-toggle'
 import { ThemeSwitch } from './theme-switch'
 import { Tooltip } from './tooltip'
 
@@ -117,7 +116,6 @@ export function ProfileMenu({ onDisconnect, profilePhotoUrl }: ProfileMenuProps)
           data-open={open}
           className="profile-menu-items relative flex max-w-[calc(100vw-2rem)] items-center rounded-lg border border-panel-border p-2 md:max-w-none md:border-0 md:p-0"
         >
-          <MapStyleToggle />
           <ThemeSwitch />
           {onDisconnect &&
             (confirmingLogout ? (

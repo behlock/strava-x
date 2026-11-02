@@ -35,7 +35,6 @@ function fixture() {
       useEffect() {},
       useCallback: (fn) => fn,
     },
-    './map-style-toggle': { MapStyleToggle: () => null },
     './theme-switch': { ThemeSwitch: () => null },
     './tooltip': { Tooltip: () => null },
   })

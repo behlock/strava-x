@@ -61,25 +61,10 @@ export type ComparisonPaletteId = (typeof COMPARISON_PALETTES)[number]['id']
 export type ComparisonIconId = 'layers' | 'combine' | 'scan'
 export const DEFAULT_COMPARISON_ICON: ComparisonIconId = 'scan'
 export const DEFAULT_COMPARISON_PALETTE: ComparisonPaletteId = 'ink'
-export const COMPARISON_RENDER_MODES = [
-  { id: 'routes', description: 'crisp routes and overlap' },
-  { id: 'density', description: 'repeated traces build intensity' },
-  { id: 'glow', description: 'route density with a soft halo' },
-  { id: 'hotspots', description: 'activity concentrations around routes' },
-] as const
-export type ComparisonRenderMode = (typeof COMPARISON_RENDER_MODES)[number]['id']
-export const DEFAULT_COMPARISON_RENDER_MODE: ComparisonRenderMode = 'routes'
 
-export const DEFAULT_PERSONAL_PALETTE: ComparisonPaletteId = 'graphite'
-
-export interface RouteAppearance {
+export interface ComparisonAppearance {
   paletteId: ComparisonPaletteId
-  renderMode: ComparisonRenderMode
   setPalette: (id: ComparisonPaletteId) => void
-  setRenderMode: (mode: ComparisonRenderMode) => void
-}
-
-export interface ComparisonAppearance extends RouteAppearance {
   iconId: ComparisonIconId
   setIcon: (id: ComparisonIconId) => void
 }

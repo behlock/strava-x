@@ -1,3 +1,4 @@
+import { HEAT_TILE_OPTIONS, prepareHeatRoutes } from './path-heat-routes'
 import { renderMapThumbnail } from './map-thumbnail'
 import geojsonvt from 'geojson-vt'
 import { fromGeojsonVt } from 'vt-pbf'
@@ -7,7 +8,11 @@ import { loadLocalMap } from './local-map'
 import { activitiesToGeoData } from './activities'
 import { deserializeActivities } from './activities-serialize'
 import { preparePublicPreview, type PublicSnapshot } from './public-render'
-import { sampleRouteHeatmap } from './route-heatmap'
+import { HEAT_SIZE, rasterizePathHeat } from './path-heat'
+import { encodePng } from './png'
+import { HeatTileCache } from './heat-tile-cache'
+import { rateLimit } from './rate-limit'
+import { ACTIVITY_TYPES } from '@/models/activity'
 
 const PUBLIC_HEADERS = {
   'Cache-Control': 'private, no-store, max-age=0',
@@ -16,6 +21,7 @@ const PUBLIC_HEADERS = {
   'X-Content-Type-Options': 'nosniff',
 }
 interface Asset {
+  cacheId: number
   payload: PublicSnapshot
   preview: PublicSnapshot
   thumbnail?: Partial<Record<'light' | 'dark', string>>
@@ -31,10 +37,13 @@ const cache = new Map<string, Asset>()
 const localAssets = new WeakMap<PublicSnapshot, Asset>()
 const pending = new Map<string, Promise<Asset>>()
 const LIMIT = 96 * 1024 * 1024
+const heatTiles = new HeatTileCache()
+let nextAssetId = 0
 function prepare(payload: PublicSnapshot, size: number): Asset {
   if (!Array.isArray(payload.activities) || payload.version !== 1) throw new Error('invalid_snapshot')
   const preview = size * 8 <= LIMIT ? preparePublicPreview(payload.activities) : undefined
   return {
+    cacheId: ++nextAssetId,
     payload,
     preview: { version: 1, updatedAt: payload.updatedAt, activities: preview ?? payload.activities },
     estimatedBytes: size * 8,
@@ -100,6 +109,13 @@ export async function servePublicRender(slug: string, query: URLSearchParams): P
         numbers[2] >= 2 ** numbers[0])
     )
       return new Response(null, { status: 400, headers: PUBLIC_HEADERS })
+    const heat = Boolean(numbers) && query.get('kind') === 'heat'
+    const cutoff = heat && query.has('cutoff') ? Number(query.get('cutoff')) : null
+    const rawTypes = heat ? query.get('types') : null
+    if (heat && ((cutoff !== null && !Number.isFinite(cutoff)) || (rawTypes?.length ?? 0) > 256))
+      return new Response(null, { status: 400, headers: PUBLIC_HEADERS })
+    const types = [...new Set(rawTypes === null ? ACTIVITY_TYPES : rawTypes.split(',').filter(Boolean))].sort()
+    const dark = query.get('theme') === 'dark'
     const local = await loadLocalMap(slug)
     const row = local ? null : await findShareBySlug(slug)
     if (!local && !row?.snapshot_path) return new Response(null, { status: 404, headers: PUBLIC_HEADERS })
@@ -115,30 +131,51 @@ export async function servePublicRender(slug: string, query: URLSearchParams): P
     let body: string | Uint8Array
     let contentType = 'application/json'
     if (query.get('view') === 'thumbnail') {
-      const theme = query.get('theme') === 'dark' ? 'dark' : 'light'
+      const theme = dark ? 'dark' : 'light'
       asset.thumbnail ??= {}
-      asset.thumbnail[theme] ??= renderMapThumbnail(asset.payload.activities, theme === 'dark')
+      asset.thumbnail[theme] ??= renderMapThumbnail(asset.payload.activities, dark)
       body = asset.thumbnail[theme]!
       contentType = 'image/svg+xml'
     } else if (numbers) {
       if (asset.estimatedBytes > LIMIT) throw new Error('snapshot_too_large')
-      // geojson-vt lazily retains generated tiles. Rebuild periodically to bound it.
-      if (++asset.tileRequests > 256) {
-        asset.routeIndex = undefined
-        asset.heatIndex = undefined
-        asset.tileRequests = 1
+      const heatKey = heat ? JSON.stringify([asset.cacheId, revision, numbers, types, cutoff, dark]) : ''
+      const cachedHeat = heat ? heatTiles.get(heatKey) : undefined
+      if (cachedHeat) {
+        body = cachedHeat
+        contentType = 'image/png'
+      } else {
+        // Cache misses consume a shared instance budget even when client identities vary.
+        if (heat) {
+          const budget = rateLimit('map-heat-render', { windowMs: 60_000, max: 240 })
+          if (!budget.ok)
+            return new Response(null, {
+              status: 429,
+              headers: { ...PUBLIC_HEADERS, 'Retry-After': String(budget.retryAfterSeconds) },
+            })
+        }
+        // geojson-vt lazily retains generated tiles. Rebuild periodically to bound it.
+        if (++asset.tileRequests > 256) {
+          asset.routeIndex = undefined
+          asset.heatIndex = undefined
+          asset.tileRequests = 1
+        }
+        const routes = () => activitiesToGeoData(deserializeActivities(asset.payload.activities))
+        if (heat) asset.heatIndex ??= geojsonvt(prepareHeatRoutes(routes()), HEAT_TILE_OPTIONS)
+        else asset.routeIndex ??= geojsonvt(routes(), TILE_OPTIONS)
+        const index = heat ? asset.heatIndex! : asset.routeIndex!
+        const result = index.getTile(numbers[0], numbers[1], numbers[2])
+        if (heat) {
+          body = encodePng(rasterizePathHeat(result, { types, cutoff }, dark), HEAT_SIZE, HEAT_SIZE)
+          heatTiles.set(heatKey, body)
+          contentType = 'image/png'
+        } else {
+          // @types/vt-pbf incorrectly describes values as indexes rather than tiles.
+          body = result
+            ? fromGeojsonVt({ routes: result } as unknown as Parameters<typeof fromGeojsonVt>[0], { version: 2 })
+            : new Uint8Array()
+          contentType = 'application/vnd.mapbox-vector-tile'
+        }
       }
-      const routes = () => activitiesToGeoData(deserializeActivities(asset.payload.activities))
-      const heat = query.get('kind') === 'heat'
-      if (heat) asset.heatIndex ??= geojsonvt(sampleRouteHeatmap(routes(), 250_000), TILE_OPTIONS)
-      else asset.routeIndex ??= geojsonvt(routes(), TILE_OPTIONS)
-      const index = heat ? asset.heatIndex! : asset.routeIndex!
-      const result = index.getTile(numbers[0], numbers[1], numbers[2])
-      // @types/vt-pbf incorrectly describes values as indexes rather than tiles.
-      body = result
-        ? fromGeojsonVt({ routes: result } as unknown as Parameters<typeof fromGeojsonVt>[0], { version: 2 })
-        : new Uint8Array()
-      contentType = 'application/vnd.mapbox-vector-tile'
     } else {
       const tiled = asset.preview.activities !== asset.payload.activities
       const base = `/api/maps/${encodeURIComponent(slug)}?revision=${encodeURIComponent(revision)}&tile={z}/{x}/{y}`

@@ -23,9 +23,11 @@ function server({
   payload = { version: 1, activities: [route(5)] },
   onRead = () => {},
   readRow = async () => row,
+  mocks = {},
 } = {}) {
   let reads = 0
   const { servePublicRender } = loadTs('src/lib/public-render-server.ts', {
+    ...mocks,
     './sharing-db': { findShareBySlug: readRow },
     './local-map': { loadLocalMap: async () => null },
     './sharing-storage': {
@@ -164,4 +166,97 @@ test('thumbnail preparation bounds concurrent downloads while cached previews st
   assert.equal((await servePublicRender('cached', query)).status, 200)
   releases.forEach((release) => release())
   assert.ok((await Promise.all(inFlight)).every((response) => response.status === 200))
+})
+
+test('heat tiles are filtered PNGs with live revocation and no-store headers', async () => {
+  let live = row
+  const s = server({ readRow: async () => live })
+  const query = 'tile=12/2046/1362&revision=a&kind=heat'
+  const response = await s.serve(`${query}&types=running`)
+  assert.equal(response.status, 200)
+  assert.equal(response.headers.get('content-type'), 'image/png')
+  assert.equal(response.headers.get('cache-control'), 'private, no-store, max-age=0')
+  const heat = Buffer.from(await response.arrayBuffer())
+  assert.equal(heat.subarray(1, 4).toString(), 'PNG')
+  const hidden = Buffer.from(await (await s.serve(`${query}&types=cycling`)).arrayBuffer())
+  assert.notDeepEqual(heat, hidden)
+  const old = Buffer.from(await (await s.serve(`${query}&types=running&cutoff=0`)).arrayBuffer())
+  assert.deepEqual(hidden, old)
+  assert.equal((await s.serve(`${query}&cutoff=invalid`)).status, 400)
+  live = null
+  assert.equal((await s.serve(query)).status, 404)
+})
+
+test('PNG hits reuse rendering across canonical filters, but retain revision and access checks', async () => {
+  let encoded = 0,
+    checks = 0,
+    live = row
+  const { encodePng } = loadTs('src/lib/png.ts')
+  const s = server({
+    readRow: async () => {
+      checks++
+      return live
+    },
+    mocks: {
+      './png': {
+        encodePng: (...args) => {
+          encoded++
+          return encodePng(...args)
+        },
+      },
+    },
+  })
+  const tile = 'tile=12/2046/1362&kind=heat'
+  assert.equal((await s.serve(`${tile}&types=running,cycling,running`)).status, 200)
+  assert.equal((await s.serve(`${tile}&types=cycling,running`)).status, 200)
+  assert.equal(encoded, 1)
+  assert.equal(checks, 4, 'cache hits still perform both access checks')
+  await s.serve(`${tile}&types=running&theme=dark`)
+  await s.serve(`${tile}&types=running&cutoff=0`)
+  assert.equal(encoded, 3)
+  live = { ...row, revision: 'b' }
+  await s.serve(`${tile}&types=cycling,running`)
+  assert.equal(encoded, 4)
+  live = null
+  assert.equal((await s.serve(tile)).status, 404)
+  assert.equal(encoded, 4)
+})
+
+test('uncached renders are throttled while authorised PNG hits remain available', async () => {
+  let attempts = 0
+  const s = server({
+    mocks: {
+      './rate-limit': { rateLimit: () => (++attempts === 1 ? { ok: true } : { ok: false, retryAfterSeconds: 30 }) },
+    },
+  })
+  const query = 'tile=12/2046/1362&kind=heat&types=running'
+  assert.equal((await s.serve(query)).status, 200)
+  assert.equal((await s.serve(query)).status, 200)
+  assert.equal(attempts, 1)
+  const rejected = await s.serve(`${query}&theme=dark`)
+  assert.equal(rejected.status, 429)
+  assert.equal(rejected.headers.get('retry-after'), '30')
+  assert.equal(rejected.headers.get('vercel-cdn-cache-control'), 'no-store')
+})
+
+test('heat request throttling precedes render loading and keeps rejection responses private', async () => {
+  const { GET } = loadTs('src/app/api/maps/[slug]/route.ts', {
+    '@/lib/api': {
+      enforceRateLimit: (_req, prefix, options) => {
+        assert.equal(prefix, 'map-heat')
+        assert.deepEqual(options, { windowMs: 60000, max: 240 })
+        return new Response(null, { status: 429, headers: { 'Retry-After': '30' } })
+      },
+    },
+    '@/lib/sharing-db': {},
+    '@/lib/sharing-storage': {},
+    '@/lib/local-map': {},
+  })
+  const response = await GET(
+    { nextUrl: new URL('http://localhost/api/maps/owner?tile=12/2046/1362&kind=heat') },
+    { params: Promise.resolve({ slug: 'owner' }) },
+  )
+  assert.equal(response.status, 429)
+  assert.equal(response.headers.get('retry-after'), '30')
+  assert.equal(response.headers.get('cache-control'), 'private, no-store, max-age=0')
 })

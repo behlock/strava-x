@@ -7,11 +7,17 @@ export const INSTANT_LINE_TRANSITIONS = {
   'line-blur-transition': { duration: 0 },
 } as const
 
+export function routeColor(isDark: boolean): string {
+  return isDark ? '#C2C2C2' : '#555555'
+}
+
 /** Identical neutral ink makes alpha compositing independent of route order. */
 export function routePaint(isDark: boolean, highlighted: boolean): LineLayerSpecification['paint'] {
   return {
     ...INSTANT_LINE_TRANSITIONS,
-    'line-color': isDark ? '#C2C2C2' : '#555555',
+    'line-color': routeColor(isDark),
+    'line-blur': 0,
+    'line-dasharray': [1, 0],
     'line-width': ['interpolate', ['linear'], ['zoom'], 5, 0.5, 10, 0.7, 13, 1, 16, 1.65, 19, 2.4],
     'line-opacity': [
       'interpolate',

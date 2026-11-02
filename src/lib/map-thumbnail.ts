@@ -1,5 +1,4 @@
-import { personalRouteColor } from './comparison-paint'
-import { DEFAULT_PERSONAL_PALETTE } from './comparison-appearance'
+import { routeColor } from './route-paint'
 import type { SerializedActivity } from './activities-serialize'
 
 export function renderMapThumbnail(activities: SerializedActivity[], isDark = false): string {
@@ -51,7 +50,7 @@ export function renderMapThumbnail(activities: SerializedActivity[], isDark = fa
       if (d) paths.push(`<path d="${d}"/>`)
     }
   }
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="640" height="400" viewBox="0 0 640 400"><g fill="none" stroke="${personalRouteColor(DEFAULT_PERSONAL_PALETTE, isDark)}" stroke-width="0.7" stroke-opacity="0.7" stroke-linecap="round" stroke-linejoin="round">${paths.join('')}</g>${paths.length ? '' : '<text x="320" y="204" text-anchor="middle" fill="#aaa" font-family="monospace" font-size="14">no routes to preview</text>'}</svg>`
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="640" height="400" viewBox="0 0 640 400"><g fill="none" stroke="${routeColor(isDark)}" stroke-width="0.7" stroke-opacity="0.7" stroke-linecap="round" stroke-linejoin="round">${paths.join('')}</g>${paths.length ? '' : '<text x="320" y="204" text-anchor="middle" fill="#aaa" font-family="monospace" font-size="14">no routes to preview</text>'}</svg>`
 }
 
 function valid(point: number[]): boolean {

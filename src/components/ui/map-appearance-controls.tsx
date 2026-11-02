@@ -1,28 +1,22 @@
 'use client'
 
 import { Combine, Layers2, LoaderCircle, ScanLine, Settings2 } from 'lucide-react'
-import { useId, useRef, useState } from 'react'
+import { useId, useState } from 'react'
 import { useTheme } from 'next-themes'
 
-import { heatmapColors } from '@/lib/heatmap-paint'
 import { useSwipeGesture } from '@/hooks/use-swipe-gesture'
-import { HeaderChip } from '@/components/ui/header-bar'
 import { Tooltip } from '@/components/ui/tooltip'
 import { config } from '@/lib/config'
 import type { CommonRoutesState } from '@/hooks/use-common-routes'
 import {
   COMPARISON_PALETTES,
-  COMPARISON_RENDER_MODES,
   DEFAULT_COMPARISON_ICON,
   DEFAULT_COMPARISON_PALETTE,
-  DEFAULT_COMPARISON_RENDER_MODE,
   comparisonColors,
   type ComparisonAppearance,
   type ComparisonIconId,
-  type RouteAppearance,
 } from '@/lib/comparison-appearance'
 import { cn } from '@/lib/utils'
-import { personalRouteColor } from '@/lib/comparison-paint'
 
 const ICONS = { layers: Layers2, combine: Combine, scan: ScanLine }
 const ICON_OPTIONS = [
@@ -68,42 +62,9 @@ export function CommonRoutesToggle({
   )
 }
 
-function AppearancePicker({
-  appearance,
-  isDark,
-  personal = false,
-}: {
-  appearance: ComparisonAppearance | RouteAppearance
-  isDark: boolean
-  personal?: boolean
-}) {
+function AppearancePicker({ appearance, isDark }: { appearance: ComparisonAppearance; isDark: boolean }) {
   return (
     <div className="w-72 max-w-full space-y-3 border-t border-panel-border px-3 py-3">
-      <fieldset>
-        <legend className="mb-2 text-xs-compact text-panel-muted">render</legend>
-        <div className="grid grid-cols-2 gap-1">
-          {COMPARISON_RENDER_MODES.map((mode) => (
-            <button
-              key={mode.id}
-              type="button"
-              title={personal && mode.id === 'routes' ? 'crisp routes' : mode.description}
-              aria-pressed={appearance.renderMode === mode.id}
-              onClick={() => appearance.setRenderMode(mode.id)}
-              className={cn(
-                'min-h-11 rounded-lg border border-transparent px-2 text-left text-xs-compact focus-ring hover:bg-control-hover md:min-h-9',
-                appearance.renderMode === mode.id && 'border-panel-border bg-selection text-selection-foreground',
-              )}
-            >
-              {mode.id}
-            </button>
-          ))}
-        </div>
-        <p className="mt-2 text-xs-compact text-panel-muted">
-          {personal && appearance.renderMode === 'routes'
-            ? 'crisp routes'
-            : COMPARISON_RENDER_MODES.find((mode) => mode.id === appearance.renderMode)?.description}
-        </p>
-      </fieldset>
       <fieldset>
         <legend className="mb-2 text-xs-compact text-panel-muted">palette</legend>
         <div className="grid grid-cols-2 gap-1">
@@ -122,10 +83,7 @@ function AppearancePicker({
               >
                 {palette.id}
                 <span className="flex gap-1" aria-hidden="true">
-                  {(personal
-                    ? [personalRouteColor(palette.id, isDark)]
-                    : [colors.own, colors.other, colors.overlap]
-                  ).map((color, i) => (
+                  {[colors.own, colors.other, colors.overlap].map((color, i) => (
                     <span key={i} className="size-2.5 rounded-full" style={{ backgroundColor: color }} />
                   ))}
                 </span>
@@ -134,31 +92,29 @@ function AppearancePicker({
           })}
         </div>
       </fieldset>
-      {'iconId' in appearance && !personal && (
-        <fieldset>
-          <legend className="mb-2 text-xs-compact text-panel-muted">icon</legend>
-          <div className="grid grid-cols-3 gap-1">
-            {ICON_OPTIONS.map(({ id, name }) => {
-              const Icon = ICONS[id]
-              return (
-                <button
-                  key={id}
-                  type="button"
-                  aria-pressed={appearance.iconId === id}
-                  onClick={() => appearance.setIcon(id)}
-                  className={cn(
-                    'flex min-h-16 flex-col items-center justify-center gap-2 rounded-lg border border-transparent text-xs-compact focus-ring hover:bg-control-hover',
-                    appearance.iconId === id && 'border-panel-border bg-selection text-selection-foreground',
-                  )}
-                >
-                  <Icon className="size-5" aria-hidden="true" />
-                  {name}
-                </button>
-              )
-            })}
-          </div>
-        </fieldset>
-      )}
+      <fieldset>
+        <legend className="mb-2 text-xs-compact text-panel-muted">icon</legend>
+        <div className="grid grid-cols-3 gap-1">
+          {ICON_OPTIONS.map(({ id, name }) => {
+            const Icon = ICONS[id]
+            return (
+              <button
+                key={id}
+                type="button"
+                aria-pressed={appearance.iconId === id}
+                onClick={() => appearance.setIcon(id)}
+                className={cn(
+                  'flex min-h-16 flex-col items-center justify-center gap-2 rounded-lg border border-transparent text-xs-compact focus-ring hover:bg-control-hover',
+                  appearance.iconId === id && 'border-panel-border bg-selection text-selection-foreground',
+                )}
+              >
+                <Icon className="size-5" aria-hidden="true" />
+                {name}
+              </button>
+            )
+          })}
+        </div>
+      </fieldset>
     </div>
   )
 }
@@ -169,14 +125,12 @@ export function CommonRoutesNotice({
   appearance,
   ownerLabel,
   viewerLabel = 'me',
-  heatmapStatus,
 }: {
   state: CommonRoutesState
   onRetry?: () => void
   appearance?: ComparisonAppearance
   ownerLabel: string
   viewerLabel?: string
-  heatmapStatus?: string
 }) {
   const { resolvedTheme } = useTheme()
   const [debugOpen, setDebugOpen] = useState(false)
@@ -184,8 +138,6 @@ export function CommonRoutesNotice({
   const pickerId = useId()
   const isDark = resolvedTheme === 'dark'
   const colors = comparisonColors(appearance?.paletteId ?? DEFAULT_COMPARISON_PALETTE, isDark)
-  const requestedMode = appearance?.renderMode ?? DEFAULT_COMPARISON_RENDER_MODE
-  const renderMode = requestedMode === 'hotspots' && heatmapStatus ? 'routes' : requestedMode
   const showDebug = config.MAP_STYLE_DEBUG && Boolean(appearance)
   const hidden = state.status === 'ready' && hiddenWhile === 'ready'
   const swipe = useSwipeGesture({
@@ -251,7 +203,7 @@ export function CommonRoutesNotice({
                 { label: ownerLabel.toLowerCase(), color: colors.other, width: 1 },
                 {
                   label: 'overlap',
-                  color: renderMode === 'hotspots' ? heatmapColors(isDark)[3] : colors.overlap,
+                  color: colors.overlap,
                   width: 3,
                 },
               ].map(({ label, color, width }, index) => (
@@ -269,7 +221,7 @@ export function CommonRoutesNotice({
                       y2="6"
                       stroke={color}
                       strokeWidth={width}
-                      strokeDasharray={index === 0 && renderMode === 'routes' ? '6 4' : undefined}
+                      strokeDasharray={index === 0 ? '6 4' : undefined}
                     />
                   </svg>
                   <span className="max-w-20 truncate" title={label}>
@@ -291,11 +243,6 @@ export function CommonRoutesNotice({
               </button>
             )}
           </div>
-          {heatmapStatus && (
-            <p role="status" className="px-3 pb-2 text-panel-muted">
-              {heatmapStatus}
-            </p>
-          )}
           {config.MAP_STYLE_DEBUG && appearance && debugOpen && (
             <div id={pickerId}>
               <AppearancePicker appearance={appearance} isDark={isDark} />
@@ -319,69 +266,5 @@ export function CommonRoutesNotice({
         </div>
       )}
     </div>
-  )
-}
-
-export function PersonalMapAppearance({ appearance, status }: { appearance: RouteAppearance; status?: string }) {
-  const { resolvedTheme } = useTheme()
-  const [open, setOpen] = useState(false)
-  const panelId = useId()
-  const trigger = useRef<HTMLButtonElement>(null)
-  return (
-    <section
-      aria-label="Personal map appearance"
-      className="absolute top-[calc(4.5rem+env(safe-area-inset-top,0px))] right-4 z-30 max-w-[calc(100%-2rem)] md:top-18"
-      onKeyDown={(event) => {
-        if (event.key === 'Escape' && open) {
-          event.stopPropagation()
-          setOpen(false)
-          trigger.current?.focus()
-        }
-      }}
-    >
-      <div
-        className={cn(
-          open &&
-            'max-h-[calc(100dvh-11rem-env(safe-area-inset-top,0px)-env(safe-area-inset-bottom,0px))] overflow-y-auto overscroll-contain rounded-lg border border-panel-border bg-panel md:max-h-[calc(100dvh-10rem)]',
-        )}
-      >
-        <div
-          className={cn(
-            'flex items-center justify-end',
-            open && 'sticky top-0 z-10 justify-between gap-3 bg-panel px-3 py-2',
-          )}
-        >
-          {open && <span className="text-xs-compact">style</span>}
-          <HeaderChip
-            ref={trigger}
-            tooltip="map appearance"
-            aria-label="Map appearance"
-            aria-expanded={open}
-            aria-controls={panelId}
-            onClick={() => setOpen((value) => !value)}
-          >
-            <Settings2 className="size-3.5" aria-hidden="true" />
-          </HeaderChip>
-        </div>
-        {open && (
-          <div id={panelId}>
-            {status && (
-              <p role="status" className="px-3 pb-2 text-xs-compact text-panel-muted">
-                {status}
-              </p>
-            )}
-            <AppearancePicker appearance={appearance} isDark={resolvedTheme === 'dark'} personal />
-          </div>
-        )}
-      </div>
-      {!open && status && (
-        <p
-          role="status"
-          className="mt-2 max-w-64 rounded-lg border border-panel-border bg-panel px-3 py-2 text-xs-compact text-panel-muted"
-        >
-          {status}
-        </p>
-      )}
-    </section>
   )
 }
