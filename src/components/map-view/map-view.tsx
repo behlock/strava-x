@@ -24,7 +24,6 @@ const ActivityMap = dynamic(() => import('@/components/activity-map').then((mod)
 interface MapViewProps {
   activities: Activity[]
   publicTiles?: string
-  publicHeatTiles?: string
   onPublicTileError?: () => void
   /** Show activity list loading states (used during initial sync). */
   loading?: boolean
@@ -60,7 +59,6 @@ const MOBILE_MAX_VERTICAL_RATIO = 0.8
 export function MapView({
   activities: allActivities,
   publicTiles,
-  publicHeatTiles,
   onPublicTileError,
   loading = false,
   preferBusiestArea = false,
@@ -313,7 +311,6 @@ export function MapView({
         ref={setMapRef}
         data={allGeoData}
         publicTiles={publicTiles}
-        publicHeatTiles={publicHeatTiles}
         onPublicTileError={onPublicTileError}
         commonRoutes={commonData}
         ownRoutes={comparisonData?.ownRoutes}

@@ -17,13 +17,6 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ slu
   const checked = validateSlug((await params).slug)
   if (!checked.ok) return new Response(null, { status: 404, headers })
   const query = _req?.nextUrl.searchParams
-  if (query?.has('tile') && query.get('kind') === 'heat') {
-    const limited = enforceRateLimit(_req, 'map-heat', { windowMs: 60_000, max: 240 })
-    if (limited) {
-      for (const [key, value] of Object.entries(headers)) limited.headers.set(key, value)
-      return limited
-    }
-  }
   if (query?.get('view') === 'thumbnail') {
     const limited = enforceRateLimit(_req, 'map-thumbnail', { windowMs: 60_000, max: 120 })
     if (limited) return limited

@@ -16,8 +16,6 @@ export function routePaint(isDark: boolean, highlighted: boolean): LineLayerSpec
   return {
     ...INSTANT_LINE_TRANSITIONS,
     'line-color': routeColor(isDark),
-    'line-blur': 0,
-    'line-dasharray': [1, 0],
     'line-width': ['interpolate', ['linear'], ['zoom'], 5, 0.5, 10, 0.7, 13, 1, 16, 1.65, 19, 2.4],
     'line-opacity': [
       'interpolate',

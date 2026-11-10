@@ -14,8 +14,6 @@ import { ACTIVITY_TYPE_COLORS, DEFAULT_ACTIVITY_COLOR } from '@/lib/activity-col
 import { config } from '@/lib/config'
 import { boundsOf } from '@/lib/geo-utils'
 import { applyMapTheme } from '@/lib/map-theme'
-import { usePathHeat } from '@/hooks/use-path-heat'
-import { heatTileBounds, visibleHeatTiles, type HeatTileCoordinate } from '@/lib/path-heat'
 import { comparisonColors, DEFAULT_COMPARISON_PALETTE, type ComparisonPaletteId } from '@/lib/comparison-appearance'
 import { comparisonLinePaint } from '@/lib/comparison-paint'
 import { routePaint } from '@/lib/route-paint'
@@ -37,7 +35,6 @@ interface ActivityMapProps {
   ref?: Ref<ActivityMapRef>
   data: ActivityFeatureCollection
   publicTiles?: string
-  publicHeatTiles?: string
   onPublicTileError?: () => void
   commonRoutes?: ActivityFeatureCollection
   comparisonVisible?: boolean
@@ -91,7 +88,6 @@ export const ActivityMap = memo(function ActivityMap({
   ref,
   data,
   publicTiles,
-  publicHeatTiles,
   onPublicTileError,
   commonRoutes,
   comparisonVisible = true,
@@ -110,30 +106,8 @@ export const ActivityMap = memo(function ActivityMap({
   const ready = Boolean(resolvedTheme)
   const mapRef = useRef<MapRef>(null)
   const containerRef = useRef<HTMLDivElement>(null)
-  const [heatTiles, setHeatTiles] = useState<HeatTileCoordinate[]>([])
   const labelAnchorRef = useRef<string | undefined>(undefined)
   const [labelAnchor, setLabelAnchor] = useState<string | undefined>()
-  const [loadedHeat, setLoadedHeat] = useState<string | null>(null)
-  const [failedHeat, setFailedHeat] = useState<string | null>(null)
-  const heatFilter = useMemo(
-    () => ({ types: hoverType ? typeFilter.filter((type) => type === hoverType) : typeFilter, cutoff: dateCutoff }),
-    [typeFilter, hoverType, dateCutoff],
-  )
-  const heat = usePathHeat(data, heatTiles, heatFilter, resolvedTheme === 'dark', !publicTiles && !comparing && ready)
-  const heatUrl = publicHeatTiles
-    ? `${publicHeatTiles}&types=${encodeURIComponent(heatFilter.types.join(','))}${dateCutoff === null ? '' : `&cutoff=${dateCutoff}`}&theme=${resolvedTheme === 'dark' ? 'dark' : 'light'}`
-    : undefined
-  const heatAvailable =
-    !comparing &&
-    (publicTiles ? Boolean(heatUrl && loadedHeat === heatUrl && failedHeat !== heatUrl) : heat.images.length > 0)
-  const updateHeatViewport = useCallback(() => {
-    const map = mapRef.current?.getMap()
-    const bounds = map?.getBounds()
-    if (map && bounds)
-      setHeatTiles(
-        visibleHeatTiles(bounds.getWest(), bounds.getSouth(), bounds.getEast(), bounds.getNorth(), map.getZoom()),
-      )
-  }, [])
   const updateMapStyle = useCallback(() => {
     const map = mapRef.current?.getMap()
     if (!map) return
@@ -184,11 +158,10 @@ export const ActivityMap = memo(function ActivityMap({
     if (!el) return
     const observer = new ResizeObserver(() => {
       mapRef.current?.resize()
-      updateHeatViewport()
     })
     observer.observe(el)
     return () => observer.disconnect()
-  }, [ready, updateHeatViewport])
+  }, [ready])
 
   const handleMove = useCallback((event: ViewStateChangeEvent) => {
     // Not every member of the event union carries `originalEvent`.
@@ -198,17 +171,15 @@ export const ActivityMap = memo(function ActivityMap({
   const handleMoveEnd = useCallback(
     ({ viewState }: ViewStateChangeEvent) => {
       onPositionChange({ latitude: viewState.latitude, longitude: viewState.longitude, zoom: viewState.zoom })
-      updateHeatViewport()
     },
-    [onPositionChange, updateHeatViewport],
+    [onPositionChange],
   )
 
   const handleLoad = useCallback(() => {
     isLoadedRef.current = true
     frameInitialBounds()
-    updateHeatViewport()
     updateMapStyle()
-  }, [frameInitialBounds, updateHeatViewport, updateMapStyle])
+  }, [frameInitialBounds, updateMapStyle])
 
   const fitBounds = useCallback((bounds: MapBounds, options?: FitOptions) => {
     hasUserMovedRef.current = true
@@ -293,12 +264,8 @@ export const ActivityMap = memo(function ActivityMap({
         onMoveEnd={handleMoveEnd}
         onLoad={handleLoad}
         onError={(event) => {
-          if ('sourceId' in event && event.sourceId === 'public-path-heat' && heatUrl) setFailedHeat(heatUrl)
-          else if ('sourceId' in event && event.sourceId === 'all-activities' && publicTiles) onPublicTileError?.()
+          if ('sourceId' in event && event.sourceId === 'all-activities' && publicTiles) onPublicTileError?.()
           else console.error('[map]', event.error)
-        }}
-        onSourceData={(event) => {
-          if (event.sourceId === 'public-path-heat' && event.isSourceLoaded && heatUrl) setLoadedHeat(heatUrl)
         }}
         onStyleData={updateMapStyle}
       >
@@ -316,14 +283,7 @@ export const ActivityMap = memo(function ActivityMap({
             {...(publicTiles ? { 'source-layer': 'routes' } : {})}
             filter={layerFilter}
             layout={LINE_LAYOUT}
-            paint={
-              comparing
-                ? comparisonLinePaint(colors.other, 'other')
-                : {
-                    ...routePaint(isDark, hasVisibleHighlight),
-                    ...(heatAvailable ? { 'line-opacity': 0 } : {}),
-                  }
-            }
+            paint={comparing ? comparisonLinePaint(colors.other, 'other') : routePaint(isDark, hasVisibleHighlight)}
           />
           <Layer
             id="highlighted-activity-casing"
@@ -350,38 +310,6 @@ export const ActivityMap = memo(function ActivityMap({
             }}
           />
         </Source>
-        {!comparing &&
-          !publicTiles &&
-          heat.images.map(({ coordinate, url }) => (
-            <Source
-              key={`${coordinate.z}/${coordinate.x}/${coordinate.y}`}
-              id={`path-heat-${coordinate.z}-${coordinate.x}-${coordinate.y}`}
-              type="image"
-              url={url}
-              coordinates={heatTileBounds(coordinate)}
-            >
-              <Layer
-                id={`path-heat-layer-${coordinate.z}-${coordinate.x}-${coordinate.y}`}
-                type="raster"
-                beforeId="all-activities-layer"
-                paint={{
-                  'raster-opacity': hasVisibleHighlight ? 0.15 : 0.95,
-                  'raster-fade-duration': 0,
-                  'raster-resampling': 'linear',
-                }}
-              />
-            </Source>
-          ))}
-        {!comparing && heatUrl && failedHeat !== heatUrl && (
-          <Source key={heatUrl} id="public-path-heat" type="raster" tiles={[heatUrl]} tileSize={512} maxzoom={16}>
-            <Layer
-              id="public-path-heat-layer"
-              type="raster"
-              beforeId="all-activities-layer"
-              paint={{ 'raster-opacity': hasVisibleHighlight ? 0.15 : 0.95, 'raster-fade-duration': 300 }}
-            />
-          </Source>
-        )}
         {ownRoutes && (
           <Source id="comparison-own-routes" type="geojson" data={ownRoutes}>
             <Layer

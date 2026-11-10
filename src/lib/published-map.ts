@@ -7,7 +7,6 @@ interface PublishedPayload {
   activities: SerializedActivity[]
   tiles?: string
   fullUrl?: string
-  heatTiles?: string
 }
 
 interface LoadedMap {
@@ -15,7 +14,6 @@ interface LoadedMap {
   updatedAt: string | null
   tiles?: string
   fullUrl?: string
-  heatTiles?: string
 }
 
 // Strict Mode and overlapping mounts share one download and one JSON parse.
@@ -35,7 +33,6 @@ export function loadPublishedMap(url: string): Promise<LoadedMap> {
     return {
       fullUrl: payload.fullUrl,
       tiles: payload.tiles,
-      heatTiles: payload.heatTiles,
       activities: deserializeActivities(payload.activities),
       updatedAt: typeof timestamp === 'string' && Number.isFinite(Date.parse(timestamp)) ? timestamp : null,
     }

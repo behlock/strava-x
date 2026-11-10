@@ -111,12 +111,10 @@ function PublicMapCanvas({
   activities,
   auth,
   tiles,
-  heatTiles,
   onTileError,
   loadFull,
 }: {
   tiles?: string
-  heatTiles?: string
   onTileError: () => void
   loadFull?: () => Promise<Activity[]>
   slug: string
@@ -132,7 +130,6 @@ function PublicMapCanvas({
     <MapView
       activities={activities ?? []}
       publicTiles={tiles}
-      publicHeatTiles={heatTiles}
       onPublicTileError={onTileError}
       loading={activities === null}
       header={
@@ -171,7 +168,6 @@ function LoadedPublicMap({ slug, blobUrl }: PublicMapViewProps) {
   const [updatedAt, setUpdatedAt] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [tiles, setTiles] = useState<string | undefined>(undefined)
-  const [heatTiles, setHeatTiles] = useState<string | undefined>(undefined)
   const [tileFailed, setTileFailed] = useState(false)
   const onTileError = useCallback(() => setTileFailed(true), [])
   const [fullUrl, setFullUrl] = useState<string | undefined>(undefined)
@@ -188,7 +184,6 @@ function LoadedPublicMap({ slug, blobUrl }: PublicMapViewProps) {
         if (cancelled) return
         setFullUrl(payload.fullUrl)
         setTiles(payload.tiles)
-        setHeatTiles(payload.heatTiles)
         setUpdatedAt(payload.updatedAt)
         setActivities(payload.activities)
       } catch (e) {
@@ -210,7 +205,6 @@ function LoadedPublicMap({ slug, blobUrl }: PublicMapViewProps) {
         if (cancelled) return
         setActivities(full)
         setTiles(undefined)
-        setHeatTiles(undefined)
       },
       () => {
         if (!cancelled) setError("this map couldn't be loaded, refresh to try again")
@@ -239,7 +233,6 @@ function LoadedPublicMap({ slug, blobUrl }: PublicMapViewProps) {
       updatedAt={updatedAt}
       activities={activities}
       tiles={tiles}
-      heatTiles={heatTiles}
       onTileError={onTileError}
       loadFull={tiles ? loadFull : undefined}
       auth={auth}
