@@ -84,7 +84,7 @@ export function ProfileMenu({ onDisconnect, profilePhotoUrl }: ProfileMenuProps)
               onLoad={() => setLoadedPhotoUrl(profilePhotoUrl)}
               onError={() => setFailedPhotoUrl(profilePhotoUrl)}
               className={cn(
-                'absolute inset-0 size-full object-cover transition-[opacity,rotate] duration-150 ease-[var(--ease-out)] motion-reduce:transition-none',
+                'absolute inset-0 size-full object-cover transition-[opacity,rotate] duration-250 ease-[var(--ease-out)] motion-reduce:transition-none',
                 open
                   ? '-rotate-45 opacity-0'
                   : loadedPhotoUrl === profilePhotoUrl
@@ -98,7 +98,7 @@ export function ProfileMenu({ onDisconnect, profilePhotoUrl }: ProfileMenuProps)
         <Plus
           aria-hidden="true"
           className={cn(
-            'absolute size-[19px] transition-[opacity,rotate] duration-150 ease-[var(--ease-out)] motion-reduce:transition-none',
+            'absolute size-[19px] transition-[opacity,rotate] duration-250 ease-[var(--ease-out)] motion-reduce:transition-none',
             open ? 'rotate-45 opacity-100' : 'rotate-90 opacity-0',
           )}
         />
