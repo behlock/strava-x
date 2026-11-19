@@ -33,9 +33,9 @@ function signed(activities, revision = '0', athleteId = 1, expiresAt = Date.now(
     expiresAt,
   )
 }
-function fixture() {
+function fixture(athleteId = '1') {
   let row = {
-    athlete_id: 1,
+    athlete_id: athleteId,
     slug: null,
     active: false,
     revision: '0',
@@ -87,7 +87,7 @@ function fixture() {
 }
 const create = (f, activities = payload()) =>
   mutateShare(f.store, {
-    athleteId: 1,
+    athleteId: '1',
     displayName: 'Owner',
     action: 'create',
     slug: 'owner',
@@ -97,14 +97,15 @@ const create = (f, activities = payload()) =>
   })
 const update = (f, activities = payload([activity('2')]), revision = f.row.revision) =>
   mutateShare(f.store, {
-    athleteId: 1,
+    athleteId: '1',
     displayName: 'Owner',
     action: 'update',
     revision,
     activities,
     proof: signed(activities, revision),
   })
-const stop = (f) => mutateShare(f.store, { athleteId: 1, displayName: null, action: 'stop', revision: f.row.revision })
+const stop = (f) =>
+  mutateShare(f.store, { athleteId: '1', displayName: null, action: 'stop', revision: f.row.revision })
 
 // Hold an upload after bytes have reached storage, before the metadata CAS.
 function holdNextUpload(f) {
@@ -154,7 +155,7 @@ test('tampered, expired, wrong-account and unverified snapshots are rejected bef
     const f = fixture()
     await assert.rejects(
       mutateShare(f.store, {
-        athleteId: 1,
+        athleteId: '1',
         displayName: null,
         action: 'create',
         slug: 'owner',
@@ -189,7 +190,7 @@ test('rename changes only metadata and invalidates an older update', async () =>
   await create(f)
   const previous = { ...f.row }
   await mutateShare(f.store, {
-    athleteId: 1,
+    athleteId: '1',
     displayName: null,
     action: 'rename',
     slug: 'new-address',
@@ -236,7 +237,7 @@ test('stop, then fresh re-share cannot be overwritten by an old in-flight reques
   gate.release()
   await assert.rejects(pending, /publication_changed/)
   await mutateShare(f.store, {
-    athleteId: 1,
+    athleteId: '1',
     displayName: null,
     action: 'create',
     slug: 'owner',
@@ -273,7 +274,7 @@ test('publication stores the running city, preserves it on rename, and clears it
     [-0.11, 51.52],
   ]
   await mutateShare(f.store, {
-    athleteId: 1,
+    athleteId: '1',
     displayName: null,
     revision: '0',
     action: 'create',
@@ -282,8 +283,34 @@ test('publication stores the running city, preserves it on rename, and clears it
     proof: signed(activities),
   })
   assert.equal(f.row.top_city, 'London')
-  await mutateShare(f.store, { athleteId: 1, displayName: null, revision: '1', action: 'rename', slug: 'renamed' })
+  await mutateShare(f.store, { athleteId: '1', displayName: null, revision: '1', action: 'rename', slug: 'renamed' })
   assert.equal(f.row.top_city, 'London')
-  await mutateShare(f.store, { athleteId: 1, displayName: null, revision: '2', action: 'stop' })
+  await mutateShare(f.store, { athleteId: '1', displayName: null, revision: '2', action: 'stop' })
   assert.equal(f.row.top_city, null)
+})
+
+test('legacy numeric proofs remain valid; large signed identities cannot authorize neighboring accounts', async () => {
+  const legacy = fixture('1')
+  await create(legacy)
+  assert.equal(legacy.row.active, true)
+  const athleteId = '9007199254740993'
+  const items = payload()
+  const mutation = {
+    athleteId,
+    displayName: 'Owner',
+    action: 'create',
+    slug: 'large-owner',
+    revision: '0',
+    activities: items,
+  }
+  for (const claim of ['9007199254740992', Number(athleteId), '09007199254740993']) {
+    const f = fixture(athleteId)
+    await assert.rejects(mutateShare(f.store, { ...mutation, proof: signed(items, '0', claim) }), /sync_required/)
+    assert.equal(f.uploads.size, 0)
+  }
+  const f = fixture(athleteId)
+  const row = await mutateShare(f.store, { ...mutation, proof: signed(items, '0', athleteId) })
+  assert.equal(row.athlete_id, athleteId)
+  assert.equal(row.active, true)
+  assert.equal(f.uploads.size, 1)
 })

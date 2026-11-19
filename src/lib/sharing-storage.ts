@@ -7,7 +7,7 @@ function privateToken(): string {
   if (!token) throw new Error('sharing_not_configured')
   return token
 }
-export async function writePrivateSnapshot(athleteId: number, body: string): Promise<string> {
+export async function writePrivateSnapshot(athleteId: string, body: string): Promise<string> {
   const result = await put(`snapshots/${athleteId}/${randomUUID()}.json`, body, {
     access: 'private',
     token: privateToken(),

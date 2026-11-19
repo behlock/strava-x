@@ -1,8 +1,10 @@
 import { createHash } from 'node:crypto'
 import { type NextRequest, NextResponse } from 'next/server'
-import { jsonError, readJsonBody } from '@/lib/api'
+import { jsonError, readBoundedBody } from '@/lib/api'
 import { recordActivityChange } from '@/lib/activity-sync-db'
 import { matchesWebhookToken, webhookSubscriptionId } from '@/lib/strava-webhook-config'
+import { parseStravaWebhookJson } from '@/lib/strava-webhook-json'
+import { normalizeStravaId } from '@/lib/strava-id'
 
 export const runtime = 'nodejs'
 
@@ -31,7 +33,7 @@ export async function POST(req: NextRequest, { params }: WebhookContext) {
   }
   const subscriptionId = webhookSubscriptionId()
   if (subscriptionId === null) return jsonError('webhook_not_configured', 503)
-  const event = await readJsonBody<{
+  let event: {
     owner_id?: unknown
     object_id?: unknown
     event_time?: unknown
@@ -39,14 +41,20 @@ export async function POST(req: NextRequest, { params }: WebhookContext) {
     object_type?: unknown
     aspect_type?: unknown
     updates?: Record<string, unknown>
-  }>(req)
+  } | null
+  try {
+    const body = await readBoundedBody(req, 64 * 1024)
+    event = body ? (parseStravaWebhookJson(body.toString('utf8')) as typeof event) : null
+  } catch {
+    event = null
+  }
+  const ownerId = normalizeStravaId(event?.owner_id)
+  const objectId = normalizeStravaId(event?.object_id)
   if (
     !event ||
     event.subscription_id !== subscriptionId ||
-    !Number.isSafeInteger(event.owner_id) ||
-    Number(event.owner_id) <= 0 ||
-    !Number.isSafeInteger(event.object_id) ||
-    Number(event.object_id) <= 0 ||
+    !ownerId ||
+    !objectId ||
     !Number.isSafeInteger(event.event_time) ||
     Number(event.event_time) <= 0 ||
     !['create', 'update', 'delete'].includes(String(event.aspect_type)) ||
@@ -68,7 +76,8 @@ export async function POST(req: NextRequest, { params }: WebhookContext) {
       .update(
         JSON.stringify([
           event.object_type,
-          event.object_id,
+          // Keep existing retry keys stable for IDs handled by older releases.
+          BigInt(objectId) <= BigInt(Number.MAX_SAFE_INTEGER) ? Number(objectId) : objectId,
           event.aspect_type,
           event.event_time,
           Object.entries(event.updates ?? {}).sort(([a], [b]) => a.localeCompare(b)),
@@ -76,7 +85,7 @@ export async function POST(req: NextRequest, { params }: WebhookContext) {
       )
       .digest('hex')
     try {
-      await recordActivityChange(Number(event.owner_id), key, revoked, invalidateSnapshot)
+      await recordActivityChange(ownerId, key, revoked, invalidateSnapshot)
     } catch {
       return jsonError('webhook_unavailable', 503)
     }

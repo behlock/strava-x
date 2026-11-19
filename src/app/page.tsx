@@ -14,6 +14,7 @@ import { latestActivityStart } from '@/lib/activities'
 import { replaceActivities } from '@/lib/activities-db'
 import { isActivityCacheFresh, type ActivitySyncStatus } from '@/lib/activity-sync'
 import { config } from '@/lib/config'
+import { normalizeAthleteId } from '@/lib/strava-id'
 import { usePersistedActivities } from '@/hooks/use-persisted-activities'
 import { usePublish } from '@/hooks/use-publish'
 import { useStravaProfile } from '@/hooks/use-strava-profile'
@@ -112,7 +113,9 @@ export default function HomePage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ accessToken: auth.accessToken }),
       })
-        .then(async (response) => (response.ok ? ((await response.json()) as ActivitySyncStatus) : null))
+        .then(async (response) =>
+          response.ok ? normalizeAthleteId((await response.json()) as ActivitySyncStatus) : null,
+        )
         .catch(() => null)
       if (!isLive()) return
       // A verified status is enough to restore the personal map. Sharing UI

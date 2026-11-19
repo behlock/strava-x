@@ -5,7 +5,7 @@ export interface ActivitySyncStamp {
 }
 
 export interface ActivitySyncStatus {
-  athleteId: number
+  athleteId: string
   version: string | null
   webhooksActive: boolean
 }

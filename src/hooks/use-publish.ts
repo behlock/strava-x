@@ -4,6 +4,7 @@ import { useCallback, useRef, useState } from 'react'
 import { validateSlug } from '@/lib/slug'
 import type { ShareState, VerifiedSnapshot } from '@/lib/share-snapshot'
 import { clearPublishedOwner, getPublishedOwnerEpoch, rememberPublishedOwner } from '@/lib/published-owner'
+import { normalizeAthleteId } from '@/lib/strava-id'
 
 const PUBLISH_ERRORS = [
   'invalid_slug',
@@ -64,7 +65,7 @@ export function usePublish({ getAccessToken }: { getAccessToken: () => Promise<s
         cache: 'no-store',
       })
       if (!res.ok) return
-      const next = (await res.json()) as ShareState
+      const next = normalizeAthleteId((await res.json()) as ShareState)
       if (signal?.aborted || generation.current !== version) return
       if (state.current?.athleteId === next.athleteId && BigInt(next.revision) < BigInt(state.current.revision)) return
       if (snapshot.current?.athleteId !== next.athleteId || snapshot.current?.revision !== next.revision)
@@ -112,6 +113,8 @@ export function usePublish({ getAccessToken }: { getAccessToken: () => Promise<s
           const result = (await response.json()) as { snapshot: VerifiedSnapshot | null; share: ShareState | null }
           if (signal?.aborted || version !== generation.current) return { error: 'cancelled' }
           if (!result.share || !result.snapshot) return { error: 'sync_required' }
+          result.share = normalizeAthleteId(result.share)
+          result.snapshot = normalizeAthleteId(result.snapshot)
           if (
             result.share.athleteId !== before.athleteId ||
             result.share.revision !== before.revision ||
@@ -156,7 +159,7 @@ export function usePublish({ getAccessToken }: { getAccessToken: () => Promise<s
           }
           return { error: errorCode(data?.error) }
         }
-        const next = (await res.json()) as PublishResult
+        const next = normalizeAthleteId((await res.json()) as PublishResult)
         if (!signal?.aborted && version === generation.current) {
           acceptState(next, ownerEpoch)
           // A proof is bound to exactly one revision, never rebase it silently.
@@ -216,6 +219,8 @@ export function usePublish({ getAccessToken }: { getAccessToken: () => Promise<s
   const updatePublishedMap = useCallback(
     async (verified: VerifiedSnapshot, next: ShareState, version: number, signal: AbortSignal) => {
       if (signal.aborted || generation.current !== version || writing.current) return
+      verified = normalizeAthleteId(verified)
+      next = normalizeAthleteId(next)
       if (state.current?.athleteId === next.athleteId && BigInt(state.current.revision) > BigInt(next.revision)) return
       acceptState(next, getPublishedOwnerEpoch())
       snapshot.current = verified

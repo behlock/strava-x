@@ -3,7 +3,7 @@ import { webhookSubscriptionId } from './strava-webhook-config'
 
 const sql = () => neon(process.env.POSTGRES_URL || process.env.DATABASE_URL || '')
 
-export async function getActivityVersion(athleteId: number): Promise<string> {
+export async function getActivityVersion(athleteId: string): Promise<string> {
   const db = sql()
   const existing = await db`SELECT version FROM athlete_activity_versions WHERE athlete_id=${athleteId}`
   const prefix = webhookSubscriptionId() ?? 'poll'
@@ -16,7 +16,7 @@ export async function getActivityVersion(athleteId: number): Promise<string> {
 }
 
 export async function recordActivityChange(
-  athleteId: number,
+  athleteId: string,
   eventKey: string,
   revoked: boolean,
   invalidateSnapshot = false,

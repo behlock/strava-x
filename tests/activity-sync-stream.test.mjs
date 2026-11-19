@@ -36,7 +36,7 @@ test('incremental decoder handles split UTF-8 and lines and deduplicates repeate
     (id, activities) => previews.push({ id, activities }),
   )
   assert.equal(previews.length, 2)
-  assert.equal(previews[0].id, 7)
+  assert.equal(previews[0].id, '7')
   assert.equal(previews[0].activities[0].name, 'café')
   assert.deepEqual(result.activities, [updated])
 })
@@ -80,4 +80,32 @@ test('a completed empty library replaces history; buffered JSON remains compatib
   const empty = await readActivitySync(response([start, complete(0)]), signal(), () => assert.fail())
   assert.deepEqual(empty.activities, [])
   assert.deepEqual(await readActivitySync(Response.json(empty), signal(), () => assert.fail()), empty)
+})
+
+test('streamed and buffered large IDs stay exact through sharing metadata and account guards', async () => {
+  const athleteId = '9223372036854775807'
+  const metadata = {
+    ...complete().result,
+    athleteId,
+    share: { athleteId, revision: '1' },
+    snapshot: { athleteId, revision: '1' },
+  }
+  const result = await readActivitySync(
+    response([{ type: 'start', athleteId }, batch([activity]), { type: 'complete', count: 1, result: metadata }], true),
+    signal(),
+    (id) => assert.equal(id, athleteId),
+  )
+  assert.equal(result.athleteId, athleteId)
+  assert.equal(result.snapshot.athleteId, athleteId)
+  assert.equal(result.share.athleteId, athleteId)
+  assert.deepEqual(await readActivitySync(Response.json(result), signal(), () => assert.fail()), result)
+  for (const field of ['share', 'snapshot']) {
+    const bad = { ...result, [field]: { ...result[field], athleteId: '9223372036854775806' } }
+    await assert.rejects(
+      readActivitySync(Response.json(bad), signal(), () => {}),
+      /sync_failed/,
+    )
+  }
+  for (const athleteId of [0, '0', '1e3', Number.MAX_SAFE_INTEGER + 1, '9223372036854775808'])
+    await assert.rejects(readActivitySync(response([{ type: 'start', athleteId }]), signal(), () => {}))
 })

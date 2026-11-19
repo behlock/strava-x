@@ -1,5 +1,3 @@
-import { Duplex } from 'node:stream'
-import { constants, createGzip } from 'node:zlib'
 import { type NextRequest } from 'next/server'
 import { authenticateAthlete, enforceRateLimit, isAccessToken, jsonError, readJsonBody } from '@/lib/api'
 import { serializeActivities } from '@/lib/activities-serialize'
@@ -10,9 +8,18 @@ import { fetchAllActivities } from '@/lib/strava'
 import type { Activity } from '@/models/activity'
 import type { ActivitySyncEvent, ActivitySyncResult } from '@/lib/activity-sync-stream'
 import { getActivityVersion } from '@/lib/activity-sync-db'
+import { athleteIdForJson } from '@/lib/strava-id'
 
 export const runtime = 'nodejs'
 export const maxDuration = 300
+
+function syncResultForJson<T extends Omit<ActivitySyncResult, 'activities'>>(result: T) {
+  return {
+    ...athleteIdForJson(result),
+    share: result.share ? athleteIdForJson(result.share) : null,
+    snapshot: result.snapshot ? athleteIdForJson(result.snapshot) : null,
+  }
+}
 
 /** Nothing is committed until every Strava page has succeeded. */
 export async function POST(req: NextRequest) {
@@ -30,7 +37,15 @@ export async function POST(req: NextRequest) {
     const encoder = new TextEncoder()
     const stream = new ReadableStream<Uint8Array>({
       async start(controller) {
-        const send = (event: ActivitySyncEvent) => controller.enqueue(encoder.encode(JSON.stringify(event) + '\n'))
+        const send = (event: ActivitySyncEvent) => {
+          const wire =
+            event.type === 'start'
+              ? athleteIdForJson(event)
+              : event.type === 'complete'
+                ? { ...event, result: syncResultForJson(event.result) }
+                : event
+          controller.enqueue(encoder.encode(JSON.stringify(wire) + '\n'))
+        }
         try {
           send({ type: 'start', athleteId: auth.athlete.athleteId })
           const result = await syncLibrary(accessToken, auth.athlete.athleteId, signal, (batch) => {
@@ -51,15 +66,11 @@ export async function POST(req: NextRequest) {
         abort.abort()
       },
     })
-    // Flush every batch so gzip does not hold early routes until the sync finishes.
-    const gzip = Duplex.toWeb(createGzip({ flush: constants.Z_SYNC_FLUSH })) as unknown as ReadableWritablePair<
-      Uint8Array,
-      Uint8Array
-    >
-    return new Response(stream.pipeThrough(gzip), {
+    // Next.js strips Content-Encoding from route responses. Return plain JSON;
+    // no-transform keeps intermediaries from buffering the progressive batches.
+    return new Response(stream, {
       headers: {
         'Content-Type': 'application/x-ndjson',
-        'Content-Encoding': 'gzip',
         'Cache-Control': 'private, no-store, no-transform',
         'X-Accel-Buffering': 'no',
       },
@@ -67,12 +78,11 @@ export async function POST(req: NextRequest) {
   }
   try {
     const result = await syncLibrary(accessToken, auth.athlete.athleteId, req.signal)
-    const json = JSON.stringify(result)
-    // Stream the response: full libraries can exceed a serverless buffered
-    // response limit. Browser transparently decodes the gzip stream.
-    const stream = new Blob([json]).stream().pipeThrough(new CompressionStream('gzip'))
+    const json = JSON.stringify(syncResultForJson(result))
+    // Keep large libraries streamed; the HTTP server owns transport compression.
+    const stream = new Blob([json]).stream()
     return new Response(stream, {
-      headers: { 'Content-Type': 'application/json', 'Content-Encoding': 'gzip', 'Cache-Control': 'private, no-store' },
+      headers: { 'Content-Type': 'application/json', 'Cache-Control': 'private, no-store' },
     })
   } catch (error) {
     return jsonError(syncErrorCode(error), 502)
@@ -88,7 +98,7 @@ function syncErrorCode(error: unknown): string {
 
 async function syncLibrary(
   accessToken: string,
-  athleteId: number,
+  athleteId: string,
   signal: AbortSignal,
   onBatch?: (batch: Activity[]) => void,
 ): Promise<ActivitySyncResult> {
@@ -120,7 +130,7 @@ async function syncLibrary(
         const expiresAt = Date.now() + 10 * 60_000
         const proof = signProof(
           'snapshot',
-          { athleteId: share.athleteId, revision: share.revision, fingerprint, policy: 1 },
+          athleteIdForJson({ athleteId: share.athleteId, revision: share.revision, fingerprint, policy: 1 }),
           expiresAt,
         )
         snapshot = {

@@ -2,6 +2,7 @@ import { topRunningCity } from './top-running-city'
 import type { ShareRow, ShareWrite } from './sharing-db'
 import { canonicalSnapshot } from './share-snapshot'
 import { digest, readProof, type SnapshotProof } from './sharing-proof'
+import { normalizeStravaId } from './strava-id'
 
 export class SharingError extends Error {
   constructor(code: string) {
@@ -9,13 +10,13 @@ export class SharingError extends Error {
   }
 }
 export interface SharingStore {
-  read: (athleteId: number) => Promise<ShareRow>
+  read: (athleteId: string) => Promise<ShareRow>
   commit: (expected: ShareRow, next: ShareWrite) => Promise<ShareRow | null>
-  upload: (athleteId: number, body: string) => Promise<string>
+  upload: (athleteId: string, body: string) => Promise<string>
   discard: (path: string) => Promise<void>
 }
 interface Mutation {
-  athleteId: number
+  athleteId: string
   displayName: string | null
   revision: string
   action: 'create' | 'update' | 'rename' | 'stop'
@@ -59,7 +60,14 @@ export async function mutateShare(store: SharingStore, input: Mutation): Promise
     if (input.action === 'update' && !current.active) throw new SharingError('publication_changed')
     if (input.action === 'create' && current.active) throw new SharingError('publication_changed')
     const proof = readProof<SnapshotProof>('snapshot', input.proof)
-    if (!proof || proof.policy !== 1 || proof.athleteId !== input.athleteId || proof.revision !== current.revision) {
+    // Existing signed proofs may contain safe numeric IDs. Normalize only after
+    // verifying the signature; unsafe numbers must never authorize an account.
+    if (
+      !proof ||
+      proof.policy !== 1 ||
+      normalizeStravaId(proof.athleteId) !== input.athleteId ||
+      proof.revision !== current.revision
+    ) {
       throw new SharingError('sync_required')
     }
     // The signed hash alone proves an unchanged update; don't retransmit or

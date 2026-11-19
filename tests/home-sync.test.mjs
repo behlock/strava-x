@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { loadTs } from './load-ts.mjs'
 
-function page(cached, share = { athleteId: 7, slug: 'owner', revision: '1', fingerprint: 'same' }) {
+function page(cached, share = { athleteId: '7', slug: 'owner', revision: '1', fingerprint: 'same' }) {
   const effects = []
   const writes = []
   const libraries = []
@@ -35,7 +35,7 @@ function page(cached, share = { athleteId: 7, slug: 'owner', revision: '1', fing
       usePersistedActivities: () => ({
         activities: cached?.activities ?? [],
         restore: async (id) => {
-          assert.equal(id, 7)
+          assert.equal(id, '7')
           return cached
         },
         setLibrary: (id, library) => libraries.push({ id, library }),
@@ -119,7 +119,7 @@ test('a changed version downloads a complete library and updates its cached stam
       url.endsWith('/status')
         ? { ...status, version: '123:5' }
         : {
-            athleteId: 7,
+            athleteId: '7',
             activities: [],
             share: null,
             snapshot: null,
@@ -134,7 +134,7 @@ test('a changed version downloads a complete library and updates its cached stam
     home.writes.some(({ index, next }) => index === 0 && next === true),
     true,
   )
-  assert.deepEqual(home.libraries, [{ id: 7, library: { activities: [], sync } }])
+  assert.deepEqual(home.libraries, [{ id: '7', library: { activities: [], sync } }])
 })
 
 test('failed syncs never advance cached freshness', async (t) => {
@@ -156,7 +156,7 @@ test('a failed public map update is retried even when the personal cache is rece
   })
   const home = page(
     { activities: [], sync: stamp },
-    { athleteId: 7, slug: 'owner', revision: '1', fingerprint: 'older' },
+    { athleteId: '7', slug: 'owner', revision: '1', fingerprint: 'older' },
   )
   await home.start()
   assert.deepEqual(requests, ['/api/activities/status', '/api/activities/sync'])
@@ -197,7 +197,7 @@ test('initial sync previews batches before completion without saving or publishi
   const stream = progressiveFetch(t)
   const home = page(null)
   await home.start()
-  stream.send({ type: 'start', athleteId: 7 })
+  stream.send({ type: 'start', athleteId: '7' })
   stream.send({ type: 'batch', activities: [previewActivity] })
   await new Promise(setImmediate)
   const preview = home.writes.find(({ next }) => Array.isArray(next) && next[0]?.id === 'first')
@@ -207,7 +207,7 @@ test('initial sync previews batches before completion without saving or publishi
   assert.deepEqual(home.saves, [])
   assert.deepEqual(home.publicUpdates, [])
   const sync = { version: 'changed', syncedAt: 123 }
-  stream.send({ type: 'complete', count: 1, result: { athleteId: 7, snapshot: null, share: null, sync } })
+  stream.send({ type: 'complete', count: 1, result: { athleteId: '7', snapshot: null, share: null, sync } })
   stream.close()
   await new Promise(setImmediate)
   assert.equal(home.libraries.length, 1)
@@ -222,7 +222,7 @@ test('failed initial sync discards the preview; an existing complete map stays v
     const stream = progressiveFetch(t)
     const home = page(cached)
     await home.start()
-    stream.send({ type: 'start', athleteId: 7 })
+    stream.send({ type: 'start', athleteId: '7' })
     stream.send({ type: 'batch', activities: [previewActivity] })
     await new Promise(setImmediate)
     const previews = home.writes.filter(({ next }) => Array.isArray(next))

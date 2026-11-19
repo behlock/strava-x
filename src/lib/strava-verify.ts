@@ -4,16 +4,18 @@
 
 import { digest } from './sharing-proof'
 import { TtlCache } from './ttl-cache'
+import { stravaObjectId } from './strava-id'
 
 interface StravaAthleteResponse {
   id: number
+  id_str?: string
   firstname?: string
   lastname?: string
   username?: string
 }
 
 export interface VerifiedAthlete {
-  athleteId: number
+  athleteId: string
   displayName: string | null
 }
 
@@ -55,7 +57,8 @@ export async function verifyStravaToken(accessToken: string): Promise<VerifiedAt
     throw new StravaAuthError('malformed')
   }
 
-  if (!body || !Number.isSafeInteger(body.id) || body.id <= 0) throw new StravaAuthError('malformed')
+  const athleteId = stravaObjectId(body)
+  if (!athleteId) throw new StravaAuthError('malformed')
 
   const displayName =
     [body.firstname, body.lastname]
@@ -64,7 +67,7 @@ export async function verifyStravaToken(accessToken: string): Promise<VerifiedAt
       .trim()
       .slice(0, 100) || (typeof body.username === 'string' ? body.username.trim().slice(0, 100) : null)
 
-  const athlete: VerifiedAthlete = { athleteId: body.id, displayName }
+  const athlete: VerifiedAthlete = { athleteId, displayName }
   verifyCache.set(tokenHash, athlete)
   return athlete
 }

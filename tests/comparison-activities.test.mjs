@@ -19,7 +19,7 @@ test('only reads the verified account cache and avoids syncing a fresh library',
     return Response.json(status)
   })
   const load = loader(async (id) => {
-    assert.equal(id, 42)
+    assert.equal(id, '42')
     return { activities: cached, sync: fresh }
   })
   assert.equal(await load('token', signal()), cached)

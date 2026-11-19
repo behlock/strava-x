@@ -66,7 +66,7 @@ async function withStore<T>(mode: IDBTransactionMode, run: (store: IDBObjectStor
 
 /** Replace one account's entire library atomically, including a successful empty sync. */
 export function replaceActivities(
-  athleteId: number,
+  athleteId: string,
   activities: Activity[],
   sync: ActivitySyncStamp | null = null,
 ): Promise<void> {
@@ -76,7 +76,7 @@ export function replaceActivities(
 }
 
 /** A verified account id is required; unscoped legacy rows are never restored. */
-export async function loadActivities(athleteId: number): Promise<ActivityLibrary | null> {
+export async function loadActivities(athleteId: string): Promise<ActivityLibrary | null> {
   try {
     const row = (await withStore('readonly', (store) => awaitRequest(store.get(String(athleteId))))) as
       { activities: SerializedActivity[]; sync?: ActivitySyncStamp | null } | undefined

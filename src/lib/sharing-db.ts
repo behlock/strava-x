@@ -1,9 +1,10 @@
 import type { MapsSort, MapsOrder } from './maps-sort'
 import { neon } from '@neondatabase/serverless'
 import type { ShareState } from './share-snapshot'
+import { normalizeStravaId } from './strava-id'
 
 export interface ShareRow {
-  athlete_id: number
+  athlete_id: string
   slug: string | null
   active: boolean
   revision: string
@@ -30,11 +31,11 @@ export async function randomPublishedMap(
     LIMIT 1`
   return (rows[0]?.slug as string | undefined) ?? null
 }
-const normalize = (row: ShareRow): ShareRow => ({
-  ...row,
-  athlete_id: Number(row.athlete_id),
-  revision: String(row.revision),
-})
+const normalize = (row: ShareRow): ShareRow => {
+  const athleteId = normalizeStravaId(row.athlete_id)
+  if (!athleteId) throw new Error('invalid_athlete_id')
+  return { ...row, athlete_id: athleteId, revision: String(row.revision) }
+}
 export function shareState(row: ShareRow): ShareState {
   return {
     athleteId: row.athlete_id,
@@ -43,7 +44,7 @@ export function shareState(row: ShareRow): ShareState {
     fingerprint: row.fingerprint,
   }
 }
-export async function ensureShare(athleteId: number): Promise<ShareRow> {
+export async function ensureShare(athleteId: string): Promise<ShareRow> {
   const db = sql()
   await db`INSERT INTO map_shares (athlete_id) VALUES (${athleteId}) ON CONFLICT DO NOTHING`
   const rows = await db`SELECT * FROM map_shares WHERE athlete_id = ${athleteId}`

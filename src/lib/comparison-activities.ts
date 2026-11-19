@@ -2,6 +2,7 @@ import { loadActivities } from '@/lib/activities-db'
 import { deserializeActivities, type SerializedActivity } from '@/lib/activities-serialize'
 import { isActivityCacheFresh, type ActivitySyncStatus } from '@/lib/activity-sync'
 import type { Activity } from '@/models/activity'
+import { normalizeAthleteId } from './strava-id'
 
 /** Verify the session's account before reading its cache. */
 export async function loadComparisonActivities(
@@ -17,7 +18,7 @@ export async function loadComparisonActivities(
   }
   const statusResponse = await fetch('/api/activities/status', options)
   if (statusResponse.status === 401) throw new Error('strava_unauthorized')
-  const status: ActivitySyncStatus | null = statusResponse.ok ? await statusResponse.json() : null
+  const status: ActivitySyncStatus | null = statusResponse.ok ? normalizeAthleteId(await statusResponse.json()) : null
   if (status) {
     const cached = await loadActivities(status.athleteId)
     signal.throwIfAborted()
@@ -29,7 +30,7 @@ export async function loadComparisonActivities(
     const body = await response.json().catch(() => null)
     throw new Error(body?.error ?? 'sync_failed')
   }
-  const result = (await response.json()) as { athleteId: number; activities: SerializedActivity[] }
+  const result = normalizeAthleteId((await response.json()) as { athleteId: string; activities: SerializedActivity[] })
   signal.throwIfAborted()
   if (status && result.athleteId !== status.athleteId) throw new Error('strava_unauthorized')
   return deserializeActivities(result.activities)

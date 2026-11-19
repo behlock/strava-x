@@ -2,6 +2,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 
 import { authenticateAthlete, enforceRateLimit, isAccessToken, jsonError, readJsonBody } from '@/lib/api'
 import { ensureShare, shareState } from '@/lib/sharing-db'
+import { athleteIdForJson } from '@/lib/strava-id'
 
 export const runtime = 'nodejs'
 
@@ -22,7 +23,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const existing = await ensureShare(auth.athlete.athleteId)
-    return NextResponse.json(shareState(existing), { headers: { 'Cache-Control': 'no-store' } })
+    return NextResponse.json(athleteIdForJson(shareState(existing)), { headers: { 'Cache-Control': 'no-store' } })
   } catch {
     return jsonError('sharing_unavailable', 503)
   }

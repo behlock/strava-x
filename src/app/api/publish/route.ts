@@ -5,6 +5,7 @@ import { compareAndSwapShare, ensureShare, queueBlobCleanup, shareState } from '
 import { mutateShare, SharingError } from '@/lib/sharing-service'
 import { drainBlobCleanup, writePrivateSnapshot } from '@/lib/sharing-storage'
 import { validateSlug } from '@/lib/slug'
+import { athleteIdForJson } from '@/lib/strava-id'
 
 export const runtime = 'nodejs'
 const LIMIT = 25 * 1024 * 1024
@@ -54,12 +55,12 @@ async function mutate(req: NextRequest, stopping: boolean) {
       },
     )
     return NextResponse.json(
-      {
+      athleteIdForJson({
         ...shareState(row),
         url: row.slug ? `/${row.slug}` : null,
         activityCount: row.activity_count,
         sizeBytes: row.size_bytes,
-      },
+      }),
       { headers: { 'Cache-Control': 'no-store' } },
     )
   } catch (error) {

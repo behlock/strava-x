@@ -79,12 +79,12 @@ export interface VerifiedSnapshot {
   activities: SerializedActivity[]
   proof: string
   fingerprint: string
-  athleteId: number
+  athleteId: string
   revision: string
   expiresAt: number
 }
 export interface ShareState {
-  athleteId: number
+  athleteId: string
   slug: string | null
   revision: string
   fingerprint: string | null

@@ -38,11 +38,18 @@ async function query(sql) {
     '-c',
     sql,
   ])
-  return result.stdout
-    .trim()
-    .split('\n')
-    .filter(Boolean)
-    .map((line) => JSON.parse(line))
+  return (
+    result.stdout
+      .trim()
+      .split('\n')
+      .filter(Boolean)
+      // Mirror the driver's int8-as-text behavior when psql returns row_to_json.
+      .map((line) =>
+        JSON.parse(line, (_key, value, context) =>
+          typeof value === 'number' && !Number.isSafeInteger(value) ? context.source : value,
+        ),
+      )
+  )
 }
 const sql = async (parts, ...values) => {
   let text = parts.reduce((out, part, index) => out + part + (index < values.length ? literal(values[index]) : ''), '')
@@ -194,5 +201,31 @@ test(
     )
     assert.deepEqual(await db.cleanupCandidates(), cleanupBeforeDrop)
     await query(cleanupMigration)
+
+    // Both IDs round to the same JavaScript Number; all SQL and app boundaries
+    // must preserve their independent ownership, revisions, and invalidation.
+    const firstId = '9007199254740992',
+      secondId = '9007199254740993',
+      maxId = '9223372036854775807'
+    const first = await db.ensureShare(firstId)
+    const second = await db.ensureShare(secondId)
+    assert.equal(first.athlete_id, firstId)
+    assert.equal(second.athlete_id, secondId)
+    assert.equal((await db.ensureShare(maxId)).athlete_id, maxId)
+    await db.compareAndSwapShare(first, write('large-first', 'large-first-path'))
+    await db.compareAndSwapShare(second, write('large-second', 'large-second-path'))
+    assert.equal((await db.findShareBySlug('large-first')).athlete_id, firstId)
+    assert.equal((await db.findShareBySlug('large-second')).athlete_id, secondId)
+    assert.equal(await syncDb.getActivityVersion(firstId), 'poll:0')
+    assert.equal(await syncDb.getActivityVersion(secondId), 'poll:0')
+    await syncDb.recordActivityChange(firstId, 'large-delete', false, true)
+    assert.equal(await syncDb.getActivityVersion(firstId), 'poll:1')
+    assert.equal(await syncDb.getActivityVersion(secondId), 'poll:0')
+    assert.equal((await db.findShareBySlug('large-first')).snapshot_path, null)
+    assert.equal((await db.findShareBySlug('large-second')).snapshot_path, 'large-second-path')
+    await syncDb.recordActivityChange(firstId, 'large-delete', false, true)
+    assert.equal((await db.ensureShare(firstId)).revision, '2')
+    await syncDb.recordActivityChange(secondId, 'large-revocation', true)
+    assert.equal(await db.findShareBySlug('large-second'), null)
   },
 )

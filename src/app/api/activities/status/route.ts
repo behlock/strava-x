@@ -2,6 +2,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { authenticateAthlete, enforceRateLimit, isAccessToken, jsonError, readJsonBody } from '@/lib/api'
 import { getActivityVersion } from '@/lib/activity-sync-db'
 import { webhookSubscriptionId } from '@/lib/strava-webhook-config'
+import { athleteIdForJson } from '@/lib/strava-id'
 
 export const runtime = 'nodejs'
 
@@ -19,11 +20,11 @@ export async function POST(req: NextRequest) {
     // Missing tracking metadata must trigger a sync, never validate a stale cache.
   }
   return NextResponse.json(
-    {
+    athleteIdForJson({
       athleteId: auth.athlete.athleteId,
       version,
       webhooksActive: webhookSubscriptionId() !== null,
-    },
+    }),
     { headers: { 'Cache-Control': 'private, no-store' } },
   )
 }

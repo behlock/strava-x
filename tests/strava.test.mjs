@@ -13,6 +13,29 @@ const activity = (id) => ({
 const fullPage = (page) => Array.from({ length: 200 }, (_, i) => activity((page - 1) * 200 + i + 1))
 const pageNumber = (url) => Number(new URL(url).searchParams.get('page'))
 
+test('large activity IDs remain distinct and existing activity keys do not change', async (t) => {
+  const ids = ['42', '9007199254740992', '9007199254740993', '9223372036854775807']
+  t.mock.method(globalThis, 'fetch', async (url) =>
+    Response.json(pageNumber(url) === 1 ? ids.map((id) => ({ ...activity(Number(id)), id_str: id })) : []),
+  )
+  const imported = []
+  await fetchAllActivities('token', { onBatch: (batch) => imported.push(...batch.map((a) => a.id)) })
+  assert.deepEqual(
+    imported,
+    ids.map((id) => `strava-${id}`),
+  )
+})
+
+test('unsafe numeric IDs without id_str and malformed id_str cannot enter a library', async (t) => {
+  for (const item of [activity(9007199254740992), { ...activity(42), id_str: 'invalid' }]) {
+    t.mock.method(globalThis, 'fetch', async () => Response.json([item]))
+    await assert.rejects(
+      fetchAllActivities('token', { onBatch: () => assert.fail('must not emit invalid IDs') }),
+      /strava_invalid_response/,
+    )
+  }
+})
+
 test('short pages do not truncate the library; an empty page ends the sync', async (t) => {
   const pages = []
   const ids = []

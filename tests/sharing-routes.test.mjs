@@ -1,6 +1,5 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { gunzipSync } from 'node:zlib'
 import { loadTs } from './load-ts.mjs'
 
 process.env.STRAVA_CLIENT_SECRET = 'isolated-test-secret'
@@ -61,11 +60,11 @@ test('sync records the change version before downloading, so concurrent webhook 
   assert.equal(version, '123:5')
 })
 async function decoded(response) {
-  return JSON.parse(gunzipSync(Buffer.from(await response.arrayBuffer())).toString())
+  return response.json()
 }
 
 test(
-  'gzip flushes preview routes before later Strava pages finish; proof is issued only on completion',
+  'preview routes arrive before later Strava pages finish; proof is issued only on completion',
   { timeout: 5000 },
   async (t) => {
     let release
@@ -78,26 +77,22 @@ test(
       return Response.json([])
     })
     const response = await syncRoute()(request('application/x-ndjson'))
-    assert.equal(response.headers.get('Content-Encoding'), 'gzip')
+    assert.equal(response.headers.get('Content-Encoding'), null)
     const { readActivitySync } = loadTs('src/lib/activity-sync-stream.ts')
     let firstBatch
     const seen = new Promise((resolve) => {
       firstBatch = resolve
     })
     let finished = false
-    const pending = readActivitySync(
-      new Response(response.body.pipeThrough(new DecompressionStream('gzip')), {
-        headers: { 'Content-Type': 'application/x-ndjson' },
-      }),
-      new AbortController().signal,
-      (athleteId, activities) => firstBatch({ athleteId, activities }),
+    const pending = readActivitySync(response, new AbortController().signal, (athleteId, activities) =>
+      firstBatch({ athleteId, activities }),
     )
     pending.then(() => {
       finished = true
     })
     try {
       const preview = await seen
-      assert.equal(preview.athleteId, 7)
+      assert.equal(preview.athleteId, '7')
       assert.equal(preview.activities[0].id, 'strava-1')
       assert.equal(finished, false)
       release()
@@ -115,11 +110,7 @@ test('a later page failure in a progressive sync has no completion or publishabl
     new URL(url).searchParams.get('page') === '1' ? Response.json([item(1)]) : new Response(null, { status: 401 }),
   )
   const response = await syncRoute()(request('application/x-ndjson'))
-  const events = gunzipSync(Buffer.from(await response.arrayBuffer()))
-    .toString()
-    .trim()
-    .split('\n')
-    .map(JSON.parse)
+  const events = (await response.text()).trim().split('\n').map(JSON.parse)
   assert.deepEqual(
     events.map((event) => event.type),
     ['start', 'batch', 'error'],
@@ -147,10 +138,7 @@ test('closing a progressive response cancels the outstanding Strava page', { tim
     })
   })
   const response = await syncRoute()(request('application/x-ndjson'))
-  const reader = response.body
-    .pipeThrough(new DecompressionStream('gzip'))
-    .pipeThrough(new TextDecoderStream())
-    .getReader()
+  const reader = response.body.pipeThrough(new TextDecoderStream()).getReader()
   let text = ''
   while (!text.includes('"type":"batch"')) text += (await reader.read()).value
   await reader.cancel()
@@ -433,4 +421,45 @@ test('full precision downloads stream unchanged and reject obsolete manifest rev
   assert.equal(response.body, stream)
   assert.equal((await response.arrayBuffer()).byteLength, 5 * 1024 * 1024)
   assert.equal(reads, 1)
+})
+
+test('sync carries exact Strava int64 identities through verification, imports, JSON, and signed proofs', async (t) => {
+  const athleteId = '9223372036854775807'
+  const ids = ['9007199254740992', '9007199254740993']
+  const { authenticateAthlete } = loadTs('src/lib/api.ts')
+  const { readProof } = loadTs('src/lib/sharing-proof.ts')
+  const { readActivitySync } = loadTs('src/lib/activity-sync-stream.ts')
+  t.mock.method(globalThis, 'fetch', async (url) => {
+    if (url.endsWith('/athlete')) return new Response(`{"id":${athleteId},"id_str":"${athleteId}"}`)
+    return Response.json(
+      new URL(url).searchParams.get('page') === '1' ? ids.map((id) => ({ ...item(Number(id)), id_str: id })) : [],
+    )
+  })
+  const POST = loadTs('src/app/api/activities/sync/route.ts', {
+    '@/lib/api': { ...api, authenticateAthlete },
+    '@/lib/activity-sync-db': {
+      getActivityVersion: async (id) => {
+        assert.equal(id, athleteId)
+        return 'poll:1'
+      },
+    },
+    '@/lib/sharing-db': {
+      ensureShare: async (id) => {
+        assert.equal(id, athleteId)
+        return { ...row, athlete_id: id }
+      },
+      shareState: (r) => ({ athleteId: r.athlete_id, slug: r.slug, revision: r.revision, fingerprint: r.fingerprint }),
+    },
+  }).POST
+  for (const accept of ['application/json', 'application/x-ndjson']) {
+    const raw = await POST(request(accept))
+    const result = await readActivitySync(raw, new AbortController().signal, (id) => assert.equal(id, athleteId))
+    assert.equal(result.athleteId, athleteId)
+    assert.equal(result.share.athleteId, athleteId)
+    assert.deepEqual(
+      result.activities.map((a) => a.id),
+      ids.map((id) => `strava-${id}`),
+    )
+    assert.equal(readProof('snapshot', result.snapshot.proof).athleteId, athleteId)
+  }
 })

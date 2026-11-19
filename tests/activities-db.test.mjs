@@ -69,3 +69,16 @@ test('synchronous serialization failure preserves the previous library without u
   await assert.rejects(replaceActivities(1, [{ ...activity('invalid'), date: new Date(NaN) }]))
   assert.deepEqual(ids(await loadActivities(1)), ['before'])
 })
+
+test('string IDs restore old cache keys and adjacent large accounts stay isolated', async () => {
+  await replaceActivities(42, [activity('legacy')])
+  assert.deepEqual(ids(await loadActivities('42')), ['legacy'])
+  const first = '9007199254740992',
+    second = '9007199254740993'
+  await replaceActivities(first, [activity('first')])
+  await replaceActivities(second, [activity('second')])
+  assert.deepEqual(ids(await loadActivities(first)), ['first'])
+  assert.deepEqual(ids(await loadActivities(second)), ['second'])
+  await replaceActivities(first, [])
+  assert.deepEqual(ids(await loadActivities(second)), ['second'])
+})

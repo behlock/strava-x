@@ -1,17 +1,13 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
+import { createHash } from 'node:crypto'
 import { loadTs } from './load-ts.mjs'
 
 process.env.STRAVA_CLIENT_SECRET = 'isolated-webhook-secret'
 process.env.STRAVA_WEBHOOK_SUBSCRIPTION_ID = '123'
 const { stravaWebhookToken } = loadTs('src/lib/strava-webhook-config.ts')
-const api = {
-  readJsonBody: async (req) => req.json().catch(() => null),
-  jsonError: (error, status = 400) => Response.json({ error }, { status }),
-}
 function route(recordActivityChange) {
   const handlers = loadTs('src/app/api/strava/webhook/[key]/route.ts', {
-    '@/lib/api': api,
     '@/lib/activity-sync-db': { recordActivityChange },
   })
   const context = (req) => ({ params: Promise.resolve({ key: new URL(req.url).pathname.split('/').at(-1) }) })
@@ -62,8 +58,14 @@ test('activity events invalidate only their owner, with a stable key for retries
   assert.equal((await POST(request())).status, 200)
   assert.equal((await POST(request())).status, 200)
   assert.deepEqual(changes[0], changes[1])
-  assert.equal(changes[0][0], 7)
+  assert.equal(changes[0][0], '7')
   assert.match(changes[0][1], /^[a-f0-9]{64}$/)
+  assert.equal(
+    changes[0][1],
+    createHash('sha256')
+      .update(JSON.stringify([event.object_type, event.object_id, event.aspect_type, event.event_time, []]))
+      .digest('hex'),
+  )
   assert.equal(changes[0][2], false)
   await POST(request({ ...event, aspect_type: 'delete' }))
   assert.notEqual(changes[0][1], changes[2][1])
@@ -100,4 +102,40 @@ test('deletions and visibility changes invalidate snapshots, ordinary updates do
     [true, true, true, false, false],
   )
   assert.ok(changes.every((args) => args[2] === false))
+})
+
+test('raw int64 webhook IDs target the exact owner and keep adjacent events distinct', async () => {
+  const changes = []
+  const { POST } = route(async (...args) => changes.push(args))
+  const raw = (owner, object, changed = {}) =>
+    new Request(url(), {
+      method: 'POST',
+      body: JSON.stringify({ ...event, ...changed, owner_id: 'OWNER', object_id: 'OBJECT' })
+        .replace('"OWNER"', owner)
+        .replace('"OBJECT"', object),
+    })
+  const owner = '9223372036854775807'
+  assert.equal((await POST(raw(owner, '9007199254740992'))).status, 200)
+  assert.equal((await POST(raw(owner, '9007199254740992'))).status, 200)
+  assert.equal((await POST(raw(owner, '9007199254740993'))).status, 200)
+  assert.equal((await POST(raw(owner, '9007199254740993', { aspect_type: 'delete' }))).status, 200)
+  assert.equal(
+    (await POST(raw(owner, owner, { object_type: 'athlete', aspect_type: 'update', updates: { authorized: 'false' } })))
+      .status,
+    200,
+  )
+  assert.ok(changes.every((args) => args[0] === owner))
+  assert.deepEqual(changes[0], changes[1])
+  assert.notEqual(changes[0][1], changes[2][1])
+  assert.equal(changes[3][3], true)
+  assert.equal(changes[4][2], true)
+  const before = changes.length
+  for (const id of ['9223372036854775808', '-1', '1.5', '1e3']) assert.equal((await POST(raw(id, '99'))).status, 400)
+  assert.equal(changes.length, before)
+})
+
+test('webhook bodies remain bounded and malformed JSON is rejected', async () => {
+  const { POST } = route(() => assert.fail('must not invalidate any account'))
+  for (const body of ['{', ' '.repeat(65 * 1024), 'null', '[]'])
+    assert.equal((await POST(new Request(url(), { method: 'POST', body }))).status, 400)
 })

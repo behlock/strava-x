@@ -1,5 +1,6 @@
 import type { Activity, ActivityFeature, ActivityType } from '@/models/activity'
 import type { LngLat } from '@/models/map'
+import { stravaObjectId } from './strava-id'
 
 const STRAVA_API = 'https://www.strava.com/api/v3'
 const PER_PAGE = 200
@@ -10,6 +11,7 @@ const BASE_BACKOFF_MS = 1000
 
 interface StravaSummaryActivity {
   id: number
+  id_str?: string
   distance: number // meters
   total_elevation_gain: number // meters
   start_date: string
@@ -73,8 +75,9 @@ function decodePolyline(encoded: string): LngLat[] {
 }
 
 function summaryToActivity(s: StravaSummaryActivity): Activity {
+  const id = stravaObjectId(s)
   if (
-    !Number.isSafeInteger(s.id) ||
+    !id ||
     typeof s.sport_type !== 'string' ||
     !Number.isFinite(Date.parse(s.start_date)) ||
     !Number.isFinite(s.distance) ||
@@ -92,7 +95,7 @@ function summaryToActivity(s: StravaSummaryActivity): Activity {
     }
   }
   return {
-    id: `strava-${s.id}`,
+    id: `strava-${id}`,
     visibility:
       s.private === true
         ? 'only_me'

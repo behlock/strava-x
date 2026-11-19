@@ -28,7 +28,8 @@ export function readProof<T>(purpose: string, proof: unknown): (T & { expiresAt:
   }
 }
 export interface SnapshotProof {
-  athleteId: number
+  // Safe numeric claims remain compatible with proofs issued before migration.
+  athleteId: string | number
   revision: string
   fingerprint: string
   policy: 1

@@ -8,12 +8,12 @@ import type { ActivityLibrary } from '@/lib/activities-db'
 export function usePersistedActivities() {
   const [activities, setActivities] = useState<Activity[]>([])
   const generation = useRef(0)
-  const library = useRef<{ athleteId: number; value: ActivityLibrary } | null>(null)
-  const setLibrary = useCallback((athleteId: number, value: ActivityLibrary) => {
+  const library = useRef<{ athleteId: string; value: ActivityLibrary } | null>(null)
+  const setLibrary = useCallback((athleteId: string, value: ActivityLibrary) => {
     library.current = { athleteId, value }
     setActivities(value.activities)
   }, [])
-  const restore = useCallback(async (athleteId: number, signal: AbortSignal) => {
+  const restore = useCallback(async (athleteId: string, signal: AbortSignal) => {
     if (signal.aborted) return null
     if (library.current?.athleteId === athleteId) return library.current.value
     const version = ++generation.current
